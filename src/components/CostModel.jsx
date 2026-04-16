@@ -6,8 +6,9 @@ import { COLORS, FONTS } from '../data/constants';
 import { fmt, fK, psf } from '../utils/format';
 import { EditField } from './EditField';
 import { Badge } from './Badge';
+import { AIPanel } from './AIPanel';
 
-export function CostModel({ items, globals, activeItems, totals, updateItem, bsf }) {
+export function CostModel({ items, globals, activeItems, totals, updateItem, bsf, aiAdvice, aiLoading, askAI, applyAI }) {
   const { mob, tab } = useWindowSize();
   const [search, setSearch] = useState('');
   const [fCat, setFCat] = useState('All');
@@ -31,6 +32,36 @@ export function CostModel({ items, globals, activeItems, totals, updateItem, bsf
   const cvk = CE.cvKey(cv);
   const uI = (id, f) => (v) => updateItem(id, f, v);
 
+  // Expanded detail panel (shared between mobile and desktop)
+  const ItemDetail = ({ item }) => {
+    const lt = CE.lowTotal(item), mt = CE.midTotal(item), ht = CE.highTotal(item);
+    return (
+      <div style={{ padding: mob ? '0 14px 14px' : '10px 20px', borderTop: mob ? `1px solid ${COLORS.bl}` : 'none' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: mob ? '1fr 1fr' : 'repeat(5,1fr)', gap: 8, marginTop: mob ? 10 : 0 }}>
+          {[['Qty Min', 'qtyMin'], ['Qty Max', 'qtyMax'], ['$/Low', 'unitCostLow'], ['$/Mid', 'unitCostMid'], ['$/High', 'unitCostHigh']].map(([l, f]) => (
+            <div key={f}>
+              <div style={{ fontSize: 10, color: COLORS.mg, fontFamily: FONTS.heading, fontWeight: 600, textTransform: 'uppercase', marginBottom: 4 }}>{l}</div>
+              <EditField value={item[f]} onCommit={uI(item.id, f)} mob={mob} />
+            </div>
+          ))}
+        </div>
+        <div style={{ marginTop: 8, padding: '6px 10px', background: COLORS.bl, borderRadius: 6, fontSize: 11, color: COLORS.mg, fontFamily: FONTS.body }}>
+          L: <b style={{ color: COLORS.lg }}>{fmt(lt)}</b> · M: <b style={{ color: COLORS.gn }}>{fmt(mt)}</b> · H: <b style={{ color: COLORS.or }}>{fmt(ht)}</b>
+          {item.basis && <span style={{ marginLeft: 12 }}>| {item.basis}</span>}
+        </div>
+        {/* AI Cost Advisor */}
+        <AIPanel
+          item={item}
+          advice={aiAdvice?.[item.id]}
+          loading={aiLoading?.has(item.id)}
+          onAsk={() => askAI(item)}
+          onApply={(adv) => applyAI(item.id, adv)}
+          mob={mob}
+        />
+      </div>
+    );
+  };
+
   return (
     <div style={{ fontFamily: FONTS.body }}>
       {/* Toolbar */}
@@ -49,7 +80,7 @@ export function CostModel({ items, globals, activeItems, totals, updateItem, bsf
         </div>
       </div>
 
-      {/* ─── Mobile: Card layout ─── */}
+      {/* Mobile: Card layout */}
       {mob ? (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           {groups.map(g => {
@@ -71,8 +102,9 @@ export function CostModel({ items, globals, activeItems, totals, updateItem, bsf
                     {g.items.map(item => {
                       const sh = CE.itemTotal(item, cv);
                       const ex = expR === item.id;
+                      const hasAI = aiAdvice?.[item.id] || aiLoading?.has(item.id);
                       return (
-                        <div key={item.id} style={{ background: COLORS.wh, border: `1px solid ${ex ? COLORS.yl : COLORS.bd}`, borderRadius: 10, overflow: 'hidden' }}>
+                        <div key={item.id} style={{ background: COLORS.wh, border: `1px solid ${ex ? COLORS.yl : hasAI ? `${COLORS.gn}44` : COLORS.bd}`, borderRadius: 10, overflow: 'hidden' }}>
                           <div onClick={() => setExpR(ex ? null : item.id)} style={{ padding: '12px 14px', cursor: 'pointer' }}>
                             <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
                               <div style={{ flex: 1, minWidth: 0 }}>
@@ -85,21 +117,7 @@ export function CostModel({ items, globals, activeItems, totals, updateItem, bsf
                               </div>
                             </div>
                           </div>
-                          {ex && (
-                            <div style={{ padding: '0 14px 14px', borderTop: `1px solid ${COLORS.bl}` }}>
-                              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 10 }}>
-                                {[['Qty Min', 'qtyMin'], ['Qty Max', 'qtyMax'], ['$/Low', 'unitCostLow'], ['$/Mid', 'unitCostMid'], ['$/High', 'unitCostHigh']].map(([l, f]) => (
-                                  <div key={f}>
-                                    <div style={{ fontSize: 10, color: COLORS.mg, fontFamily: FONTS.heading, fontWeight: 600, textTransform: 'uppercase', marginBottom: 4 }}>{l}</div>
-                                    <EditField value={item[f]} onCommit={uI(item.id, f)} mob />
-                                  </div>
-                                ))}
-                              </div>
-                              <div style={{ marginTop: 10, padding: '8px 10px', background: COLORS.bl, borderRadius: 6, fontSize: 11, color: COLORS.mg }}>
-                                L: <b style={{ color: COLORS.lg }}>{fmt(CE.lowTotal(item))}</b> · M: <b style={{ color: COLORS.gn }}>{fmt(CE.midTotal(item))}</b> · H: <b style={{ color: COLORS.or }}>{fmt(CE.highTotal(item))}</b>
-                              </div>
-                            </div>
-                          )}
+                          {ex && <ItemDetail item={item} />}
                         </div>
                       );
                     })}
@@ -110,7 +128,7 @@ export function CostModel({ items, globals, activeItems, totals, updateItem, bsf
           })}
         </div>
       ) : (
-        /* ─── Desktop/Tablet: Table layout ─── */
+        /* Desktop/Tablet: Table layout */
         <div style={{ borderRadius: 10, border: `1px solid ${COLORS.bd}`, overflow: 'hidden', background: COLORS.wh }}>
           <div style={{ overflowX: 'auto' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, fontFamily: FONTS.body, minWidth: tab ? 750 : 950 }}>
@@ -136,9 +154,15 @@ export function CostModel({ items, globals, activeItems, totals, updateItem, bsf
                     </tr>,
                     ...(!cl ? g.items.map(item => {
                       const sh = CE.itemTotal(item, cv);
-                      return (
-                        <tr key={item.id} style={{ borderBottom: `1px solid ${COLORS.bl}` }} onMouseEnter={e => e.currentTarget.style.background = '#FCFCF9'} onMouseLeave={e => e.currentTarget.style.background = COLORS.wh}>
-                          <td style={{ padding: '0 4px' }} />
+                      const ex = expR === item.id;
+                      const hasAI = aiAdvice?.[item.id];
+                      return [
+                        <tr key={item.id} style={{ borderBottom: `1px solid ${COLORS.bl}`, background: hasAI ? `${COLORS.gn}06` : COLORS.wh }}
+                          onMouseEnter={e => e.currentTarget.style.background = hasAI ? `${COLORS.gn}08` : '#FCFCF9'}
+                          onMouseLeave={e => e.currentTarget.style.background = hasAI ? `${COLORS.gn}06` : COLORS.wh}>
+                          <td style={{ padding: '0 4px', cursor: 'pointer' }} onClick={() => setExpR(ex ? null : item.id)}>
+                            <span style={{ color: hasAI ? COLORS.gn : COLORS.mg, fontSize: 8 }}>{ex ? '▼' : '▸'}</span>
+                          </td>
                           <td style={{ padding: '3px 5px', maxWidth: 180 }}><EditField value={item.description} onCommit={uI(item.id, 'description')} type="text" /></td>
                           <td style={{ padding: '3px 5px', fontSize: 10, color: COLORS.mg, maxWidth: 70, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.subcategory}</td>
                           {!tab && <td style={{ padding: '3px 3px' }}><EditField value={item.qtyMin} onCommit={uI(item.id, 'qtyMin')} /></td>}
@@ -151,9 +175,14 @@ export function CostModel({ items, globals, activeItems, totals, updateItem, bsf
                           <td style={{ padding: '3px 6px', textAlign: 'right', fontSize: 10, color: COLORS.mg, fontVariantNumeric: 'tabular-nums' }}>{psf(sh, bsf)}</td>
                           <td style={{ padding: '3px 3px' }}><Badge sensitivity={item.sensitivity} /></td>
                           <td style={{ padding: '3px 3px' }}><button onClick={() => updateItem(item.id, 'isArchived', true)} style={{ background: 'transparent', border: 'none', color: COLORS.ltg, cursor: 'pointer', fontSize: 10 }}>✕</button></td>
-                        </tr>
-                      );
-                    }) : []),
+                        </tr>,
+                        ex && (
+                          <tr key={`${item.id}_x`} style={{ background: '#F8F8F3', borderBottom: `1px solid ${COLORS.bd}` }}>
+                            <td colSpan={tab ? 9 : 13}><ItemDetail item={item} /></td>
+                          </tr>
+                        ),
+                      ];
+                    }).flat() : []),
                   ];
                 }).flat()}
               </tbody>
