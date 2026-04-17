@@ -139,8 +139,8 @@ export function CostModel({ items, globals, activeItems, totals, updateItem, bsf
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, fontFamily: FONTS.body, tableLayout: 'fixed', minWidth: tab ? 700 : 1060 }}>
               <colgroup>
                 <col style={{ width: '3%' }} />
-                <col style={{ width: tab ? '33%' : '22%' }} />
-                <col style={{ width: tab ? '16%' : '12%' }} />
+                <col style={{ width: tab ? '33%' : '25%' }} />
+                <col style={{ width: tab ? '14%' : '12%' }} />
                 {!tab && <col style={{ width: '7%' }} />}
                 <col style={{ width: tab ? '12%' : '7%' }} />
                 <col style={{ width: tab ? '6%' : '4%' }} />
@@ -158,7 +158,6 @@ export function CostModel({ items, globals, activeItems, totals, updateItem, bsf
                     .filter(Boolean)
                     .map((h, i) => (
                       <th key={i} style={{
-                        position: 'sticky', top: 0, zIndex: 2,
                         background: '#F5F5F0',
                         padding: h === 'Description' ? '9px 16px 9px 8px' : '9px 8px',
                         textAlign: ['Description', 'Sub'].includes(h) ? 'left' : 'right',
