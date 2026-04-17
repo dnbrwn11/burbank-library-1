@@ -27,7 +27,7 @@ const EMPTY_FORM = {
   delivery_method: '', labor_type: '', gross_sf: '', target_budget: '',
 };
 
-export default function ProjectDashboard({ user, onSignOut, onSelectProject }) {
+export default function ProjectDashboard({ user, onSignOut, onSelectProject, onProjectCreated }) {
   const [projects, setProjects] = useState([]);
   const [loadingProjects, setLoadingProjects] = useState(true);
   const [showForm, setShowForm] = useState(false);
@@ -70,8 +70,7 @@ export default function ProjectDashboard({ user, onSignOut, onSelectProject }) {
       } else {
         setForm(EMPTY_FORM);
         setShowForm(false);
-        await loadProjects();
-        if (data) onSelectProject(data);
+        if (data) onProjectCreated ? onProjectCreated(data) : onSelectProject(data);
       }
     } finally {
       setSaving(false);

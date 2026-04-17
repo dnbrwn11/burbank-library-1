@@ -14,6 +14,7 @@ import { Assumptions } from './components/Assumptions';
 import { AuditLog } from './components/AuditLog';
 import LoginPage from './components/LoginPage';
 import ProjectDashboard from './components/ProjectDashboard';
+import AIGenerator from './components/AIGenerator';
 
 const ACCENT = '#B89030';
 const HEADER = '#222222';
@@ -21,6 +22,7 @@ const HEADER = '#222222';
 export default function App() {
   const { user, loading: authLoading, signIn, signOut } = useAuth();
   const [activeProject, setActiveProject] = useState(null);
+  const [generatingProject, setGeneratingProject] = useState(null);
 
   if (authLoading) {
     return (
@@ -54,12 +56,24 @@ export default function App() {
     return <LoginPage onSignIn={signIn} />;
   }
 
+  if (generatingProject && !activeProject) {
+    return (
+      <AIGenerator
+        project={generatingProject}
+        onSave={() => { setActiveProject(generatingProject); setGeneratingProject(null); }}
+        onSkip={() => { setActiveProject(generatingProject); setGeneratingProject(null); }}
+        onSignOut={signOut}
+      />
+    );
+  }
+
   if (!activeProject) {
     return (
       <ProjectDashboard
         user={user}
         onSignOut={signOut}
         onSelectProject={setActiveProject}
+        onProjectCreated={(p) => { setGeneratingProject(p); }}
       />
     );
   }

@@ -3,10 +3,17 @@ import react from '@vitejs/plugin-react';
 
 export default defineConfig({
   plugins: [react()],
-  // Change 'burbank-cost-model' to your GitHub repo name
   base: '/',
   build: {
     outDir: 'dist',
     sourcemap: false,
+  },
+  server: {
+    proxy: {
+      '/api': {
+        target: 'http://localhost:3000',
+        changeOrigin: true,
+      },
+    },
   },
 });
