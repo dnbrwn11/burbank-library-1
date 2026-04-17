@@ -76,7 +76,7 @@ export function CostModel({ items, globals, activeItems, totals, updateItem, bsf
         <select value={fCat} onChange={e => setFCat(e.target.value)}
           style={{ background: COLORS.wh, border: `1px solid ${COLORS.bd}`, borderRadius: 8, color: COLORS.dg, padding: '10px', fontSize: 12, fontFamily: FONTS.body, flex: mob ? '1 1 48%' : '0 0 auto', minHeight: 42 }}>
           <option value="All">All Categories</option>
-          {CATEGORIES.map(c => <option key={c}>{c}</option>)}
+          {CSI_ORDER.map(c => <option key={c}>{c}</option>)}
         </select>
         <div style={{ display: 'flex', border: `1px solid ${COLORS.bd}`, borderRadius: 8, overflow: 'hidden', flex: mob ? '1 1 48%' : '0 0 auto' }}>
           {['low', 'mid', 'high'].map(v => (
