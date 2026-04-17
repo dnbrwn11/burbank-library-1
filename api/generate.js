@@ -1,7 +1,6 @@
 // Vercel serverless function — calls Anthropic Claude API to generate a
 // construction cost estimate. Requires ANTHROPIC_API_KEY in Vercel env vars.
-// Free-tier Vercel caps execution at 10s; Pro plan supports up to 60s.
-export const config = { maxDuration: 60 };
+export const config = { maxDuration: 300 };
 
 // ── Regional calibration ─────────────────────────────────────────────────────
 
@@ -178,16 +177,13 @@ CATEGORIES — use exactly these strings, in this order, only include those appl
 "Owner Soft Costs" — A/E design fees, permits & fees, testing & inspection, commissioning, owner contingency
 
 GUIDELINES:
-- Generate 110–140 line items. Cover all applicable categories thoroughly.
-- qty_min and qty_max: use the same value if quantity is fixed; use a range for scope-variable items
-- unit_cost_low / mid / high: the cost uncertainty range. Typical spread: Low is -15 to -25% of mid; High is +15 to +30% of mid
-- sensitivity: "Low" (materials cost is stable), "Medium" (normal trade variance), "High" (site conditions or design-dependent), "Very High" (major unknown or optional scope)
-- basis: concise technical note on what the cost is based on (spec, standard, assumption). Max 50 chars.
-- notes: additional context, or null if none needed
-- sort_order: sequential integer starting at 0, reset for each category (group items by category)
-- Calibrate quantities to ${sfStr} building
-- Include allowances for seismic design requirements if in CA, WA, or AK
-- Include contingency line items within each category for major unknowns
+- Generate 50–80 line items covering all applicable categories.
+- qty_min/qty_max: same value if fixed; range if scope-variable.
+- unit_cost_low/mid/high: Low ≈ −20% of mid, High ≈ +20% of mid.
+- sensitivity: "Low" | "Medium" | "High" | "Very High"
+- basis: ≤50 chars. notes: brief context or null. sort_order: 0-indexed per category.
+- Calibrate quantities to ${sfStr}.
+- Include seismic allowances if in CA, WA, or AK.
 
 Respond ONLY with the JSON object. Start with { and end with }.`;
 }
@@ -229,9 +225,9 @@ export default async function handler(req, res) {
   const prompt = buildPrompt(description.trim(), project);
 
   const requestBody = {
-    model: 'claude-sonnet-4-6',
-    max_tokens: 8192,
-    system: 'You are a senior preconstruction cost estimator. Your output must be valid JSON only — no markdown code fences, no explanation text, no preamble. Start your response with { and end with }.',
+    model: 'claude-sonnet-4-20250514',
+    max_tokens: 4096,
+    system: 'Output valid JSON only. No markdown, no explanation. Start with { and end with }.',
     messages: [{ role: 'user', content: prompt }],
   };
   console.log('[generate] Sending request to Anthropic:', {

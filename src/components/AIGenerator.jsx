@@ -139,12 +139,18 @@ export default function AIGenerator({ project, onSave, onSkip, onSignOut }) {
     setStep('generating');
     setStatusIdx(0);
     setGenError(null);
+
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 90_000);
+
     try {
       const res = await fetch('/api/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ description: desc, project }),
+        signal: controller.signal,
       });
+      clearTimeout(timeout);
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || `API returned ${res.status}`);
       if (!Array.isArray(data.items) || !data.items.length) throw new Error('No line items returned from AI');
@@ -153,7 +159,12 @@ export default function AIGenerator({ project, onSave, onSkip, onSignOut }) {
       setCollapsed(Object.fromEntries(CSI_ORDER.map(c => [c, false])));
       setStep('review');
     } catch (err) {
-      setGenError(err.message);
+      clearTimeout(timeout);
+      if (err.name === 'AbortError') {
+        setGenError('Generation is taking longer than expected. Try again with a simpler description.');
+      } else {
+        setGenError(err.message);
+      }
       setStep('error');
     }
   };
