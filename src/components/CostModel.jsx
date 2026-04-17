@@ -136,34 +136,21 @@ export function CostModel({ items, globals, activeItems, totals, updateItem, bsf
         /* Desktop/Tablet: Table layout */
         <div style={{ borderRadius: 10, border: `1px solid ${COLORS.bd}`, overflow: 'clip', background: COLORS.wh }}>
           <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, fontFamily: FONTS.body, tableLayout: 'fixed', minWidth: tab ? 700 : 1000 }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, fontFamily: FONTS.body, tableLayout: 'fixed', minWidth: tab ? 700 : 1060 }}>
               <colgroup>
-                {/* All widths in % to avoid mixed px/% ambiguity in table-layout:fixed */}
-                <col style={{ width: '2%' }} />
-                {tab ? <>
-                  <col style={{ width: '30%' }} />
-                  <col style={{ width: '16%' }} />
-                  <col style={{ width: '10%' }} />
-                  <col style={{ width: '7%' }} />
-                  <col style={{ width: '10%' }} />
-                  <col style={{ width: '12%' }} />
-                  <col style={{ width: '7%' }} />
-                  <col style={{ width: '5%' }} />
-                  <col style={{ width: '1%' }} />
-                </> : <>
-                  <col style={{ width: '25%' }} />
-                  <col style={{ width: '13%' }} />
-                  <col style={{ width: '7%' }} />
-                  <col style={{ width: '7%' }} />
-                  <col style={{ width: '5%' }} />
-                  <col style={{ width: '7%' }} />
-                  <col style={{ width: '7%' }} />
-                  <col style={{ width: '7%' }} />
-                  <col style={{ width: '9%' }} />
-                  <col style={{ width: '6%' }} />
-                  <col style={{ width: '5%' }} />
-                  <col style={{ width: '2%' }} />
-                </>}
+                <col style={{ width: '3%' }} />
+                <col style={{ width: tab ? '33%' : '22%' }} />
+                <col style={{ width: tab ? '16%' : '12%' }} />
+                {!tab && <col style={{ width: '7%' }} />}
+                <col style={{ width: tab ? '12%' : '7%' }} />
+                <col style={{ width: tab ? '6%' : '4%' }} />
+                {!tab && <col style={{ width: '7%' }} />}
+                <col style={{ width: tab ? '11%' : '7%' }} />
+                {!tab && <col style={{ width: '7%' }} />}
+                <col style={{ width: tab ? '10%' : '10%' }} />
+                <col style={{ width: tab ? '6%' : '6%' }} />
+                <col style={{ width: tab ? '1%' : '6%' }} />
+                <col style={{ width: tab ? '2%' : '2%' }} />
               </colgroup>
               <thead>
                 <tr style={{ background: '#F5F5F0' }}>
