@@ -136,6 +136,7 @@ export default function AIGenerator({ project, onSave, onSkip, onSignOut }) {
   const generate = async () => {
     const desc = description.trim();
     if (!desc) return;
+    console.log('[AIGenerator] Starting generation...');
     setStep('generating');
     setStatusIdx(0);
     setGenError(null);
@@ -143,20 +144,26 @@ export default function AIGenerator({ project, onSave, onSkip, onSignOut }) {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 90_000);
 
+    const requestBody = { description: desc, project };
+    console.log('[AIGenerator] Calling /api/generate with:', requestBody);
+
     try {
       const res = await fetch('/api/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ description: desc, project }),
+        body: JSON.stringify(requestBody),
         signal: controller.signal,
       });
       clearTimeout(timeout);
+      console.log('[AIGenerator] API response status:', res.status);
       const data = await res.json();
-      console.log('[AIGenerator] API response:', data);
+      console.log('[AIGenerator] API response body:', data);
       if (!res.ok) throw new Error(data.error || `API returned ${res.status}`);
-      if (!Array.isArray(data.lineItems) || !data.lineItems.length) throw new Error('No line items returned from AI');
+      const lineItems = data.lineItems;
+      console.log('[AIGenerator] Line items found:', lineItems);
+      if (!Array.isArray(lineItems) || !lineItems.length) throw new Error('No line items returned from AI');
       setGeneratedData(data);
-      setEditedItems(data.lineItems.map((item, i) => ({ ...item, _key: i })));
+      setEditedItems(lineItems.map((item, i) => ({ ...item, _key: i })));
       setCollapsed(Object.fromEntries(CSI_ORDER.map(c => [c, false])));
       setStep('review');
     } catch (err) {
