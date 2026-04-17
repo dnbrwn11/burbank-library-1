@@ -166,10 +166,10 @@ export default function TeamPanel({ project, user, onClose }) {
             </div>
           ) : (
             <>
-              {/* Owner */}
+              {/* Owner — fall back to current user's email when profile query returns nothing */}
               <MemberRow
-                name={ownerProfile?.full_name}
-                email={ownerProfile?.email}
+                name={ownerProfile?.full_name || null}
+                email={ownerProfile?.email || (project.owner_id === user.id ? user.email : null)}
                 role="Owner"
                 isYou={project.owner_id === user.id}
                 canRemove={false}
@@ -274,7 +274,10 @@ export default function TeamPanel({ project, user, onClose }) {
 }
 
 function MemberRow({ name, email, role, isYou, canRemove, removing, onRemove }) {
-  const display = name || email || 'Unknown';
+  // Primary display: full name if set, else email, else placeholder
+  const displayName = name || email || '(no profile)';
+  // Secondary line: show email only when it differs from the primary display
+  const showEmail = email && name;
   return (
     <div style={{
       display: 'flex', alignItems: 'center', gap: 12,
@@ -288,12 +291,12 @@ function MemberRow({ name, email, role, isYou, canRemove, removing, onRemove }) 
           whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
           fontFamily: "'Figtree', sans-serif",
         }}>
-          {display}
+          {displayName}
           {isYou && (
             <span style={{ color: '#aaa', fontWeight: 400, marginLeft: 4 }}>(You)</span>
           )}
         </div>
-        {name && email && (
+        {showEmail && (
           <div style={{
             fontSize: 11, color: '#aaa', fontFamily: "'Figtree', sans-serif",
             whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
