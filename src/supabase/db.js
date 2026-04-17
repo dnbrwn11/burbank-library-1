@@ -24,15 +24,17 @@ export async function getProject(projectId) {
   return { data, error };
 }
 
-export async function createProject(project, userId) {
+export async function createProject(project, userId, orgId = null) {
   if (!userId) return { data: null, error: { message: 'userId is required — pass user.id from the component that already holds the auth session' } };
 
-  console.log('[createProject] inserting project', { name: project.name, userId });
+  console.log('[createProject] inserting project', { name: project.name, userId, orgId });
 
   // Step 1: insert the project row
+  const row = { ...project, owner_id: userId };
+  if (orgId) row.org_id = orgId;
   const { data, error } = await supabase
     .from('projects')
-    .insert({ ...project, owner_id: userId })
+    .insert(row)
     .select()
     .single();
 
@@ -301,5 +303,57 @@ export async function getProjectMemberRole(projectId, userId) {
     .eq('project_id', projectId)
     .eq('user_id', userId)
     .single();
+  return { data, error };
+}
+
+// ════════════════════════════════════════════
+// ORGANIZATIONS
+// ════════════════════════════════════════════
+
+export async function getOrgForUser(userId) {
+  const { data, error } = await supabase
+    .from('organization_members')
+    .select('role, organizations(id, name, logo_url, created_at, updated_at)')
+    .eq('user_id', userId)
+    .maybeSingle();
+  if (error || !data) return { data: null, error };
+  return { data: { ...data.organizations, role: data.role }, error: null };
+}
+
+export async function updateOrganization(orgId, updates) {
+  const { data, error } = await supabase
+    .from('organizations')
+    .update({ ...updates, updated_at: new Date().toISOString() })
+    .eq('id', orgId)
+    .select()
+    .single();
+  return { data, error };
+}
+
+export async function getOrgMembers(orgId) {
+  const { data, error } = await supabase
+    .from('organization_members')
+    .select('id, role, invited_at, joined_at, user_id, profiles(full_name, email, avatar_url)')
+    .eq('org_id', orgId)
+    .order('joined_at', { ascending: true, nullsFirst: false });
+  return { data, error };
+}
+
+export async function removeOrgMember(orgId, userId) {
+  const { error } = await supabase
+    .from('organization_members')
+    .delete()
+    .eq('org_id', orgId)
+    .eq('user_id', userId);
+  return { error };
+}
+
+export async function getOrgProjects(orgId) {
+  const { data, error } = await supabase
+    .from('projects')
+    .select('*')
+    .eq('org_id', orgId)
+    .eq('status', 'active')
+    .order('updated_at', { ascending: false });
   return { data, error };
 }

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
-import { getProjects, createProject } from '../supabase/db';
+import { getProjects, getOrgProjects, createProject } from '../supabase/db';
 import { analytics } from '../analytics';
+import { OrgAvatar, OrgMenu } from './OrgSettings';
 
 const isLockError = (err) => {
   const msg = (err?.message || '').toLowerCase();
@@ -38,22 +39,25 @@ const EMPTY_FORM = {
   delivery_method: '', target_budget: '', target_budget_tbd: false,
 };
 
-export default function ProjectDashboard({ user, onSignOut, onSelectProject, onProjectCreated }) {
+export default function ProjectDashboard({ user, org, orgRole, onSignOut, onSelectProject, onProjectCreated, onOrgSettings }) {
   const [projects, setProjects] = useState([]);
   const [loadingProjects, setLoadingProjects] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState(null);
+  const [showMenu, setShowMenu] = useState(false);
 
   const loadProjects = async () => {
     setLoadingProjects(true);
-    const { data } = await getProjects();
+    const { data } = org?.id
+      ? await getOrgProjects(org.id)
+      : await getProjects();
     setProjects(data || []);
     setLoadingProjects(false);
   };
 
-  useEffect(() => { loadProjects(); }, []);
+  useEffect(() => { loadProjects(); }, [org?.id]);
 
   const set = (field) => (val) => setForm(f => ({ ...f, [field]: val }));
 
@@ -75,11 +79,12 @@ export default function ProjectDashboard({ user, onSignOut, onSelectProject, onP
           target_budget: (!form.target_budget_tbd && form.target_budget) ? parseFloat(form.target_budget) : null,
         },
         user.id,
+        org?.id || null,
       );
       if (error) {
         console.error('[handleCreate] createProject error:', error);
         if (isLockError(error)) {
-          const { data: existing } = await getProjects();
+          const { data: existing } = org?.id ? await getOrgProjects(org.id) : await getProjects();
           const created = existing?.find(p => p.name === form.name.trim());
           if (created) {
             setForm(EMPTY_FORM);
@@ -126,21 +131,40 @@ export default function ProjectDashboard({ user, onSignOut, onSelectProject, onP
         }}>
           COSTDECK
         </span>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-          <span style={{ color: '#888', fontFamily: "'Figtree', sans-serif", fontSize: 13 }}>
-            {user.email}
-          </span>
+        <div style={{ position: 'relative' }}>
           <button
-            onClick={onSignOut}
+            onClick={() => setShowMenu(v => !v)}
             style={{
-              background: 'none', border: '1px solid #444',
-              borderRadius: 6, color: '#bbb',
-              fontFamily: "'Figtree', sans-serif", fontSize: 12,
-              padding: '5px 13px', cursor: 'pointer',
+              display: 'flex', alignItems: 'center', gap: 10,
+              background: 'none', border: '1px solid #3a3a3a',
+              borderRadius: 8, padding: '5px 12px 5px 8px',
+              cursor: 'pointer',
             }}
           >
-            Sign out
+            <OrgAvatar org={org} size={26} />
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 1 }}>
+              {org && (
+                <span style={{ color: '#ddd', fontFamily: "'Figtree', sans-serif", fontSize: 12, fontWeight: 600, lineHeight: 1 }}>
+                  {org.name}
+                </span>
+              )}
+              <span style={{ color: '#888', fontFamily: "'Figtree', sans-serif", fontSize: 11, lineHeight: 1 }}>
+                {user.email}
+              </span>
+            </div>
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#666" strokeWidth="2.5" style={{ flexShrink: 0 }}>
+              <polyline points="6 9 12 15 18 9" />
+            </svg>
           </button>
+          {showMenu && (
+            <OrgMenu
+              org={org}
+              user={user}
+              onOrgSettings={(tab) => { setShowMenu(false); onOrgSettings(tab); }}
+              onSignOut={onSignOut}
+              onClose={() => setShowMenu(false)}
+            />
+          )}
         </div>
       </header>
 
@@ -151,10 +175,12 @@ export default function ProjectDashboard({ user, onSignOut, onSelectProject, onP
               fontFamily: "'Archivo', sans-serif", fontWeight: 800,
               fontSize: 28, color: '#111', marginBottom: 6,
             }}>
-              Projects
+              {org ? org.name : 'Projects'}
             </h1>
             <p style={{ fontFamily: "'Figtree', sans-serif", color: '#888', fontSize: 14 }}>
-              Select a project to open it, or create a new one.
+              {org
+                ? `All active projects for ${org.name}.`
+                : 'Select a project to open it, or create a new one.'}
             </p>
           </div>
           <button

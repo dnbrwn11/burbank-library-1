@@ -18,6 +18,7 @@ import { AuditLog } from './components/AuditLog';
 import LoginPage from './components/LoginPage';
 import LandingPage from './components/LandingPage';
 import ProjectDashboard from './components/ProjectDashboard';
+import OrgSettings from './components/OrgSettings';
 import AIGenerator from './components/AIGenerator';
 import TeamPanel, { Avatar, initials } from './components/TeamPanel';
 import { supabase } from './supabase/supabaseClient';
@@ -40,7 +41,7 @@ function decodeInviteToken(token) {
 }
 
 export default function App() {
-  const { user, profile, loading: authLoading, signIn, signOut } = useAuth();
+  const { user, profile, org, orgRole, loading: authLoading, signIn, signOut, refreshOrg } = useAuth();
 
   // Init Crisp once on mount (deferred — won't block first paint)
   useEffect(() => { initCrisp(); }, []);
@@ -54,6 +55,8 @@ export default function App() {
   }, [user?.id, profile?.full_name]);
 
   const [showLogin, setShowLogin] = useState(false);
+  const [showOrgSettings, setShowOrgSettings] = useState(false);
+  const [orgSettingsTab, setOrgSettingsTab] = useState('settings');
 
   const handleSignOut = async () => {
     resetAnalyticsUser();
@@ -101,6 +104,7 @@ export default function App() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to accept invite');
       sessionStorage.removeItem('pendingInvite');
+      if (data.type === 'org') refreshOrg();
       setInviteStatus('success');
     } catch (err) {
       setInviteError(err.message);
@@ -150,6 +154,19 @@ export default function App() {
     return <LoginPage onSignIn={signIn} />;
   }
 
+  if (showOrgSettings) {
+    return (
+      <OrgSettings
+        user={user}
+        org={org}
+        orgRole={orgRole}
+        initialTab={orgSettingsTab}
+        onClose={() => setShowOrgSettings(false)}
+        onOrgUpdated={() => refreshOrg()}
+      />
+    );
+  }
+
   if (generatingProject && !activeProject) {
     return (
       <AIGenerator
@@ -167,9 +184,12 @@ export default function App() {
     return (
       <ProjectDashboard
         user={user}
+        org={org}
+        orgRole={orgRole}
         onSignOut={handleSignOut}
         onSelectProject={setActiveProject}
         onProjectCreated={(p) => { setGeneratingProject(p); }}
+        onOrgSettings={(tab = 'settings') => { setOrgSettingsTab(tab); setShowOrgSettings(true); }}
       />
     );
   }
@@ -199,7 +219,9 @@ function InviteAcceptScreen({ inviteData, user, inviteStatus, inviteError, onSig
     if (!error) setMagicSent(true);
   }
 
-  const { projectName, role } = inviteData || {};
+  const { type, projectName, orgName, role } = inviteData || {};
+  const isOrgInvite = type === 'org';
+  const displayName = isOrgInvite ? orgName : projectName;
 
   if (!inviteData) {
     return (
@@ -242,10 +264,10 @@ function InviteAcceptScreen({ inviteData, user, inviteStatus, inviteError, onSig
           {inviteStatus === 'accepting' && (
             <>
               <h2 style={{ margin: '0 0 8px', fontFamily: "'Archivo', sans-serif", fontSize: 20, color: '#222' }}>
-                Joining project…
+                {isOrgInvite ? 'Joining organization…' : 'Joining project…'}
               </h2>
               <p style={{ margin: 0, fontFamily: "'Figtree', sans-serif", fontSize: 14, color: '#888' }}>
-                Adding you to <strong>{projectName}</strong>
+                Adding you to <strong>{displayName}</strong>
               </p>
             </>
           )}
@@ -256,7 +278,7 @@ function InviteAcceptScreen({ inviteData, user, inviteStatus, inviteError, onSig
                 You're in!
               </h2>
               <p style={{ margin: '0 0 24px', fontFamily: "'Figtree', sans-serif", fontSize: 14, color: '#666', textAlign: 'center' }}>
-                You've joined <strong>{projectName}</strong> as a <strong>{role}</strong>.
+                You've joined <strong>{displayName}</strong> as a <strong>{role}</strong>.
               </p>
               <button
                 onClick={onContinue}
@@ -299,7 +321,7 @@ function InviteAcceptScreen({ inviteData, user, inviteStatus, inviteError, onSig
                 You've been invited
               </h2>
               <p style={{ margin: '0 0 20px', fontFamily: "'Figtree', sans-serif", fontSize: 14, color: '#666' }}>
-                Join <strong>{projectName}</strong> as a <strong>{role}</strong>.
+                Join <strong>{displayName}</strong> as a <strong>{role}</strong>.
                 Sign in to accept.
               </p>
 

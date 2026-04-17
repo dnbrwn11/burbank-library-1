@@ -50,7 +50,7 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: 'Malformed token' });
   }
 
-  const { projectId, projectName, email, role, iat } = payload;
+  const { type, projectId, projectName, orgId, orgName, email, role, iat } = payload;
 
   if (Date.now() - iat > 7 * 24 * 60 * 60 * 1000) {
     return res.status(400).json({ error: 'This invitation has expired' });
@@ -65,6 +65,24 @@ export default async function handler(req, res) {
     ? createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
     : supabase;
 
+  // ── Org invite ──────────────────────────────────────────────────────────
+  if (type === 'org') {
+    const { error: memberError } = await writeClient
+      .from('organization_members')
+      .upsert(
+        { org_id: orgId, user_id: user.id, role, joined_at: new Date().toISOString() },
+        { onConflict: 'org_id,user_id' }
+      );
+
+    if (memberError) {
+      console.error('[accept-invite] org upsert error:', memberError);
+      return res.status(500).json({ error: 'Failed to add you to the organization' });
+    }
+
+    return res.status(200).json({ ok: true, type: 'org', orgId, orgName, role });
+  }
+
+  // ── Project invite (default) ─────────────────────────────────────────────
   const { error: memberError } = await writeClient
     .from('project_members')
     .upsert(
