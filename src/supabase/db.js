@@ -263,3 +263,43 @@ export async function getAuditLog(projectId, { limit = 50 } = {}) {
 
   return { data, error };
 }
+
+// ════════════════════════════════════════════
+// PROJECT MEMBERS
+// ════════════════════════════════════════════
+
+export async function getProjectMembers(projectId) {
+  const { data, error } = await supabase
+    .from('project_members')
+    .select('role, user_id, profiles(full_name, email, avatar_url)')
+    .eq('project_id', projectId);
+  return { data, error };
+}
+
+export async function addProjectMember(projectId, userId, role) {
+  const { data, error } = await supabase
+    .from('project_members')
+    .upsert({ project_id: projectId, user_id: userId, role }, { onConflict: 'project_id,user_id' })
+    .select()
+    .single();
+  return { data, error };
+}
+
+export async function removeProjectMember(projectId, userId) {
+  const { error } = await supabase
+    .from('project_members')
+    .delete()
+    .eq('project_id', projectId)
+    .eq('user_id', userId);
+  return { error };
+}
+
+export async function getProjectMemberRole(projectId, userId) {
+  const { data, error } = await supabase
+    .from('project_members')
+    .select('role')
+    .eq('project_id', projectId)
+    .eq('user_id', userId)
+    .single();
+  return { data, error };
+}

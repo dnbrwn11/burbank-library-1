@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
 import { useAuth } from './supabase/useAuth';
 import { useWindowSize } from './hooks/useWindowSize';
 import { useProjectData } from './hooks/useProjectData';
@@ -18,40 +18,109 @@ import { AuditLog } from './components/AuditLog';
 import LoginPage from './components/LoginPage';
 import ProjectDashboard from './components/ProjectDashboard';
 import AIGenerator from './components/AIGenerator';
+import TeamPanel, { Avatar, initials } from './components/TeamPanel';
+import { supabase } from './supabase/supabaseClient';
+import { getProjectMembers, getProjectMemberRole } from './supabase/db';
 
 const ACCENT = '#B89030';
 const HEADER = '#222222';
+
+// Decode base64url-encoded invite token payload (browser-side, no HMAC verify — server does that)
+function decodeInviteToken(token) {
+  try {
+    const [b64url] = token.split('.');
+    const b64 = b64url.replace(/-/g, '+').replace(/_/g, '/');
+    const padded = b64 + '='.repeat((4 - b64.length % 4) % 4);
+    return JSON.parse(atob(padded));
+  } catch {
+    return null;
+  }
+}
 
 export default function App() {
   const { user, loading: authLoading, signIn, signOut } = useAuth();
   const [activeProject, setActiveProject] = useState(null);
   const [generatingProject, setGeneratingProject] = useState(null);
 
+  // Invite state — set from URL on first render
+  const [pendingInvite, setPendingInvite] = useState(() => {
+    const params = new URLSearchParams(window.location.search);
+    const token = params.get('invite');
+    if (token) {
+      sessionStorage.setItem('pendingInvite', token);
+      window.history.replaceState({}, '', window.location.pathname);
+      return token;
+    }
+    return sessionStorage.getItem('pendingInvite') || null;
+  });
+  const [inviteStatus, setInviteStatus] = useState('idle'); // idle | accepting | success | error
+  const [inviteError, setInviteError] = useState(null);
+
+  const inviteData = pendingInvite ? decodeInviteToken(pendingInvite) : null;
+
+  // Auto-accept when user becomes available and invite is pending
+  useEffect(() => {
+    if (!pendingInvite || !user || inviteStatus !== 'idle') return;
+    acceptInvite();
+  }, [pendingInvite, user, inviteStatus]);
+
+  async function acceptInvite() {
+    setInviteStatus('accepting');
+    setInviteError(null);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const res = await fetch('/api/accept-invite', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session?.access_token}`,
+        },
+        body: JSON.stringify({ inviteToken: pendingInvite }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to accept invite');
+      sessionStorage.removeItem('pendingInvite');
+      setInviteStatus('success');
+    } catch (err) {
+      setInviteError(err.message);
+      setInviteStatus('error');
+    }
+  }
+
+  function dismissInvite() {
+    sessionStorage.removeItem('pendingInvite');
+    setPendingInvite(null);
+    setInviteStatus('idle');
+    setInviteError(null);
+  }
+
   if (authLoading) {
     return (
-      <div style={{
-        minHeight: '100vh', background: '#F9F9F8',
-        display: 'flex', flexDirection: 'column',
-      }}>
-        <div style={{
-          background: HEADER, height: 56, padding: '0 28px',
-          display: 'flex', alignItems: 'center',
-        }}>
-          <span style={{
-            color: ACCENT, fontFamily: "'Archivo', sans-serif",
-            fontWeight: 800, fontSize: 18, letterSpacing: 2,
-          }}>
+      <div style={{ minHeight: '100vh', background: '#F9F9F8', display: 'flex', flexDirection: 'column' }}>
+        <div style={{ background: HEADER, height: 56, padding: '0 28px', display: 'flex', alignItems: 'center' }}>
+          <span style={{ color: ACCENT, fontFamily: "'Archivo', sans-serif", fontWeight: 800, fontSize: 18, letterSpacing: 2 }}>
             COSTDECK
           </span>
         </div>
-        <div style={{
-          flex: 1, display: 'flex', alignItems: 'center',
-          justifyContent: 'center',
-          fontFamily: "'Figtree', sans-serif", color: '#aaa', fontSize: 14,
-        }}>
+        <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: "'Figtree', sans-serif", color: '#aaa', fontSize: 14 }}>
           Loading…
         </div>
       </div>
+    );
+  }
+
+  // Invite accept screen — shown when there's a pending invite token in URL/storage
+  if (pendingInvite) {
+    return (
+      <InviteAcceptScreen
+        inviteData={inviteData}
+        user={user}
+        inviteStatus={inviteStatus}
+        inviteError={inviteError}
+        onSignIn={signIn}
+        onContinue={dismissInvite}
+        onDismiss={dismissInvite}
+      />
     );
   }
 
@@ -93,6 +162,183 @@ export default function App() {
   );
 }
 
+// ─── Invite accept screen ────────────────────────────────────────────────────
+
+function InviteAcceptScreen({ inviteData, user, inviteStatus, inviteError, onSignIn, onContinue, onDismiss }) {
+  const [signInEmail, setSignInEmail] = useState('');
+  const [magicSent, setMagicSent] = useState(false);
+  const [signingIn, setSigningIn] = useState(false);
+
+  async function handleSignIn(e) {
+    e.preventDefault();
+    setSigningIn(true);
+    const { error } = await onSignIn(signInEmail.trim());
+    setSigningIn(false);
+    if (!error) setMagicSent(true);
+  }
+
+  const { projectName, role } = inviteData || {};
+
+  if (!inviteData) {
+    return (
+      <div style={{ minHeight: '100vh', background: '#F9F9F8', display: 'flex', flexDirection: 'column' }}>
+        <div style={{ background: HEADER, height: 56, padding: '0 28px', display: 'flex', alignItems: 'center' }}>
+          <span style={{ color: ACCENT, fontFamily: "'Archivo', sans-serif", fontWeight: 800, fontSize: 18, letterSpacing: 2 }}>COSTDECK</span>
+        </div>
+        <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+          <div style={{ background: '#fff', borderRadius: 14, border: '1px solid #eee', padding: 40, maxWidth: 400, textAlign: 'center' }}>
+            <div style={{ fontSize: 28, marginBottom: 12 }}>⚠</div>
+            <div style={{ fontFamily: "'Archivo', sans-serif", fontWeight: 700, fontSize: 18, color: '#333', marginBottom: 8 }}>Invalid invite link</div>
+            <div style={{ fontFamily: "'Figtree', sans-serif", fontSize: 14, color: '#888', marginBottom: 20 }}>This invite link appears to be malformed or incomplete.</div>
+            <button onClick={onDismiss} style={{ background: ACCENT, color: '#fff', border: 'none', borderRadius: 8, padding: '10px 24px', fontFamily: "'Archivo', sans-serif", fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>
+              Go to CostDeck
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ minHeight: '100vh', background: '#F9F9F8', display: 'flex', flexDirection: 'column' }}>
+      <div style={{ background: HEADER, height: 56, padding: '0 28px', display: 'flex', alignItems: 'center' }}>
+        <span style={{ color: ACCENT, fontFamily: "'Archivo', sans-serif", fontWeight: 800, fontSize: 18, letterSpacing: 2 }}>
+          COSTDECK
+        </span>
+      </div>
+
+      <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+        <div style={{
+          background: '#fff', borderRadius: 14, border: '1px solid #eee',
+          boxShadow: '0 4px 24px rgba(0,0,0,.08)',
+          padding: 40, maxWidth: 420, width: '100%',
+        }}>
+          <div style={{ fontSize: 28, marginBottom: 16, textAlign: 'center' }}>
+            {inviteStatus === 'success' ? '✓' : '✉'}
+          </div>
+
+          {inviteStatus === 'accepting' && (
+            <>
+              <h2 style={{ margin: '0 0 8px', fontFamily: "'Archivo', sans-serif", fontSize: 20, color: '#222' }}>
+                Joining project…
+              </h2>
+              <p style={{ margin: 0, fontFamily: "'Figtree', sans-serif", fontSize: 14, color: '#888' }}>
+                Adding you to <strong>{projectName}</strong>
+              </p>
+            </>
+          )}
+
+          {inviteStatus === 'success' && (
+            <>
+              <h2 style={{ margin: '0 0 8px', fontFamily: "'Archivo', sans-serif", fontSize: 20, color: '#222', textAlign: 'center' }}>
+                You're in!
+              </h2>
+              <p style={{ margin: '0 0 24px', fontFamily: "'Figtree', sans-serif", fontSize: 14, color: '#666', textAlign: 'center' }}>
+                You've joined <strong>{projectName}</strong> as a <strong>{role}</strong>.
+              </p>
+              <button
+                onClick={onContinue}
+                style={{
+                  width: '100%', background: ACCENT, color: '#fff',
+                  border: 'none', borderRadius: 8, padding: '12px 24px',
+                  fontFamily: "'Archivo', sans-serif", fontWeight: 700,
+                  fontSize: 14, cursor: 'pointer',
+                }}
+              >
+                Open CostDeck →
+              </button>
+            </>
+          )}
+
+          {inviteStatus === 'error' && (
+            <>
+              <h2 style={{ margin: '0 0 8px', fontFamily: "'Archivo', sans-serif", fontSize: 20, color: '#222' }}>
+                Invite issue
+              </h2>
+              <p style={{ margin: '0 0 20px', fontFamily: "'Figtree', sans-serif", fontSize: 14, color: '#dc2626' }}>
+                {inviteError}
+              </p>
+              <button
+                onClick={onDismiss}
+                style={{
+                  background: 'none', border: '1px solid #ddd', borderRadius: 8,
+                  padding: '10px 20px', fontFamily: "'Figtree', sans-serif",
+                  fontSize: 13, cursor: 'pointer', color: '#555',
+                }}
+              >
+                Go to CostDeck
+              </button>
+            </>
+          )}
+
+          {inviteStatus === 'idle' && !user && (
+            <>
+              <h2 style={{ margin: '0 0 8px', fontFamily: "'Archivo', sans-serif", fontSize: 20, color: '#222' }}>
+                You've been invited
+              </h2>
+              <p style={{ margin: '0 0 20px', fontFamily: "'Figtree', sans-serif", fontSize: 14, color: '#666' }}>
+                Join <strong>{projectName}</strong> as a <strong>{role}</strong>.
+                Sign in to accept.
+              </p>
+
+              {magicSent ? (
+                <div style={{
+                  padding: '14px 16px', background: '#f0fdf4', border: '1px solid #bbf7d0',
+                  borderRadius: 8, fontFamily: "'Figtree', sans-serif", fontSize: 13, color: '#166534',
+                }}>
+                  Check your email — we sent a sign-in link to <strong>{signInEmail}</strong>.
+                </div>
+              ) : (
+                <form onSubmit={handleSignIn} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  <input
+                    type="email"
+                    value={signInEmail}
+                    onChange={e => setSignInEmail(e.target.value)}
+                    placeholder="Your email address"
+                    required
+                    autoFocus
+                    style={{
+                      border: '1px solid #ddd', borderRadius: 8,
+                      padding: '11px 14px', fontSize: 14,
+                      fontFamily: "'Figtree', sans-serif", outline: 'none',
+                    }}
+                  />
+                  <button
+                    type="submit"
+                    disabled={signingIn || !signInEmail.trim()}
+                    style={{
+                      background: ACCENT, color: '#fff', border: 'none',
+                      borderRadius: 8, padding: '12px 24px',
+                      fontFamily: "'Archivo', sans-serif", fontWeight: 700,
+                      fontSize: 14, cursor: signingIn ? 'default' : 'pointer',
+                    }}
+                  >
+                    {signingIn ? 'Sending link…' : 'Sign in to accept'}
+                  </button>
+                </form>
+              )}
+
+              <button
+                onClick={onDismiss}
+                style={{
+                  marginTop: 12, background: 'none', border: 'none',
+                  fontFamily: "'Figtree', sans-serif", fontSize: 12,
+                  color: '#aaa', cursor: 'pointer', padding: 0,
+                  display: 'block', width: '100%', textAlign: 'center',
+                }}
+              >
+                Dismiss
+              </button>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Cost model app ──────────────────────────────────────────────────────────
+
 function CostModelApp({ user, project, onBack, onSignOut }) {
   const { mob } = useWindowSize();
   const {
@@ -104,9 +350,25 @@ function CostModelApp({ user, project, onBack, onSignOut }) {
   const [view, setView] = useState('dashboard');
   const [showNewScen, setShowNewScen] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
+  const [showTeamPanel, setShowTeamPanel] = useState(false);
 
-  const [aiAdvice, setAiAdvice] = useState({});
-  const [aiLoading, setAiLoading] = useState(new Set());
+  // Role: owner always canEdit; others look up project_members
+  const [userRole, setUserRole] = useState(
+    project.owner_id === user.id ? 'owner' : 'loading'
+  );
+  useEffect(() => {
+    if (project.owner_id === user.id) return;
+    getProjectMemberRole(project.id, user.id).then(({ data }) => {
+      setUserRole((data?.role || 'viewer').toLowerCase());
+    });
+  }, [project.id, user.id]);
+  const canEdit = userRole === 'owner' || userRole === 'editor';
+
+  // Team members for header avatars
+  const [teamMembers, setTeamMembers] = useState([]);
+  useEffect(() => {
+    getProjectMembers(project.id).then(({ data }) => setTeamMembers(data || []));
+  }, [project.id]);
 
   const { items, globals } = active;
   const totals = useMemo(() => CE.projectTotals(items, globals), [items, globals]);
@@ -120,7 +382,6 @@ function CostModelApp({ user, project, onBack, onSignOut }) {
       g[i.category].push(i);
     });
     const allCats = Object.keys(g);
-    console.log('[App] Loaded categories:', allCats);
     const ordered = [
       ...CSI_ORDER.filter(c => g[c]),
       ...allCats.filter(c => !CSI_ORDER.includes(c)),
@@ -129,6 +390,9 @@ function CostModelApp({ user, project, onBack, onSignOut }) {
       c, items: g[c], t: CE.categoryTotals(items, globals, c),
     }));
   }, [activeItems, items, globals]);
+
+  const [aiAdvice, setAiAdvice] = useState({});
+  const [aiLoading, setAiLoading] = useState(new Set());
 
   const askAI = useCallback(async (item) => {
     setAiLoading(prev => new Set([...prev, item.id]));
@@ -151,7 +415,7 @@ function CostModelApp({ user, project, onBack, onSignOut }) {
   const viewProps = {
     items, globals, activeItems, totals, catGroups, bsf,
     updateItem, createItem, reorderItems, updateGlobal, scenarios, active,
-    aiAdvice, aiLoading, askAI, applyAI,
+    aiAdvice, aiLoading, askAI, applyAI, canEdit,
   };
 
   const tabs = [
@@ -162,7 +426,6 @@ function CostModelApp({ user, project, onBack, onSignOut }) {
     ['audit', 'AUDIT'],
   ];
 
-  // Loading screen while scenarios + line items fetch
   if (loading) {
     return (
       <div style={{ minHeight: '100vh', background: COLORS.bg, display: 'flex', flexDirection: 'column' }}>
@@ -180,7 +443,6 @@ function CostModelApp({ user, project, onBack, onSignOut }) {
     );
   }
 
-  // Hard error (e.g. network failure on load)
   if (error) {
     return (
       <div style={{ minHeight: '100vh', background: COLORS.bg, display: 'flex', flexDirection: 'column' }}>
@@ -199,21 +461,25 @@ function CostModelApp({ user, project, onBack, onSignOut }) {
     );
   }
 
+  // Overlap-stack avatars: owner + up to 3 members
+  const avatarMembers = teamMembers.slice(0, 3);
+  const hasTeam = teamMembers.length > 0;
+
   return (
     <div style={{ fontFamily: FONTS.body, background: COLORS.bg, color: COLORS.dg, minHeight: '100vh' }}>
-      {/* Save error banner */}
       {saveError && (
-        <div style={{
-          background: '#fef2f2', borderBottom: '1px solid #fca5a5',
-          padding: '8px 20px', display: 'flex', alignItems: 'center',
-          justifyContent: 'space-between', gap: 12,
-        }}>
-          <span style={{ fontFamily: "'Figtree', sans-serif", fontSize: 13, color: '#991b1b' }}>
-            ⚠ {saveError}
-          </span>
+        <div style={{ background: '#fef2f2', borderBottom: '1px solid #fca5a5', padding: '8px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+          <span style={{ fontFamily: "'Figtree', sans-serif", fontSize: 13, color: '#991b1b' }}>⚠ {saveError}</span>
           <button onClick={() => setSaveError(null)} style={{ background: 'none', border: 'none', color: '#991b1b', fontSize: 16, cursor: 'pointer', lineHeight: 1 }}>×</button>
         </div>
       )}
+
+      {userRole === 'viewer' && (
+        <div style={{ background: '#fffbeb', borderBottom: '1px solid #fde68a', padding: '6px 20px', fontFamily: "'Figtree', sans-serif", fontSize: 12, color: '#92400e' }}>
+          You have view-only access to this project.
+        </div>
+      )}
+
       {/* Header */}
       <div style={{
         background: HEADER, padding: mob ? '8px 12px' : '0 20px',
@@ -225,50 +491,32 @@ function CostModelApp({ user, project, onBack, onSignOut }) {
           <button
             onClick={onBack}
             title="Back to Projects"
-            style={{
-              background: 'none', border: 'none', cursor: 'pointer',
-              color: '#888', fontSize: 18, padding: '0 4px 0 0',
-              lineHeight: 1, display: 'flex', alignItems: 'center',
-            }}
+            style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#888', fontSize: 18, padding: '0 4px 0 0', lineHeight: 1, display: 'flex', alignItems: 'center' }}
           >
             ‹
           </button>
           <button
             onClick={onBack}
-            style={{
-              background: 'none', border: 'none', padding: 0, cursor: 'pointer',
-              color: ACCENT, fontFamily: "'Archivo', sans-serif",
-              fontWeight: 800, fontSize: mob ? 12 : 14, letterSpacing: 2,
-              textDecoration: 'none',
-            }}
+            style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: ACCENT, fontFamily: "'Archivo', sans-serif", fontWeight: 800, fontSize: mob ? 12 : 14, letterSpacing: 2 }}
           >
             COSTDECK
           </button>
           {!mob && (
-            <span style={{
-              fontSize: 11, color: '#666',
-              borderLeft: '1px solid #333', paddingLeft: 12,
-            }}>
+            <span style={{ fontSize: 11, color: '#666', borderLeft: '1px solid #333', paddingLeft: 12 }}>
               {project.name}
             </span>
           )}
         </div>
 
-        {/* Right: scenario picker + total + user */}
+        {/* Right: scenario picker + total + team + user */}
         <div style={{ display: 'flex', alignItems: 'center', gap: mob ? 6 : 10 }}>
           <select
             value={activeId}
             onChange={e => setActiveId(e.target.value)}
-            style={{
-              background: '#333', border: '1px solid #444',
-              borderRadius: 6, color: ACCENT, padding: '6px 10px',
-              fontSize: 11, fontFamily: FONTS.heading, fontWeight: 600,
-            }}
+            style={{ background: '#333', border: '1px solid #444', borderRadius: 6, color: ACCENT, padding: '6px 10px', fontSize: 11, fontFamily: FONTS.heading, fontWeight: 600 }}
           >
             {scenarios.map(s => (
-              <option key={s.id} value={s.id} style={{ color: COLORS.dg, background: '#fff' }}>
-                {s.name}
-              </option>
+              <option key={s.id} value={s.id} style={{ color: COLORS.dg, background: '#fff' }}>{s.name}</option>
             ))}
           </select>
 
@@ -276,28 +524,15 @@ function CostModelApp({ user, project, onBack, onSignOut }) {
             <div style={{ position: 'relative' }}>
               <button
                 onClick={() => setShowNewScen(!showNewScen)}
-                style={{
-                  background: ACCENT, color: '#fff', border: 'none',
-                  borderRadius: 6, padding: '6px 10px', fontSize: 11,
-                  fontFamily: FONTS.heading, fontWeight: 700, cursor: 'pointer',
-                }}
+                style={{ background: ACCENT, color: '#fff', border: 'none', borderRadius: 6, padding: '6px 10px', fontSize: 11, fontFamily: FONTS.heading, fontWeight: 700, cursor: 'pointer' }}
               >
                 + Scenario
               </button>
               {showNewScen && (
-                <div style={{
-                  position: 'absolute', right: 0, top: 34, background: COLORS.wh,
-                  border: `1px solid ${COLORS.bd}`, borderRadius: 8, padding: 4,
-                  zIndex: 100, minWidth: 140, boxShadow: '0 4px 12px rgba(0,0,0,.15)',
-                }}>
+                <div style={{ position: 'absolute', right: 0, top: 34, background: COLORS.wh, border: `1px solid ${COLORS.bd}`, borderRadius: 8, padding: 4, zIndex: 100, minWidth: 140, boxShadow: '0 4px 12px rgba(0,0,0,.15)' }}>
                   {SCENARIO_TYPES.filter(t => !scenarios.find(s => s.name === t)).map(t => (
                     <button key={t} onClick={() => { addScenario(t); setShowNewScen(false); }}
-                      style={{
-                        display: 'block', width: '100%', textAlign: 'left',
-                        background: 'transparent', border: 'none', padding: '8px 12px',
-                        fontSize: 12, fontFamily: FONTS.body, cursor: 'pointer',
-                        color: COLORS.dg, borderRadius: 4,
-                      }}
+                      style={{ display: 'block', width: '100%', textAlign: 'left', background: 'transparent', border: 'none', padding: '8px 12px', fontSize: 12, fontFamily: FONTS.body, cursor: 'pointer', color: COLORS.dg, borderRadius: 4 }}
                     >
                       {t}
                     </button>
@@ -308,59 +543,60 @@ function CostModelApp({ user, project, onBack, onSignOut }) {
           )}
 
           {!mob && (
-            <span style={{
-              color: ACCENT, fontSize: 13, fontFamily: FONTS.heading,
-              fontWeight: 700, fontVariantNumeric: 'tabular-nums',
-            }}>
+            <span style={{ color: ACCENT, fontSize: 13, fontFamily: FONTS.heading, fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>
               {fK(totals.full.m.tot)}
             </span>
           )}
+
+          {/* Team avatar stack + team button */}
+          <button
+            onClick={() => setShowTeamPanel(true)}
+            title="Team members"
+            style={{
+              display: 'flex', alignItems: 'center', gap: 0,
+              background: 'none', border: '1px solid #444',
+              borderRadius: 6, padding: '4px 8px', cursor: 'pointer',
+            }}
+          >
+            {/* Owner avatar (always shown) */}
+            <div style={{ width: 26, height: 26, borderRadius: '50%', background: ACCENT, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700, color: '#fff', fontFamily: "'Archivo', sans-serif", border: '2px solid #222', flexShrink: 0 }}>
+              {initials(user.email?.split('@')[0] || 'U')}
+            </div>
+            {/* Additional members, overlapping */}
+            {avatarMembers.map((m, i) => (
+              <div key={m.user_id} style={{ width: 26, height: 26, borderRadius: '50%', background: '#555', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700, color: '#ccc', fontFamily: "'Archivo', sans-serif", border: '2px solid #222', marginLeft: -6, flexShrink: 0 }}>
+                {initials(m.profiles?.full_name || m.profiles?.email || '?')}
+              </div>
+            ))}
+            {!mob && (
+              <span style={{ marginLeft: hasTeam ? 4 : 6, fontSize: 10, color: '#888', fontFamily: "'Figtree', sans-serif", whiteSpace: 'nowrap' }}>
+                Team
+              </span>
+            )}
+          </button>
 
           {/* User menu */}
           <div style={{ position: 'relative' }}>
             <button
               onClick={() => setShowUserMenu(v => !v)}
-              style={{
-                background: '#333', border: '1px solid #444',
-                borderRadius: 6, padding: '5px 10px',
-                fontFamily: "'Figtree', sans-serif", fontSize: 11,
-                color: '#aaa', cursor: 'pointer',
-              }}
+              style={{ background: '#333', border: '1px solid #444', borderRadius: 6, padding: '5px 10px', fontFamily: "'Figtree', sans-serif", fontSize: 11, color: '#aaa', cursor: 'pointer' }}
             >
               {user.email?.split('@')[0] || 'Account'}
             </button>
             {showUserMenu && (
-              <div style={{
-                position: 'absolute', right: 0, top: 34, background: COLORS.wh,
-                border: `1px solid ${COLORS.bd}`, borderRadius: 8, padding: 4,
-                zIndex: 100, minWidth: 160, boxShadow: '0 4px 12px rgba(0,0,0,.15)',
-              }}>
-                <div style={{
-                  padding: '8px 12px 6px',
-                  fontFamily: "'Figtree', sans-serif", fontSize: 11,
-                  color: '#999', borderBottom: '1px solid #eee', marginBottom: 2,
-                }}>
+              <div style={{ position: 'absolute', right: 0, top: 34, background: COLORS.wh, border: `1px solid ${COLORS.bd}`, borderRadius: 8, padding: 4, zIndex: 100, minWidth: 160, boxShadow: '0 4px 12px rgba(0,0,0,.15)' }}>
+                <div style={{ padding: '8px 12px 6px', fontFamily: "'Figtree', sans-serif", fontSize: 11, color: '#999', borderBottom: '1px solid #eee', marginBottom: 2 }}>
                   {user.email}
                 </div>
                 <button
                   onClick={() => { setShowUserMenu(false); onBack(); }}
-                  style={{
-                    display: 'block', width: '100%', textAlign: 'left',
-                    background: 'transparent', border: 'none', padding: '7px 12px',
-                    fontSize: 12, fontFamily: "'Figtree', sans-serif",
-                    cursor: 'pointer', color: COLORS.dg, borderRadius: 4,
-                  }}
+                  style={{ display: 'block', width: '100%', textAlign: 'left', background: 'transparent', border: 'none', padding: '7px 12px', fontSize: 12, fontFamily: "'Figtree', sans-serif", cursor: 'pointer', color: COLORS.dg, borderRadius: 4 }}
                 >
                   ← All Projects
                 </button>
                 <button
                   onClick={onSignOut}
-                  style={{
-                    display: 'block', width: '100%', textAlign: 'left',
-                    background: 'transparent', border: 'none', padding: '7px 12px',
-                    fontSize: 12, fontFamily: "'Figtree', sans-serif",
-                    cursor: 'pointer', color: '#c0392b', borderRadius: 4,
-                  }}
+                  style={{ display: 'block', width: '100%', textAlign: 'left', background: 'transparent', border: 'none', padding: '7px 12px', fontSize: 12, fontFamily: "'Figtree', sans-serif", cursor: 'pointer', color: '#c0392b', borderRadius: 4 }}
                 >
                   Sign out
                 </button>
@@ -371,21 +607,10 @@ function CostModelApp({ user, project, onBack, onSignOut }) {
       </div>
 
       {/* Nav */}
-      <div style={{
-        background: COLORS.wh, borderBottom: `1px solid ${COLORS.bd}`,
-        display: 'flex', overflowX: 'auto', WebkitOverflowScrolling: 'touch',
-        paddingLeft: mob ? 8 : 20,
-      }}>
+      <div style={{ background: COLORS.wh, borderBottom: `1px solid ${COLORS.bd}`, display: 'flex', overflowX: 'auto', WebkitOverflowScrolling: 'touch', paddingLeft: mob ? 8 : 20 }}>
         {tabs.map(([id, label]) => (
           <button key={id} onClick={() => setView(id)}
-            style={{
-              padding: mob ? '10px 12px' : '10px 18px',
-              fontSize: 10, fontFamily: FONTS.heading, fontWeight: 600,
-              background: 'transparent', color: view === id ? COLORS.dg : COLORS.mg,
-              border: 'none',
-              borderBottom: view === id ? `3px solid ${ACCENT}` : '3px solid transparent',
-              cursor: 'pointer', letterSpacing: 1.5, whiteSpace: 'nowrap', flexShrink: 0,
-            }}
+            style={{ padding: mob ? '10px 12px' : '10px 18px', fontSize: 10, fontFamily: FONTS.heading, fontWeight: 600, background: 'transparent', color: view === id ? COLORS.dg : COLORS.mg, border: 'none', borderBottom: view === id ? `3px solid ${ACCENT}` : '3px solid transparent', cursor: 'pointer', letterSpacing: 1.5, whiteSpace: 'nowrap', flexShrink: 0 }}
           >
             {label}
             {id === 'compare' && scenarios.length > 1 ? ` (${scenarios.length})` : ''}
@@ -401,6 +626,18 @@ function CostModelApp({ user, project, onBack, onSignOut }) {
         {view === 'assumptions' && <Assumptions {...viewProps} scenarioName={active.name} />}
         {view === 'audit' && <AuditLog audit={audit} items={items} updateItem={updateItem} updateGlobal={updateGlobal} />}
       </div>
+
+      {showTeamPanel && (
+        <TeamPanel
+          project={project}
+          user={user}
+          onClose={() => {
+            setShowTeamPanel(false);
+            // Refresh avatars after team changes
+            getProjectMembers(project.id).then(({ data }) => setTeamMembers(data || []));
+          }}
+        />
+      )}
     </div>
   );
 }

@@ -1,3 +1,4 @@
+import crypto from 'crypto';
 import { createClient } from '@supabase/supabase-js';
 import { resend, FROM_ADDRESS } from '../lib/resend.js';
 import { teamInvite } from '../lib/email-templates.js';
@@ -23,12 +24,12 @@ export default async function handler(req, res) {
     return res.status(401).json({ error: 'Invalid or expired token' });
   }
 
-  const { projectId, inviteeEmail, inviteeName, role = 'Viewer', inviteUrl } = req.body;
-  if (!projectId || !inviteeEmail || !inviteUrl) {
-    return res.status(400).json({ error: 'projectId, inviteeEmail, and inviteUrl are required' });
+  const { projectId, inviteeEmail, inviteeName, role = 'Viewer', origin } = req.body;
+  if (!projectId || !inviteeEmail || !origin) {
+    return res.status(400).json({ error: 'projectId, inviteeEmail, and origin are required' });
   }
 
-  // Verify caller owns the project
+  // Only the project owner can invite
   const { data: project, error: projectError } = await supabase
     .from('projects')
     .select('id, name, owner_id')
@@ -40,7 +41,19 @@ export default async function handler(req, res) {
     return res.status(403).json({ error: 'Project not found or access denied' });
   }
 
-  // Get inviter's display name from profile
+  // Generate HMAC-signed invite token
+  const SECRET = process.env.INVITE_SECRET || process.env.SUPABASE_ANON_KEY;
+  const payloadStr = JSON.stringify({
+    projectId,
+    projectName: project.name,
+    email: inviteeEmail,
+    role,
+    iat: Date.now(),
+  });
+  const payloadB64 = Buffer.from(payloadStr).toString('base64url');
+  const sig = crypto.createHmac('sha256', SECRET).update(payloadB64).digest('hex').slice(0, 16);
+  const inviteUrl = `${origin}?invite=${payloadB64}.${sig}`;
+
   const { data: profile } = await supabase
     .from('profiles')
     .select('full_name')
@@ -62,7 +75,6 @@ export default async function handler(req, res) {
     return res.status(502).json({ error: 'Failed to send email' });
   }
 
-  // Audit log
   await supabase.from('audit_log').insert({
     project_id: projectId,
     user_id: user.id,
