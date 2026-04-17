@@ -1,4 +1,5 @@
 import { useState, useMemo, useCallback } from 'react';
+import { useAuth } from './supabase/useAuth';
 import { useWindowSize } from './hooks/useWindowSize';
 import { useScenarios } from './hooks/useScenarios';
 import * as CE from './engine/CostEngine';
@@ -11,8 +12,69 @@ import { CostModel } from './components/CostModel';
 import { Compare } from './components/Compare';
 import { Assumptions } from './components/Assumptions';
 import { AuditLog } from './components/AuditLog';
+import LoginPage from './components/LoginPage';
+import ProjectDashboard from './components/ProjectDashboard';
+
+const ACCENT = '#B89030';
+const HEADER = '#222222';
 
 export default function App() {
+  const { user, loading: authLoading, signIn, signOut } = useAuth();
+  const [activeProject, setActiveProject] = useState(null);
+
+  if (authLoading) {
+    return (
+      <div style={{
+        minHeight: '100vh', background: '#F9F9F8',
+        display: 'flex', flexDirection: 'column',
+      }}>
+        <div style={{
+          background: HEADER, height: 56, padding: '0 28px',
+          display: 'flex', alignItems: 'center',
+        }}>
+          <span style={{
+            color: ACCENT, fontFamily: "'Archivo', sans-serif",
+            fontWeight: 800, fontSize: 18, letterSpacing: 2,
+          }}>
+            COSTDECK
+          </span>
+        </div>
+        <div style={{
+          flex: 1, display: 'flex', alignItems: 'center',
+          justifyContent: 'center',
+          fontFamily: "'Figtree', sans-serif", color: '#aaa', fontSize: 14,
+        }}>
+          Loading…
+        </div>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return <LoginPage onSignIn={signIn} />;
+  }
+
+  if (!activeProject) {
+    return (
+      <ProjectDashboard
+        user={user}
+        onSignOut={signOut}
+        onSelectProject={setActiveProject}
+      />
+    );
+  }
+
+  return (
+    <CostModelApp
+      user={user}
+      project={activeProject}
+      onBack={() => setActiveProject(null)}
+      onSignOut={signOut}
+    />
+  );
+}
+
+function CostModelApp({ user, project, onBack, onSignOut }) {
   const { mob } = useWindowSize();
   const {
     scenarios, active, activeId, setActiveId,
@@ -21,8 +83,8 @@ export default function App() {
 
   const [view, setView] = useState('dashboard');
   const [showNewScen, setShowNewScen] = useState(false);
+  const [showUserMenu, setShowUserMenu] = useState(false);
 
-  // AI Cost Advisor state
   const [aiAdvice, setAiAdvice] = useState({});
   const [aiLoading, setAiLoading] = useState(new Set());
 
@@ -42,7 +104,6 @@ export default function App() {
     }));
   }, [activeItems, items, globals]);
 
-  // AI functions
   const askAI = useCallback(async (item) => {
     setAiLoading(prev => new Set([...prev, item.id]));
     try {
@@ -61,7 +122,6 @@ export default function App() {
     updateItem(itemId, 'unitCostHigh', advice.high);
   }, [updateItem]);
 
-  // Shared props for all view components
   const viewProps = {
     items, globals, activeItems, totals, catGroups, bsf,
     updateItem, updateGlobal, scenarios, active,
@@ -80,45 +140,69 @@ export default function App() {
     <div style={{ fontFamily: FONTS.body, background: COLORS.bg, color: COLORS.dg, minHeight: '100vh' }}>
       {/* Header */}
       <div style={{
-        background: COLORS.gn, padding: mob ? '8px 12px' : '0 20px',
+        background: HEADER, padding: mob ? '8px 12px' : '0 20px',
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
         minHeight: mob ? 48 : 52, flexWrap: 'wrap', gap: 4,
       }}>
+        {/* Left: back + project name */}
         <div style={{ display: 'flex', alignItems: 'center', gap: mob ? 8 : 12 }}>
-          <svg width={16} height={16} viewBox="0 0 40 40" fill="none">
-            <path d="M0 20L20 0L40 20L20 40Z" fill={COLORS.yl} />
-          </svg>
-          <span style={{ fontSize: mob ? 12 : 14, fontWeight: 700, fontFamily: FONTS.heading, color: COLORS.wh, letterSpacing: 2 }}>PCL</span>
+          <button
+            onClick={onBack}
+            title="Back to Projects"
+            style={{
+              background: 'none', border: 'none', cursor: 'pointer',
+              color: '#888', fontSize: 18, padding: '0 4px 0 0',
+              lineHeight: 1, display: 'flex', alignItems: 'center',
+            }}
+          >
+            ‹
+          </button>
+          <span style={{
+            color: ACCENT, fontFamily: "'Archivo', sans-serif",
+            fontWeight: 800, fontSize: mob ? 12 : 14, letterSpacing: 2,
+          }}>
+            COSTDECK
+          </span>
           {!mob && (
-            <span style={{ fontSize: 10, color: `${COLORS.wh}55`, borderLeft: `1px solid ${COLORS.wh}33`, paddingLeft: 12 }}>
-              Burbank Library & Civic Center
+            <span style={{
+              fontSize: 11, color: '#666',
+              borderLeft: '1px solid #333', paddingLeft: 12,
+            }}>
+              {project.name}
             </span>
           )}
         </div>
+
+        {/* Right: scenario picker + total + user */}
         <div style={{ display: 'flex', alignItems: 'center', gap: mob ? 6 : 10 }}>
           <select
             value={activeId}
             onChange={e => setActiveId(e.target.value)}
             style={{
-              background: `${COLORS.wh}22`, border: `1px solid ${COLORS.wh}44`,
-              borderRadius: 6, color: COLORS.yl, padding: '6px 10px',
+              background: '#333', border: '1px solid #444',
+              borderRadius: 6, color: ACCENT, padding: '6px 10px',
               fontSize: 11, fontFamily: FONTS.heading, fontWeight: 600,
             }}
           >
             {scenarios.map(s => (
-              <option key={s.id} value={s.id} style={{ color: COLORS.dg }}>{s.name}</option>
+              <option key={s.id} value={s.id} style={{ color: COLORS.dg, background: '#fff' }}>
+                {s.name}
+              </option>
             ))}
           </select>
+
           {scenarios.length < 5 && (
             <div style={{ position: 'relative' }}>
               <button
                 onClick={() => setShowNewScen(!showNewScen)}
                 style={{
-                  background: COLORS.yl, color: COLORS.dg, border: 'none',
+                  background: ACCENT, color: '#fff', border: 'none',
                   borderRadius: 6, padding: '6px 10px', fontSize: 11,
                   fontFamily: FONTS.heading, fontWeight: 700, cursor: 'pointer',
                 }}
-              >+ Scenario</button>
+              >
+                + Scenario
+              </button>
               {showNewScen && (
                 <div style={{
                   position: 'absolute', right: 0, top: 34, background: COLORS.wh,
@@ -133,18 +217,75 @@ export default function App() {
                         fontSize: 12, fontFamily: FONTS.body, cursor: 'pointer',
                         color: COLORS.dg, borderRadius: 4,
                       }}
-                    >{t}</button>
+                    >
+                      {t}
+                    </button>
                   ))}
                 </div>
               )}
             </div>
           )}
+
           {!mob && (
             <span style={{
-              color: COLORS.yl, fontSize: 13, fontFamily: FONTS.heading,
+              color: ACCENT, fontSize: 13, fontFamily: FONTS.heading,
               fontWeight: 700, fontVariantNumeric: 'tabular-nums',
-            }}>{fK(totals.full.m.tot)}</span>
+            }}>
+              {fK(totals.full.m.tot)}
+            </span>
           )}
+
+          {/* User menu */}
+          <div style={{ position: 'relative' }}>
+            <button
+              onClick={() => setShowUserMenu(v => !v)}
+              style={{
+                background: '#333', border: '1px solid #444',
+                borderRadius: 6, padding: '5px 10px',
+                fontFamily: "'Figtree', sans-serif", fontSize: 11,
+                color: '#aaa', cursor: 'pointer',
+              }}
+            >
+              {user.email?.split('@')[0] || 'Account'}
+            </button>
+            {showUserMenu && (
+              <div style={{
+                position: 'absolute', right: 0, top: 34, background: COLORS.wh,
+                border: `1px solid ${COLORS.bd}`, borderRadius: 8, padding: 4,
+                zIndex: 100, minWidth: 160, boxShadow: '0 4px 12px rgba(0,0,0,.15)',
+              }}>
+                <div style={{
+                  padding: '8px 12px 6px',
+                  fontFamily: "'Figtree', sans-serif", fontSize: 11,
+                  color: '#999', borderBottom: '1px solid #eee', marginBottom: 2,
+                }}>
+                  {user.email}
+                </div>
+                <button
+                  onClick={() => { setShowUserMenu(false); onBack(); }}
+                  style={{
+                    display: 'block', width: '100%', textAlign: 'left',
+                    background: 'transparent', border: 'none', padding: '7px 12px',
+                    fontSize: 12, fontFamily: "'Figtree', sans-serif",
+                    cursor: 'pointer', color: COLORS.dg, borderRadius: 4,
+                  }}
+                >
+                  ← All Projects
+                </button>
+                <button
+                  onClick={onSignOut}
+                  style={{
+                    display: 'block', width: '100%', textAlign: 'left',
+                    background: 'transparent', border: 'none', padding: '7px 12px',
+                    fontSize: 12, fontFamily: "'Figtree', sans-serif",
+                    cursor: 'pointer', color: '#c0392b', borderRadius: 4,
+                  }}
+                >
+                  Sign out
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
@@ -159,9 +300,9 @@ export default function App() {
             style={{
               padding: mob ? '10px 12px' : '10px 18px',
               fontSize: 10, fontFamily: FONTS.heading, fontWeight: 600,
-              background: 'transparent', color: view === id ? COLORS.gn : COLORS.mg,
+              background: 'transparent', color: view === id ? COLORS.dg : COLORS.mg,
               border: 'none',
-              borderBottom: view === id ? `3px solid ${COLORS.yl}` : '3px solid transparent',
+              borderBottom: view === id ? `3px solid ${ACCENT}` : '3px solid transparent',
               cursor: 'pointer', letterSpacing: 1.5, whiteSpace: 'nowrap', flexShrink: 0,
             }}
           >
