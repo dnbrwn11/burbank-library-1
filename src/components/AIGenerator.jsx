@@ -14,51 +14,113 @@ const PLACEHOLDERS = [
   "8-story mixed-use TOD — ground-floor retail, 120 residential units above, 2-level underground parking.",
 ];
 
-const CHIPS = [
-  'LEED Gold certification',
-  'Seismic Zone D reinforcement',
-  'Rooftop solar PV',
-  '3-level structured parking',
-  'High-end lobby finishes',
-  'Full MEP commissioning',
-  'Prevailing wage labor',
-  'Phased construction',
-];
+// ── Project-aware helpers ──────────────────────────────────────────────────────
 
-const TEMPLATES = [
+function buildStarterText(project) {
+  const sf   = project.gross_sf  ? `${Number(project.gross_sf).toLocaleString()} SF` : '';
+  const type = project.building_type || '';
+  const loc  = [project.city, project.state].filter(Boolean).join(', ');
+  let text   = [sf, type, loc ? `in ${loc}` : ''].filter(Boolean).join(' ');
+  const extras = [project.labor_type, project.delivery_method].filter(Boolean);
+  if (extras.length) text += `. ${extras.join(', ')}`;
+  if (project.target_budget) text += `. Target budget: $${Number(project.target_budget).toLocaleString()}`;
+  return text ? text + '.' : '';
+}
+
+const TEMPLATE_DEFS = [
   {
     label: 'Civic Library', icon: '📚',
-    text: "New 97,500 SF public library and civic center. Three-story building with full-height reading room, digital media lab, children's wing with story room, community meeting rooms, maker space, and underground parking structure. LEED Silver target. Seismic Zone D.",
+    matchTypes: ['Library', 'Civic'],
+    buildText: (p) => `New ${p.sf} SF public library and civic center in ${p.city}, ${p.state}. Three-story building with full-height reading room, digital media lab, children's wing with story room, community meeting rooms, maker space, and underground parking structure. ${p.labor}. ${p.delivery}. LEED Silver target.`,
   },
   {
     label: 'K-12 School', icon: '🏫',
-    text: "New 85,000 SF K-12 campus. Single-story classroom wings, two-story administration building, gymnasium with bleachers, cafeteria and full commercial kitchen, covered outdoor walkways. DSA-compliant. Phased to keep existing school operational.",
+    matchTypes: ['Education'],
+    buildText: (p) => `New ${p.sf} SF K-12 campus in ${p.city}, ${p.state}. Single-story classroom wings, two-story administration building, gymnasium with bleachers, cafeteria and full commercial kitchen, covered outdoor walkways. ${p.labor}. ${p.delivery}. DSA-compliant. Phased to keep existing school operational.`,
   },
   {
     label: 'High-Rise Residential', icon: '🏢',
-    text: "52-story high-rise residential tower. 450 market-rate units (studios, 1BR, 2BR), 3-level podium parking (400 stalls), ground-floor retail, amenity deck on level 6, rooftop terrace. Concrete moment frame, Type I-A construction.",
+    matchTypes: ['Multi-Family', 'Residential'],
+    buildText: (p) => `52-story high-rise residential tower in ${p.city}, ${p.state}. 450 market-rate units (studios, 1BR, 2BR), 3-level podium parking (400 stalls), ground-floor retail, amenity deck on level 6, rooftop terrace. ${p.labor}. ${p.delivery}. Concrete moment frame, Type I-A construction.`,
   },
   {
     label: 'Office Building', icon: '🏬',
-    text: "12-story Class A office building, 220,000 GSF. LEED Gold target. Open floor plates averaging 18,500 SF, two-story lobby, ground-floor retail, 4-level parking podium (600 stalls). Steel moment frame with concrete core.",
+    matchTypes: ['Office'],
+    buildText: (p) => `12-story Class A office building in ${p.city}, ${p.state}, ${p.sf} GSF. LEED Gold target. Open floor plates averaging 18,500 SF, two-story lobby, ground-floor retail, 4-level parking podium (600 stalls). ${p.labor}. ${p.delivery}. Steel moment frame with concrete core.`,
   },
   {
     label: 'Healthcare', icon: '🏥',
-    text: "65,000 SF outpatient medical office building. Ground-floor imaging suite (MRI, CT, X-ray), second-floor ASC (4 ORs, PACU, sterile processing), upper floors general clinic. OSHPD compliant. N+1 emergency generator.",
+    matchTypes: ['Healthcare'],
+    buildText: (p) => `${p.sf} SF outpatient medical office building in ${p.city}, ${p.state}. Ground-floor imaging suite (MRI, CT, X-ray), second-floor ASC (4 ORs, PACU, sterile processing), upper floors general clinic. ${p.labor}. ${p.delivery}. OSHPD compliant. N+1 emergency generator.`,
   },
   {
     label: 'Data Center', icon: '💻',
-    text: "Tier III data center, 40,000 SF. 15,000 SF critical whitespace, 8 MW IT load. N+1 UPS and generator redundancy, raised floor, precision cooling, fiber entry vaults, full security perimeter.",
+    matchTypes: [],
+    buildText: (p) => `Tier III data center in ${p.city}, ${p.state}, 40,000 SF. 15,000 SF critical whitespace, 8 MW IT load. N+1 UPS and generator redundancy, raised floor, precision cooling, fiber entry vaults. ${p.labor}. ${p.delivery}.`,
   },
   {
     label: 'Mixed-Use', icon: '🏙️',
-    text: "Mixed-use transit-oriented development. 8-story building: ground-floor retail/restaurant (8,000 SF), 7 floors residential (120 units, 1BR and 2BR), 2 levels underground parking (140 stalls), courtyard amenity deck, rooftop terrace.",
+    matchTypes: ['Mixed-Use'],
+    buildText: (p) => `Mixed-use transit-oriented development in ${p.city}, ${p.state}. 8-story building: ground-floor retail/restaurant (8,000 SF), 7 floors residential (120 units, 1BR and 2BR), 2 levels underground parking (140 stalls), courtyard amenity deck, rooftop terrace. ${p.labor}. ${p.delivery}.`,
   },
   {
     label: 'Sports Arena', icon: '🏟️',
-    text: "Multi-purpose indoor arena, 8,500 seats, 285,000 GSF. Main bowl with retractable seating, premium club level, 12 luxury suites, broadcast infrastructure, commercial kitchen, locker rooms, surface parking (1,800 stalls).",
+    matchTypes: [],
+    buildText: (p) => `Multi-purpose indoor arena in ${p.city}, ${p.state}, 8,500 seats, 285,000 GSF. Main bowl with retractable seating, premium club level, 12 luxury suites, broadcast infrastructure, commercial kitchen, locker rooms, surface parking. ${p.labor}. ${p.delivery}.`,
   },
 ];
+
+function buildTemplates(project) {
+  const params = {
+    sf:       project.gross_sf ? Number(project.gross_sf).toLocaleString() : '97,500',
+    city:     project.city || 'Los Angeles',
+    state:    project.state || 'CA',
+    labor:    project.labor_type || 'Prevailing Wage',
+    delivery: project.delivery_method || 'CM at Risk (GMP)',
+  };
+  const bt = project.building_type || '';
+  const recLabel = TEMPLATE_DEFS.find(t => t.matchTypes.some(m => bt.includes(m)))?.label ?? null;
+  const all = TEMPLATE_DEFS.map(t => ({ label: t.label, icon: t.icon, text: t.buildText(params), recommended: t.label === recLabel }));
+  return [...all.filter(t => t.recommended), ...all.filter(t => !t.recommended)];
+}
+
+const SEISMIC_STATES   = new Set(['CA','OR','WA','AK','NV','UT','ID','MT','HI']);
+const HURRICANE_STATES = new Set(['FL','TX','LA','MS','AL','SC','NC','GA','VA']);
+const SNOW_STATES      = new Set(['CO','UT','MT','WY','MN','WI','MI','NY','VT','NH','ME','MA','PA']);
+
+function buildChips(project) {
+  const state = project.state || '';
+  const bt    = project.building_type || '';
+  const chips = [];
+
+  if (SEISMIC_STATES.has(state))   chips.push('Seismic Zone D reinforcement');
+  if (HURRICANE_STATES.has(state)) chips.push('Hurricane-resistant construction');
+  if (SNOW_STATES.has(state))      chips.push('Heavy snow load design');
+
+  chips.push('LEED Gold certification', 'Rooftop solar PV array');
+
+  if (bt.includes('Library') || bt.includes('Civic')) {
+    chips.push('Structured underground parking', "Children's wing & maker space", 'Digital media lab');
+  } else if (bt.includes('Office')) {
+    chips.push('4-level parking podium', 'Open floor plate design', 'Building automation system');
+  } else if (bt.includes('Residential') || bt.includes('Multi-Family')) {
+    chips.push('Amenity deck & rooftop terrace', 'Underground parking structure', 'Ground-floor retail');
+  } else if (bt.includes('Healthcare')) {
+    chips.push('OSHPD-3 compliance', 'N+1 generator redundancy', 'Imaging suite (MRI, CT)');
+  } else if (bt.includes('Education')) {
+    chips.push('DSA compliance', 'Gymnasium with bleachers', 'Covered outdoor walkways');
+  } else if (bt.includes('Mixed-Use')) {
+    chips.push('Ground-floor retail', '2-level underground parking', 'Courtyard amenity space');
+  } else {
+    chips.push('3-level structured parking', 'High-end lobby finishes', 'Full MEP commissioning');
+  }
+
+  if (project.labor_type === 'Prevailing Wage') chips.push('Prevailing wage labor');
+  else if (project.labor_type === 'Union')      chips.push('Union labor rates');
+
+  chips.push('Phased construction');
+  return [...new Set(chips)].slice(0, 10);
+}
 
 const STATUS_MSGS = [
   'Analyzing project scope…',
@@ -110,7 +172,7 @@ function applyGlobals(raw, g) {
 export default function AIGenerator({ project, user, onSave, onSkip, onSignOut }) {
   const [step, setStep] = useState('describe');
   const [tab, setTab] = useState('describe');
-  const [description, setDescription] = useState('');
+  const [description, setDescription] = useState(() => buildStarterText(project));
   const [phIdx, setPhIdx] = useState(0);
   const [statusIdx, setStatusIdx] = useState(0);
   const [generatedData, setGeneratedData] = useState(null);
@@ -278,6 +340,8 @@ export default function AIGenerator({ project, user, onSave, onSkip, onSignOut }
           tab={tab} setTab={setTab}
           description={description} setDescription={setDescription}
           phIdx={phIdx} project={project}
+          templates={buildTemplates(project)}
+          chips={buildChips(project)}
           onGenerate={generate} onSkip={onSkip}
         />
       )}
@@ -310,7 +374,7 @@ export default function AIGenerator({ project, user, onSave, onSkip, onSignOut }
 
 // ── DescribeStep ──────────────────────────────────────────────────────────────
 
-function DescribeStep({ tab, setTab, description, setDescription, phIdx, project, onGenerate, onSkip }) {
+function DescribeStep({ tab, setTab, description, setDescription, phIdx, project, templates, chips, onGenerate, onSkip }) {
   return (
     <main style={{ flex: 1, maxWidth: 860, width: '100%', margin: '0 auto', padding: '44px 24px' }}>
       <div style={{ marginBottom: 32 }}>
@@ -366,7 +430,7 @@ function DescribeStep({ tab, setTab, description, setDescription, phIdx, project
             <span style={{ fontFamily: "'Figtree', sans-serif", fontSize: 12, color: '#aaa', alignSelf: 'center' }}>
               Add:
             </span>
-            {CHIPS.map(chip => (
+            {chips.map(chip => (
               <ChipButton
                 key={chip}
                 label={chip}
@@ -377,7 +441,7 @@ function DescribeStep({ tab, setTab, description, setDescription, phIdx, project
         </>
       ) : (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
-          {TEMPLATES.map(tpl => (
+          {templates.map(tpl => (
             <TemplateCard
               key={tpl.label}
               tpl={tpl}
@@ -446,13 +510,24 @@ function TemplateCard({ tpl, active, onClick }) {
       onMouseEnter={() => setHov(true)}
       onMouseLeave={() => setHov(false)}
       style={{
-        background: active ? '#fdf6e3' : '#fff',
-        border: `1.5px solid ${active || hov ? ACCENT : '#e6e6e2'}`,
+        background: active ? '#fdf6e3' : tpl.recommended ? '#fffdf5' : '#fff',
+        border: `1.5px solid ${active ? ACCENT : tpl.recommended ? ACCENT : hov ? ACCENT : '#e6e6e2'}`,
         borderRadius: 10, padding: '16px 14px', textAlign: 'left', cursor: 'pointer',
-        transition: 'border-color 0.12s, box-shadow 0.12s',
-        boxShadow: hov ? '0 2px 10px rgba(184,144,48,0.1)' : '0 1px 3px rgba(0,0,0,0.04)',
+        transition: 'border-color 0.12s, box-shadow 0.12s', position: 'relative',
+        boxShadow: hov || tpl.recommended ? '0 2px 10px rgba(184,144,48,0.12)' : '0 1px 3px rgba(0,0,0,0.04)',
       }}
     >
+      {tpl.recommended && (
+        <div style={{
+          position: 'absolute', top: -1, right: -1,
+          background: ACCENT, color: '#fff', fontSize: 9,
+          fontFamily: "'Archivo', sans-serif", fontWeight: 700,
+          letterSpacing: 0.5, padding: '3px 8px',
+          borderRadius: '0 9px 0 6px', textTransform: 'uppercase',
+        }}>
+          Recommended
+        </div>
+      )}
       <div style={{ fontSize: 22, marginBottom: 8 }}>{tpl.icon}</div>
       <div style={{ fontFamily: "'Archivo', sans-serif", fontWeight: 700, fontSize: 13, color: '#111', marginBottom: 4 }}>
         {tpl.label}
