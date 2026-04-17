@@ -16,6 +16,7 @@ import { Compare } from './components/Compare';
 import { Assumptions } from './components/Assumptions';
 import { AuditLog } from './components/AuditLog';
 import LoginPage from './components/LoginPage';
+import LandingPage from './components/LandingPage';
 import ProjectDashboard from './components/ProjectDashboard';
 import AIGenerator from './components/AIGenerator';
 import TeamPanel, { Avatar, initials } from './components/TeamPanel';
@@ -52,8 +53,11 @@ export default function App() {
     identifyCrispUser(user.email, name);
   }, [user?.id, profile?.full_name]);
 
+  const [showLogin, setShowLogin] = useState(false);
+
   const handleSignOut = async () => {
     resetAnalyticsUser();
+    setShowLogin(false);
     await signOut();
   };
   const [activeProject, setActiveProject] = useState(null);
@@ -142,6 +146,7 @@ export default function App() {
   }
 
   if (!user) {
+    if (!showLogin) return <LandingPage onShowLogin={() => setShowLogin(true)} />;
     return <LoginPage onSignIn={signIn} />;
   }
 
