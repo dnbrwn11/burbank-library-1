@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useCallback } from 'react';
 import { useWindowSize } from '../hooks/useWindowSize';
 import * as CE from '../engine/CostEngine';
 const CSI_ORDER = [
@@ -10,6 +10,160 @@ import { fmt, fK, psf } from '../utils/format';
 import { EditField } from './EditField';
 import { Badge } from './Badge';
 import { AIPanel } from './AIPanel';
+import {
+  DndContext, DragOverlay, PointerSensor, KeyboardSensor,
+  useSensor, useSensors, closestCenter,
+} from '@dnd-kit/core';
+import {
+  SortableContext, sortableKeyboardCoordinates, useSortable,
+  verticalListSortingStrategy, arrayMove,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
+
+// ── Module-level sub-components ───────────────────────────────────────────────
+// These must live outside CostModel so React doesn't treat them as new types
+// on every render, which would destroy and recreate DOM nodes.
+
+function ItemDetailPanel({ item, updateItem, aiAdvice, aiLoading, askAI, applyAI, mob }) {
+  const lt = CE.lowTotal(item), mt = CE.midTotal(item), ht = CE.highTotal(item);
+  const uI = (f) => (v) => updateItem(item.id, f, v);
+  return (
+    <div style={{ padding: mob ? '0 14px 14px' : '10px 20px', borderTop: mob ? `1px solid ${COLORS.bl}` : 'none' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: mob ? '1fr 1fr' : 'repeat(5,1fr)', gap: 8, marginTop: mob ? 10 : 0 }}>
+        {[['Qty Min', 'qtyMin'], ['Qty Max', 'qtyMax'], ['$/Low', 'unitCostLow'], ['$/Mid', 'unitCostMid'], ['$/High', 'unitCostHigh']].map(([l, f]) => (
+          <div key={f}>
+            <div style={{ fontSize: 10, color: COLORS.mg, fontFamily: FONTS.heading, fontWeight: 600, textTransform: 'uppercase', marginBottom: 4 }}>{l}</div>
+            <EditField value={item[f]} onCommit={uI(f)} mob={mob} />
+          </div>
+        ))}
+      </div>
+      <div style={{ marginTop: 8, padding: '6px 10px', background: COLORS.bl, borderRadius: 6, fontSize: 11, color: COLORS.mg, fontFamily: FONTS.body }}>
+        L: <b style={{ color: COLORS.lg }}>{fmt(lt)}</b> · M: <b style={{ color: COLORS.gn }}>{fmt(mt)}</b> · H: <b style={{ color: COLORS.or }}>{fmt(ht)}</b>
+        {item.basis && <span style={{ marginLeft: 12 }}>| {item.basis}</span>}
+      </div>
+      <AIPanel
+        item={item}
+        advice={aiAdvice?.[item.id]}
+        loading={aiLoading?.has(item.id)}
+        onAsk={() => askAI(item)}
+        onApply={(adv) => applyAI(item.id, adv)}
+        mob={mob}
+      />
+    </div>
+  );
+}
+
+function DragOverlayCard({ item, cv, bsf }) {
+  const sh = CE.itemTotal(item, cv);
+  return (
+    <div style={{
+      background: COLORS.wh,
+      border: `1.5px solid ${COLORS.gn}`,
+      borderRadius: 6,
+      padding: '8px 14px',
+      boxShadow: '0 10px 30px rgba(0,0,0,0.2)',
+      display: 'flex',
+      alignItems: 'center',
+      gap: 12,
+      fontSize: 12,
+      fontFamily: FONTS.body,
+      maxWidth: 560,
+      cursor: 'grabbing',
+      opacity: 0.97,
+    }}>
+      <span style={{ color: COLORS.mg, flexShrink: 0, fontSize: 13 }}>⠿</span>
+      <span style={{ flex: 1, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+        {item.description}
+      </span>
+      <span style={{ color: COLORS.gn, fontWeight: 700, fontVariantNumeric: 'tabular-nums', flexShrink: 0 }}>
+        {fK(sh)}
+      </span>
+    </div>
+  );
+}
+
+function SortableItemRow({
+  item, cv, bsf, mob,
+  hoverRow, setHoverRow, expR, setExpR, flashId,
+  updateItem, aiAdvice, aiLoading, askAI, applyAI,
+  openMoveMenu, overId, isDraggingAny,
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: item.id });
+
+  const sh   = CE.itemTotal(item, cv);
+  const ex   = expR === item.id;
+  const hasAI  = aiAdvice?.[item.id];
+  const isHover = hoverRow === item.id;
+  const isFlash = flashId === item.id;
+  const isOver  = overId === item.id && isDraggingAny && !isDragging;
+
+  const rowBg = isFlash ? '#FFF3B0' : isHover ? '#FCFCF9' : hasAI ? `${COLORS.gn}06` : COLORS.wh;
+
+  const combinedTransition = [transition, 'background 0.15s'].filter(Boolean).join(', ');
+  const rowStyle = {
+    transform: CSS.Transform.toString(transform),
+    transition: isFlash ? undefined : combinedTransition,
+    background: rowBg,
+    opacity: isDragging ? 0 : 1,
+    // Gold top-border on the over row as an insertion indicator
+    borderTop: isOver ? `2px solid ${COLORS.gn}` : undefined,
+    borderBottom: `1px solid ${COLORS.bl}`,
+    position: 'relative',
+  };
+
+  const uI = (f) => (v) => updateItem(item.id, f, v);
+
+  return (
+    <tr
+      ref={setNodeRef}
+      style={rowStyle}
+      onContextMenu={(e) => openMoveMenu(e, item.id)}
+      onMouseEnter={() => setHoverRow(item.id)}
+      onMouseLeave={() => setHoverRow(null)}
+      {...attributes}
+    >
+      <td style={{ padding: '0 2px', verticalAlign: 'middle' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 3 }}>
+          {/* Drag handle — listeners attached here only, not the whole row */}
+          <span
+            {...listeners}
+            title="Drag to reorder"
+            style={{
+              cursor: isDraggingAny ? 'grabbing' : 'grab',
+              color: isHover ? COLORS.mg : COLORS.ltg,
+              fontSize: 13,
+              lineHeight: 1,
+              padding: '3px 2px',
+              userSelect: 'none',
+              touchAction: 'none',
+              display: 'flex',
+            }}
+          >⠿</span>
+          <span
+            style={{ color: hasAI ? COLORS.gn : COLORS.mg, fontSize: 8, cursor: 'pointer' }}
+            onClick={() => setExpR(ex ? null : item.id)}
+          >{ex ? '▼' : '▸'}</span>
+        </div>
+      </td>
+      <td style={{ padding: '4px 8px' }}><EditField value={item.description} onCommit={uI('description')} type="text" /></td>
+      <td style={{ padding: '4px 8px', fontSize: 10, color: COLORS.mg, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.subcategory}</td>
+      <td style={{ padding: '4px 8px' }}><EditField value={item.qtyMin} onCommit={uI('qtyMin')} /></td>
+      <td style={{ padding: '4px 8px' }}><EditField value={item.qtyMax} onCommit={uI('qtyMax')} /></td>
+      <td style={{ padding: '4px 8px', fontSize: 10, color: COLORS.mg, textAlign: 'center' }}>{item.unit}</td>
+      <td style={{ padding: '4px 8px' }}><EditField value={item.unitCostLow} onCommit={uI('unitCostLow')} /></td>
+      <td style={{ padding: '4px 8px' }}><EditField value={item.unitCostMid} onCommit={uI('unitCostMid')} /></td>
+      <td style={{ padding: '4px 8px' }}><EditField value={item.unitCostHigh} onCommit={uI('unitCostHigh')} /></td>
+      <td style={{ padding: '4px 8px', textAlign: 'right', fontWeight: 600, color: COLORS.gn, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>{fmt(sh)}</td>
+      <td style={{ padding: '4px 8px', textAlign: 'right', fontSize: 10, color: COLORS.mg, fontVariantNumeric: 'tabular-nums' }}>{psf(sh, bsf)}</td>
+      <td style={{ padding: '4px 8px' }}><Badge sensitivity={item.sensitivity} /></td>
+      <td style={{ padding: '4px 4px' }}>
+        <button onClick={() => updateItem(item.id, 'isArchived', true)} style={{ background: 'transparent', border: 'none', color: COLORS.ltg, cursor: 'pointer', fontSize: 10 }}>✕</button>
+      </td>
+    </tr>
+  );
+}
+
+// ── Main component ────────────────────────────────────────────────────────────
 
 export function CostModel({ items, globals, activeItems, totals, updateItem, createItem, reorderItems, bsf, aiAdvice, aiLoading, askAI, applyAI }) {
   const { mob } = useWindowSize();
@@ -26,7 +180,9 @@ export function CostModel({ items, globals, activeItems, totals, updateItem, cre
   const [hoverRow, setHoverRow] = useState(null);
   const [flashId, setFlashId] = useState(null);
   const [catOrder, setCatOrder] = useState(null);
-  const [moveMenu, setMoveMenu] = useState(null); // { itemId, x, y }
+  const [moveMenu, setMoveMenu] = useState(null);
+  const [dragId, setDragId] = useState(null);
+  const [overId, setOverId] = useState(null);
 
   // Close context menu on any outside click
   useEffect(() => {
@@ -35,6 +191,13 @@ export function CostModel({ items, globals, activeItems, totals, updateItem, cre
     window.addEventListener('click', close);
     return () => window.removeEventListener('click', close);
   }, [moveMenu]);
+
+  // ── dnd-kit sensors ────────────────────────────────────────────────────────
+  // distance:5 prevents accidental drags when clicking EditField cells
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
 
   const inpStyle = { width: '100%', border: 'none', borderBottom: `1px solid ${COLORS.bd}`, outline: 'none', background: 'transparent', fontSize: 12, fontFamily: FONTS.body, color: COLORS.dg, padding: '1px 0' };
 
@@ -70,28 +233,6 @@ export function CostModel({ items, globals, activeItems, totals, updateItem, cre
   const flash = (id) => {
     setFlashId(id);
     setTimeout(() => setFlashId(null), 700);
-  };
-
-  const moveItemUp = (catItems, idx) => {
-    if (idx === 0) return;
-    const a = catItems[idx];
-    const b = catItems[idx - 1];
-    reorderItems([
-      { id: a.id, sortOrder: b.sortOrder ?? idx - 1 },
-      { id: b.id, sortOrder: a.sortOrder ?? idx },
-    ]);
-    flash(a.id);
-  };
-
-  const moveItemDown = (catItems, idx) => {
-    if (idx >= catItems.length - 1) return;
-    const a = catItems[idx];
-    const b = catItems[idx + 1];
-    reorderItems([
-      { id: a.id, sortOrder: b.sortOrder ?? idx + 1 },
-      { id: b.id, sortOrder: a.sortOrder ?? idx },
-    ]);
-    flash(a.id);
   };
 
   const moveCatUp = (cat) => {
@@ -147,9 +288,56 @@ export function CostModel({ items, globals, activeItems, totals, updateItem, cre
     ];
   }, [groups, catOrder]);
 
+  // Flat list of visible (non-collapsed) items for SortableContext
+  const flatItems = useMemo(
+    () => orderedGroups.flatMap(g => col.has(g.c) ? [] : g.items),
+    [orderedGroups, col],
+  );
+
+  // ── Drag handlers ──────────────────────────────────────────────────────────
+  const handleDragStart = useCallback(({ active }) => {
+    setDragId(active.id);
+    setExpR(null); // collapse any open detail panel
+  }, []);
+
+  const handleDragOver = useCallback(({ over }) => {
+    setOverId(over?.id ?? null);
+  }, []);
+
+  const handleDragEnd = useCallback(({ active, over }) => {
+    setDragId(null);
+    setOverId(null);
+    if (!over || active.id === over.id) return;
+
+    const oldIdx = flatItems.findIndex(i => i.id === active.id);
+    const newIdx = flatItems.findIndex(i => i.id === over.id);
+    if (oldIdx === -1 || newIdx === -1) return;
+
+    const movedItem  = flatItems[oldIdx];
+    const newCategory = flatItems[newIdx].category;
+    const categoryChanged = movedItem.category !== newCategory;
+
+    const reordered = arrayMove(flatItems, oldIdx, newIdx);
+
+    // Only include rows whose sort_order or category actually changed
+    const updates = reordered.reduce((acc, item, idx) => {
+      const orig = flatItems.find(i => i.id === item.id);
+      const isMovedItem = item.id === active.id;
+      if (orig.sortOrder !== idx || (isMovedItem && categoryChanged)) {
+        acc.push({
+          id: item.id,
+          sortOrder: idx,
+          ...(isMovedItem && categoryChanged ? { category: newCategory } : {}),
+        });
+      }
+      return acc;
+    }, []);
+
+    if (updates.length) reorderItems(updates);
+  }, [flatItems, reorderItems]);
+
   const toggleCol = (c) => setCol(p => { const n = new Set(p); n.has(c) ? n.delete(c) : n.add(c); return n; });
   const cvk = CE.cvKey(cv);
-  const uI = (id, f) => (v) => updateItem(id, f, v);
 
   const arrowBtn = (onClick, disabled, label) => (
     <button
@@ -159,34 +347,8 @@ export function CostModel({ items, globals, activeItems, totals, updateItem, cre
     >{label}</button>
   );
 
-  // Expanded detail panel
-  const ItemDetail = ({ item }) => {
-    const lt = CE.lowTotal(item), mt = CE.midTotal(item), ht = CE.highTotal(item);
-    return (
-      <div style={{ padding: mob ? '0 14px 14px' : '10px 20px', borderTop: mob ? `1px solid ${COLORS.bl}` : 'none' }}>
-        <div style={{ display: 'grid', gridTemplateColumns: mob ? '1fr 1fr' : 'repeat(5,1fr)', gap: 8, marginTop: mob ? 10 : 0 }}>
-          {[['Qty Min', 'qtyMin'], ['Qty Max', 'qtyMax'], ['$/Low', 'unitCostLow'], ['$/Mid', 'unitCostMid'], ['$/High', 'unitCostHigh']].map(([l, f]) => (
-            <div key={f}>
-              <div style={{ fontSize: 10, color: COLORS.mg, fontFamily: FONTS.heading, fontWeight: 600, textTransform: 'uppercase', marginBottom: 4 }}>{l}</div>
-              <EditField value={item[f]} onCommit={uI(item.id, f)} mob={mob} />
-            </div>
-          ))}
-        </div>
-        <div style={{ marginTop: 8, padding: '6px 10px', background: COLORS.bl, borderRadius: 6, fontSize: 11, color: COLORS.mg, fontFamily: FONTS.body }}>
-          L: <b style={{ color: COLORS.lg }}>{fmt(lt)}</b> · M: <b style={{ color: COLORS.gn }}>{fmt(mt)}</b> · H: <b style={{ color: COLORS.or }}>{fmt(ht)}</b>
-          {item.basis && <span style={{ marginLeft: 12 }}>| {item.basis}</span>}
-        </div>
-        <AIPanel
-          item={item}
-          advice={aiAdvice?.[item.id]}
-          loading={aiLoading?.has(item.id)}
-          onAsk={() => askAI(item)}
-          onApply={(adv) => applyAI(item.id, adv)}
-          mob={mob}
-        />
-      </div>
-    );
-  };
+  const dragItem = dragId ? flatItems.find(i => i.id === dragId) : null;
+  const isDraggingAny = dragId !== null;
 
   return (
     <div style={{ fontFamily: FONTS.body }}>
@@ -206,7 +368,7 @@ export function CostModel({ items, globals, activeItems, totals, updateItem, cre
         </div>
       </div>
 
-      {/* Mobile: Card layout */}
+      {/* Mobile: Card layout (no drag on mobile) */}
       {mob ? (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           {orderedGroups.map(g => {
@@ -243,7 +405,9 @@ export function CostModel({ items, globals, activeItems, totals, updateItem, cre
                               </div>
                             </div>
                           </div>
-                          {ex && <ItemDetail item={item} />}
+                          {ex && (
+                            <ItemDetailPanel item={item} updateItem={updateItem} aiAdvice={aiAdvice} aiLoading={aiLoading} askAI={askAI} applyAI={applyAI} mob={mob} />
+                          )}
                         </div>
                       );
                     })}
@@ -254,173 +418,169 @@ export function CostModel({ items, globals, activeItems, totals, updateItem, cre
           })}
         </div>
       ) : (
-        /* Desktop/Tablet: Table layout */
-        <div style={{ borderRadius: 10, border: `1px solid ${COLORS.bd}`, overflow: 'clip', background: COLORS.wh }}>
-          <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, fontFamily: FONTS.body, minWidth: 1000 }}>
-              <thead>
-                <tr style={{ background: '#F5F5F0' }}>
-                  <th style={{ width: '3%',  padding: '9px 4px', textAlign: 'left',  fontSize: 9, fontFamily: FONTS.heading, fontWeight: 600, color: COLORS.mg, textTransform: 'uppercase', letterSpacing: 1, borderBottom: `2px solid #22222222` }}></th>
-                  <th style={{ width: '25%', padding: '9px 8px', textAlign: 'left',  fontSize: 9, fontFamily: FONTS.heading, fontWeight: 600, color: COLORS.mg, textTransform: 'uppercase', letterSpacing: 1, borderBottom: `2px solid #22222222` }}>Description</th>
-                  <th style={{ width: '12%', padding: '9px 8px', textAlign: 'left',  fontSize: 9, fontFamily: FONTS.heading, fontWeight: 600, color: COLORS.mg, textTransform: 'uppercase', letterSpacing: 1, borderBottom: `2px solid #22222222` }}>Sub</th>
-                  <th style={{ width: '7%',  padding: '9px 8px', textAlign: 'right', fontSize: 9, fontFamily: FONTS.heading, fontWeight: 600, color: COLORS.mg, textTransform: 'uppercase', letterSpacing: 1, borderBottom: `2px solid #22222222` }}>Qty Min</th>
-                  <th style={{ width: '7%',  padding: '9px 8px', textAlign: 'right', fontSize: 9, fontFamily: FONTS.heading, fontWeight: 600, color: COLORS.mg, textTransform: 'uppercase', letterSpacing: 1, borderBottom: `2px solid #22222222` }}>Qty Max</th>
-                  <th style={{ width: '4%',  padding: '9px 8px', textAlign: 'right', fontSize: 9, fontFamily: FONTS.heading, fontWeight: 600, color: COLORS.mg, textTransform: 'uppercase', letterSpacing: 1, borderBottom: `2px solid #22222222` }}>Unit</th>
-                  <th style={{ width: '7%',  padding: '9px 8px', textAlign: 'right', fontSize: 9, fontFamily: FONTS.heading, fontWeight: 600, color: COLORS.mg, textTransform: 'uppercase', letterSpacing: 1, borderBottom: `2px solid #22222222` }}>$/Low</th>
-                  <th style={{ width: '7%',  padding: '9px 8px', textAlign: 'right', fontSize: 9, fontFamily: FONTS.heading, fontWeight: 600, color: COLORS.mg, textTransform: 'uppercase', letterSpacing: 1, borderBottom: `2px solid #22222222` }}>$/Mid</th>
-                  <th style={{ width: '7%',  padding: '9px 8px', textAlign: 'right', fontSize: 9, fontFamily: FONTS.heading, fontWeight: 600, color: COLORS.mg, textTransform: 'uppercase', letterSpacing: 1, borderBottom: `2px solid #22222222` }}>$/High</th>
-                  <th style={{ width: '9%',  padding: '9px 8px', textAlign: 'right', fontSize: 9, fontFamily: FONTS.heading, fontWeight: 600, color: COLORS.mg, textTransform: 'uppercase', letterSpacing: 1, borderBottom: `2px solid #22222222` }}>{cv.toUpperCase()} Total</th>
-                  <th style={{ width: '5%',  padding: '9px 8px', textAlign: 'right', fontSize: 9, fontFamily: FONTS.heading, fontWeight: 600, color: COLORS.mg, textTransform: 'uppercase', letterSpacing: 1, borderBottom: `2px solid #22222222` }}>$/SF</th>
-                  <th style={{ width: '5%',  padding: '9px 8px', textAlign: 'right', fontSize: 9, fontFamily: FONTS.heading, fontWeight: 600, color: COLORS.mg, textTransform: 'uppercase', letterSpacing: 1, borderBottom: `2px solid #22222222` }}>Sens</th>
-                  <th style={{ width: '2%',  padding: '9px 4px', borderBottom: `2px solid #22222222` }}></th>
-                </tr>
-              </thead>
-              <tbody>
-                {orderedGroups.map((g, gIdx) => {
-                  const cl = col.has(g.c);
-                  const isFirst = gIdx === 0;
-                  const isLast = gIdx === orderedGroups.length - 1;
-                  return [
-                    /* ── Category header row ── */
-                    <tr key={`c_${g.c}`} style={{ background: '#FAFAF6', cursor: 'pointer', borderBottom: `1px solid ${COLORS.bd}` }} onClick={() => toggleCol(g.c)}>
-                      <td style={{ padding: '8px 4px' }}><span style={{ color: COLORS.gn, fontSize: 9 }}>{cl ? '▶' : '▼'}</span></td>
-                      <td colSpan={8} style={{ padding: '8px 8px', fontWeight: 700, fontSize: 12, fontFamily: FONTS.heading, color: COLORS.gn }}>{g.c.toUpperCase()} <span style={{ color: COLORS.mg, fontWeight: 400, fontSize: 10, fontFamily: FONTS.body }}>({g.items.length})</span></td>
-                      <td style={{ padding: '8px 8px', textAlign: 'right', fontWeight: 700, fontFamily: FONTS.heading, color: COLORS.gn, fontVariantNumeric: 'tabular-nums' }}>{fmt(g.t[cvk])}</td>
-                      <td style={{ padding: '8px 8px', textAlign: 'right', fontSize: 10, color: COLORS.mg, fontVariantNumeric: 'tabular-nums' }}>{psf(g.t[cvk], bsf)}</td>
-                      <td colSpan={2} style={{ padding: '4px 6px', textAlign: 'right', whiteSpace: 'nowrap' }} onClick={e => e.stopPropagation()}>
-                        {arrowBtn((e) => { e.stopPropagation(); moveCatUp(g.c); }, isFirst, '▲')}
-                        {arrowBtn((e) => { e.stopPropagation(); moveCatDown(g.c); }, isLast, '▼')}
+        /* Desktop/Tablet: Table layout with drag-and-drop */
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCenter}
+          onDragStart={handleDragStart}
+          onDragOver={handleDragOver}
+          onDragEnd={handleDragEnd}
+        >
+          <div style={{ borderRadius: 10, border: `1px solid ${COLORS.bd}`, overflow: 'clip', background: COLORS.wh }}>
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, fontFamily: FONTS.body, minWidth: 1000 }}>
+                <thead>
+                  <tr style={{ background: '#F5F5F0' }}>
+                    <th style={{ width: '3%',  padding: '9px 4px', textAlign: 'left',  fontSize: 9, fontFamily: FONTS.heading, fontWeight: 600, color: COLORS.mg, textTransform: 'uppercase', letterSpacing: 1, borderBottom: `2px solid #22222222` }}></th>
+                    <th style={{ width: '25%', padding: '9px 8px', textAlign: 'left',  fontSize: 9, fontFamily: FONTS.heading, fontWeight: 600, color: COLORS.mg, textTransform: 'uppercase', letterSpacing: 1, borderBottom: `2px solid #22222222` }}>Description</th>
+                    <th style={{ width: '12%', padding: '9px 8px', textAlign: 'left',  fontSize: 9, fontFamily: FONTS.heading, fontWeight: 600, color: COLORS.mg, textTransform: 'uppercase', letterSpacing: 1, borderBottom: `2px solid #22222222` }}>Sub</th>
+                    <th style={{ width: '7%',  padding: '9px 8px', textAlign: 'right', fontSize: 9, fontFamily: FONTS.heading, fontWeight: 600, color: COLORS.mg, textTransform: 'uppercase', letterSpacing: 1, borderBottom: `2px solid #22222222` }}>Qty Min</th>
+                    <th style={{ width: '7%',  padding: '9px 8px', textAlign: 'right', fontSize: 9, fontFamily: FONTS.heading, fontWeight: 600, color: COLORS.mg, textTransform: 'uppercase', letterSpacing: 1, borderBottom: `2px solid #22222222` }}>Qty Max</th>
+                    <th style={{ width: '4%',  padding: '9px 8px', textAlign: 'right', fontSize: 9, fontFamily: FONTS.heading, fontWeight: 600, color: COLORS.mg, textTransform: 'uppercase', letterSpacing: 1, borderBottom: `2px solid #22222222` }}>Unit</th>
+                    <th style={{ width: '7%',  padding: '9px 8px', textAlign: 'right', fontSize: 9, fontFamily: FONTS.heading, fontWeight: 600, color: COLORS.mg, textTransform: 'uppercase', letterSpacing: 1, borderBottom: `2px solid #22222222` }}>$/Low</th>
+                    <th style={{ width: '7%',  padding: '9px 8px', textAlign: 'right', fontSize: 9, fontFamily: FONTS.heading, fontWeight: 600, color: COLORS.mg, textTransform: 'uppercase', letterSpacing: 1, borderBottom: `2px solid #22222222` }}>$/Mid</th>
+                    <th style={{ width: '7%',  padding: '9px 8px', textAlign: 'right', fontSize: 9, fontFamily: FONTS.heading, fontWeight: 600, color: COLORS.mg, textTransform: 'uppercase', letterSpacing: 1, borderBottom: `2px solid #22222222` }}>$/High</th>
+                    <th style={{ width: '9%',  padding: '9px 8px', textAlign: 'right', fontSize: 9, fontFamily: FONTS.heading, fontWeight: 600, color: COLORS.mg, textTransform: 'uppercase', letterSpacing: 1, borderBottom: `2px solid #22222222` }}>{cv.toUpperCase()} Total</th>
+                    <th style={{ width: '5%',  padding: '9px 8px', textAlign: 'right', fontSize: 9, fontFamily: FONTS.heading, fontWeight: 600, color: COLORS.mg, textTransform: 'uppercase', letterSpacing: 1, borderBottom: `2px solid #22222222` }}>$/SF</th>
+                    <th style={{ width: '5%',  padding: '9px 8px', textAlign: 'right', fontSize: 9, fontFamily: FONTS.heading, fontWeight: 600, color: COLORS.mg, textTransform: 'uppercase', letterSpacing: 1, borderBottom: `2px solid #22222222` }}>Sens</th>
+                    <th style={{ width: '2%',  padding: '9px 4px', borderBottom: `2px solid #22222222` }}></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <SortableContext items={flatItems.map(i => i.id)} strategy={verticalListSortingStrategy}>
+                    {orderedGroups.map((g, gIdx) => {
+                      const cl = col.has(g.c);
+                      const isFirst = gIdx === 0;
+                      const isLast  = gIdx === orderedGroups.length - 1;
+                      return [
+                        /* ── Category header row ── */
+                        <tr key={`c_${g.c}`} style={{ background: '#FAFAF6', cursor: 'pointer', borderBottom: `1px solid ${COLORS.bd}` }} onClick={() => toggleCol(g.c)}>
+                          <td style={{ padding: '8px 4px' }}><span style={{ color: COLORS.gn, fontSize: 9 }}>{cl ? '▶' : '▼'}</span></td>
+                          <td colSpan={8} style={{ padding: '8px 8px', fontWeight: 700, fontSize: 12, fontFamily: FONTS.heading, color: COLORS.gn }}>{g.c.toUpperCase()} <span style={{ color: COLORS.mg, fontWeight: 400, fontSize: 10, fontFamily: FONTS.body }}>({g.items.length})</span></td>
+                          <td style={{ padding: '8px 8px', textAlign: 'right', fontWeight: 700, fontFamily: FONTS.heading, color: COLORS.gn, fontVariantNumeric: 'tabular-nums' }}>{fmt(g.t[cvk])}</td>
+                          <td style={{ padding: '8px 8px', textAlign: 'right', fontSize: 10, color: COLORS.mg, fontVariantNumeric: 'tabular-nums' }}>{psf(g.t[cvk], bsf)}</td>
+                          <td colSpan={2} style={{ padding: '4px 6px', textAlign: 'right', whiteSpace: 'nowrap' }} onClick={e => e.stopPropagation()}>
+                            {arrowBtn((e) => { e.stopPropagation(); moveCatUp(g.c); }, isFirst, '▲')}
+                            {arrowBtn((e) => { e.stopPropagation(); moveCatDown(g.c); }, isLast, '▼')}
+                          </td>
+                        </tr>,
+
+                        /* ── Sortable item rows ── */
+                        ...(!cl ? g.items.flatMap(item => [
+                          <SortableItemRow
+                            key={item.id}
+                            item={item}
+                            cv={cv}
+                            bsf={bsf}
+                            mob={mob}
+                            hoverRow={hoverRow}
+                            setHoverRow={setHoverRow}
+                            expR={expR}
+                            setExpR={setExpR}
+                            flashId={flashId}
+                            updateItem={updateItem}
+                            aiAdvice={aiAdvice}
+                            aiLoading={aiLoading}
+                            askAI={askAI}
+                            applyAI={applyAI}
+                            openMoveMenu={openMoveMenu}
+                            overId={overId}
+                            isDraggingAny={isDraggingAny}
+                          />,
+                          // Detail panel: hide while dragging to avoid layout issues
+                          expR === item.id && !isDraggingAny && (
+                            <tr key={`${item.id}_x`} style={{ background: '#F8F8F3', borderBottom: `1px solid ${COLORS.bd}` }}>
+                              <td colSpan={13}>
+                                <ItemDetailPanel item={item} updateItem={updateItem} aiAdvice={aiAdvice} aiLoading={aiLoading} askAI={askAI} applyAI={applyAI} mob={mob} />
+                              </td>
+                            </tr>
+                          ),
+                        ]) : []),
+
+                        /* ── Add Item trigger / edit row ── */
+                        addingItemCat === g.c
+                          ? <tr key={`${g.c}_newr`} style={{ background: `${COLORS.gn}06`, borderBottom: `1px solid ${COLORS.bd}` }}>
+                              <td style={{ padding: '4px 4px' }} />
+                              <td style={{ padding: '4px 8px' }}><input autoFocus placeholder="Description…" value={draft.description || ''} onChange={e => setDraft(p => ({ ...p, description: e.target.value }))} onKeyDown={e => e.key === 'Enter' && handleSaveNewItem()} style={inpStyle} /></td>
+                              <td style={{ padding: '4px 8px' }}><input placeholder="Subcategory" value={draft.subcategory || ''} onChange={e => setDraft(p => ({ ...p, subcategory: e.target.value }))} style={inpStyle} /></td>
+                              <td style={{ padding: '4px 8px' }}><input type="number" placeholder="1" value={draft.qtyMin ?? ''} onChange={e => setDraft(p => ({ ...p, qtyMin: e.target.value }))} style={{ ...inpStyle, textAlign: 'right' }} /></td>
+                              <td style={{ padding: '4px 8px' }}><input type="number" placeholder="1" value={draft.qtyMax ?? ''} onChange={e => setDraft(p => ({ ...p, qtyMax: e.target.value }))} style={{ ...inpStyle, textAlign: 'right' }} /></td>
+                              <td style={{ padding: '4px 8px' }}><input placeholder="LS" value={draft.unit || ''} onChange={e => setDraft(p => ({ ...p, unit: e.target.value }))} style={{ ...inpStyle, textAlign: 'center' }} /></td>
+                              <td style={{ padding: '4px 8px' }}><input type="number" placeholder="0" value={draft.unitCostLow ?? ''} onChange={e => setDraft(p => ({ ...p, unitCostLow: e.target.value }))} style={{ ...inpStyle, textAlign: 'right' }} /></td>
+                              <td style={{ padding: '4px 8px' }}><input type="number" placeholder="0" value={draft.unitCostMid ?? ''} onChange={e => setDraft(p => ({ ...p, unitCostMid: e.target.value }))} style={{ ...inpStyle, textAlign: 'right' }} /></td>
+                              <td style={{ padding: '4px 8px' }}><input type="number" placeholder="0" value={draft.unitCostHigh ?? ''} onChange={e => setDraft(p => ({ ...p, unitCostHigh: e.target.value }))} style={{ ...inpStyle, textAlign: 'right' }} /></td>
+                              <td style={{ padding: '4px 8px', textAlign: 'right', fontSize: 10, color: COLORS.mg }}>—</td>
+                              <td style={{ padding: '4px 8px', textAlign: 'right', fontSize: 10, color: COLORS.mg }}>—</td>
+                              <td style={{ padding: '4px 8px' }}>
+                                <select value={draft.sensitivity || 'Medium'} onChange={e => setDraft(p => ({ ...p, sensitivity: e.target.value }))} style={{ ...inpStyle, fontSize: 10 }}>
+                                  {SENSITIVITIES.map(s => <option key={s}>{s}</option>)}
+                                </select>
+                              </td>
+                              <td style={{ padding: '4px 4px', whiteSpace: 'nowrap' }}>
+                                <button onClick={handleSaveNewItem} disabled={!draft.description?.trim() || addSaving} style={{ background: 'none', border: 'none', cursor: 'pointer', color: COLORS.gn, fontWeight: 700, fontSize: 13, padding: '0 2px' }}>{addSaving ? '…' : '✓'}</button>
+                                <button onClick={cancelAddItem} style={{ background: 'none', border: 'none', cursor: 'pointer', color: COLORS.mg, fontSize: 13, padding: '0 2px' }}>✕</button>
+                              </td>
+                            </tr>
+                          : <tr key={`${g.c}_addtrig`} onClick={() => openAddItem(g.c)} style={{ cursor: 'pointer', borderBottom: `1px solid ${COLORS.bl}` }}>
+                              <td colSpan={13} style={{ padding: '5px 8px 5px 28px', fontSize: 11, color: COLORS.mg, fontFamily: FONTS.body, userSelect: 'none' }}>+ Add item</td>
+                            </tr>,
+                      ];
+                    }).flat()}
+                  </SortableContext>
+
+                  {/* ── Pending new category (no items yet) ── */}
+                  {addingItemCat && !groups.some(g => g.c === addingItemCat) && [
+                    <tr key="newcat_hdr" style={{ background: '#FAFAF6', borderBottom: `1px solid ${COLORS.bd}` }}>
+                      <td style={{ padding: '8px 4px' }}><span style={{ color: COLORS.gn, fontSize: 9 }}>▼</span></td>
+                      <td colSpan={12} style={{ padding: '8px 8px', fontWeight: 700, fontSize: 12, fontFamily: FONTS.heading, color: COLORS.gn }}>{addingItemCat.toUpperCase()} <span style={{ color: COLORS.mg, fontWeight: 400, fontSize: 10, fontFamily: FONTS.body }}>(new)</span></td>
+                    </tr>,
+                    <tr key="newcat_newr" style={{ background: `${COLORS.gn}06`, borderBottom: `1px solid ${COLORS.bd}` }}>
+                      <td style={{ padding: '4px 4px' }} />
+                      <td style={{ padding: '4px 8px' }}><input autoFocus placeholder="Description…" value={draft.description || ''} onChange={e => setDraft(p => ({ ...p, description: e.target.value }))} onKeyDown={e => e.key === 'Enter' && handleSaveNewItem()} style={inpStyle} /></td>
+                      <td style={{ padding: '4px 8px' }}><input placeholder="Subcategory" value={draft.subcategory || ''} onChange={e => setDraft(p => ({ ...p, subcategory: e.target.value }))} style={inpStyle} /></td>
+                      <td style={{ padding: '4px 8px' }}><input type="number" placeholder="1" value={draft.qtyMin ?? ''} onChange={e => setDraft(p => ({ ...p, qtyMin: e.target.value }))} style={{ ...inpStyle, textAlign: 'right' }} /></td>
+                      <td style={{ padding: '4px 8px' }}><input type="number" placeholder="1" value={draft.qtyMax ?? ''} onChange={e => setDraft(p => ({ ...p, qtyMax: e.target.value }))} style={{ ...inpStyle, textAlign: 'right' }} /></td>
+                      <td style={{ padding: '4px 8px' }}><input placeholder="LS" value={draft.unit || ''} onChange={e => setDraft(p => ({ ...p, unit: e.target.value }))} style={{ ...inpStyle, textAlign: 'center' }} /></td>
+                      <td style={{ padding: '4px 8px' }}><input type="number" placeholder="0" value={draft.unitCostLow ?? ''} onChange={e => setDraft(p => ({ ...p, unitCostLow: e.target.value }))} style={{ ...inpStyle, textAlign: 'right' }} /></td>
+                      <td style={{ padding: '4px 8px' }}><input type="number" placeholder="0" value={draft.unitCostMid ?? ''} onChange={e => setDraft(p => ({ ...p, unitCostMid: e.target.value }))} style={{ ...inpStyle, textAlign: 'right' }} /></td>
+                      <td style={{ padding: '4px 8px' }}><input type="number" placeholder="0" value={draft.unitCostHigh ?? ''} onChange={e => setDraft(p => ({ ...p, unitCostHigh: e.target.value }))} style={{ ...inpStyle, textAlign: 'right' }} /></td>
+                      <td style={{ padding: '4px 8px', textAlign: 'right', fontSize: 10, color: COLORS.mg }}>—</td>
+                      <td style={{ padding: '4px 8px', textAlign: 'right', fontSize: 10, color: COLORS.mg }}>—</td>
+                      <td style={{ padding: '4px 8px' }}>
+                        <select value={draft.sensitivity || 'Medium'} onChange={e => setDraft(p => ({ ...p, sensitivity: e.target.value }))} style={{ ...inpStyle, fontSize: 10 }}>
+                          {SENSITIVITIES.map(s => <option key={s}>{s}</option>)}
+                        </select>
+                      </td>
+                      <td style={{ padding: '4px 4px', whiteSpace: 'nowrap' }}>
+                        <button onClick={handleSaveNewItem} disabled={!draft.description?.trim() || addSaving} style={{ background: 'none', border: 'none', cursor: 'pointer', color: COLORS.gn, fontWeight: 700, fontSize: 13, padding: '0 2px' }}>{addSaving ? '…' : '✓'}</button>
+                        <button onClick={cancelAddItem} style={{ background: 'none', border: 'none', cursor: 'pointer', color: COLORS.mg, fontSize: 13, padding: '0 2px' }}>✕</button>
                       </td>
                     </tr>,
+                  ]}
 
-                    /* ── Item rows ── */
-                    ...(!cl ? g.items.map((item, idx) => {
-                      const sh = CE.itemTotal(item, cv);
-                      const ex = expR === item.id;
-                      const hasAI = aiAdvice?.[item.id];
-                      const isHover = hoverRow === item.id;
-                      const isFlash = flashId === item.id;
-                      const rowBg = isFlash ? '#FFF3B0' : isHover ? '#FCFCF9' : hasAI ? `${COLORS.gn}06` : COLORS.wh;
-                      return [
-                        <tr
-                          key={item.id}
-                          onContextMenu={(e) => openMoveMenu(e, item.id)}
-                          onMouseEnter={() => setHoverRow(item.id)}
-                          onMouseLeave={() => setHoverRow(null)}
-                          style={{ borderBottom: `1px solid ${COLORS.bl}`, background: rowBg, transition: isFlash ? 'none' : 'background 0.15s' }}
-                        >
-                          <td style={{ padding: '0 2px', verticalAlign: 'middle' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 2 }}>
-                              {isHover && (
-                                <div style={{ display: 'flex', flexDirection: 'column' }}>
-                                  {arrowBtn((e) => { e.stopPropagation(); moveItemUp(g.items, idx); }, idx === 0, '▲')}
-                                  {arrowBtn((e) => { e.stopPropagation(); moveItemDown(g.items, idx); }, idx === g.items.length - 1, '▼')}
-                                </div>
-                              )}
-                              <span
-                                style={{ color: hasAI ? COLORS.gn : COLORS.mg, fontSize: 8, cursor: 'pointer' }}
-                                onClick={() => setExpR(ex ? null : item.id)}
-                              >{ex ? '▼' : '▸'}</span>
-                            </div>
-                          </td>
-                          <td style={{ padding: '4px 8px' }}><EditField value={item.description} onCommit={uI(item.id, 'description')} type="text" /></td>
-                          <td style={{ padding: '4px 8px', fontSize: 10, color: COLORS.mg, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.subcategory}</td>
-                          <td style={{ padding: '4px 8px' }}><EditField value={item.qtyMin} onCommit={uI(item.id, 'qtyMin')} /></td>
-                          <td style={{ padding: '4px 8px' }}><EditField value={item.qtyMax} onCommit={uI(item.id, 'qtyMax')} /></td>
-                          <td style={{ padding: '4px 8px', fontSize: 10, color: COLORS.mg, textAlign: 'center' }}>{item.unit}</td>
-                          <td style={{ padding: '4px 8px' }}><EditField value={item.unitCostLow} onCommit={uI(item.id, 'unitCostLow')} /></td>
-                          <td style={{ padding: '4px 8px' }}><EditField value={item.unitCostMid} onCommit={uI(item.id, 'unitCostMid')} /></td>
-                          <td style={{ padding: '4px 8px' }}><EditField value={item.unitCostHigh} onCommit={uI(item.id, 'unitCostHigh')} /></td>
-                          <td style={{ padding: '4px 8px', textAlign: 'right', fontWeight: 600, color: COLORS.gn, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>{fmt(sh)}</td>
-                          <td style={{ padding: '4px 8px', textAlign: 'right', fontSize: 10, color: COLORS.mg, fontVariantNumeric: 'tabular-nums' }}>{psf(sh, bsf)}</td>
-                          <td style={{ padding: '4px 8px' }}><Badge sensitivity={item.sensitivity} /></td>
-                          <td style={{ padding: '4px 4px' }}><button onClick={() => updateItem(item.id, 'isArchived', true)} style={{ background: 'transparent', border: 'none', color: COLORS.ltg, cursor: 'pointer', fontSize: 10 }}>✕</button></td>
-                        </tr>,
-                        ex && (
-                          <tr key={`${item.id}_x`} style={{ background: '#F8F8F3', borderBottom: `1px solid ${COLORS.bd}` }}>
-                            <td colSpan={13}><ItemDetail item={item} /></td>
-                          </tr>
-                        ),
-                      ];
-                    }).flat() : []),
-
-                    /* ── Add Item trigger / edit row ── */
-                    addingItemCat === g.c
-                      ? <tr key={`${g.c}_newr`} style={{ background: `${COLORS.gn}06`, borderBottom: `1px solid ${COLORS.bd}` }}>
-                          <td style={{ padding: '4px 4px' }} />
-                          <td style={{ padding: '4px 8px' }}><input autoFocus placeholder="Description…" value={draft.description || ''} onChange={e => setDraft(p => ({ ...p, description: e.target.value }))} onKeyDown={e => e.key === 'Enter' && handleSaveNewItem()} style={inpStyle} /></td>
-                          <td style={{ padding: '4px 8px' }}><input placeholder="Subcategory" value={draft.subcategory || ''} onChange={e => setDraft(p => ({ ...p, subcategory: e.target.value }))} style={inpStyle} /></td>
-                          <td style={{ padding: '4px 8px' }}><input type="number" placeholder="1" value={draft.qtyMin ?? ''} onChange={e => setDraft(p => ({ ...p, qtyMin: e.target.value }))} style={{ ...inpStyle, textAlign: 'right' }} /></td>
-                          <td style={{ padding: '4px 8px' }}><input type="number" placeholder="1" value={draft.qtyMax ?? ''} onChange={e => setDraft(p => ({ ...p, qtyMax: e.target.value }))} style={{ ...inpStyle, textAlign: 'right' }} /></td>
-                          <td style={{ padding: '4px 8px' }}><input placeholder="LS" value={draft.unit || ''} onChange={e => setDraft(p => ({ ...p, unit: e.target.value }))} style={{ ...inpStyle, textAlign: 'center' }} /></td>
-                          <td style={{ padding: '4px 8px' }}><input type="number" placeholder="0" value={draft.unitCostLow ?? ''} onChange={e => setDraft(p => ({ ...p, unitCostLow: e.target.value }))} style={{ ...inpStyle, textAlign: 'right' }} /></td>
-                          <td style={{ padding: '4px 8px' }}><input type="number" placeholder="0" value={draft.unitCostMid ?? ''} onChange={e => setDraft(p => ({ ...p, unitCostMid: e.target.value }))} style={{ ...inpStyle, textAlign: 'right' }} /></td>
-                          <td style={{ padding: '4px 8px' }}><input type="number" placeholder="0" value={draft.unitCostHigh ?? ''} onChange={e => setDraft(p => ({ ...p, unitCostHigh: e.target.value }))} style={{ ...inpStyle, textAlign: 'right' }} /></td>
-                          <td style={{ padding: '4px 8px', textAlign: 'right', fontSize: 10, color: COLORS.mg }}>—</td>
-                          <td style={{ padding: '4px 8px', textAlign: 'right', fontSize: 10, color: COLORS.mg }}>—</td>
-                          <td style={{ padding: '4px 8px' }}>
-                            <select value={draft.sensitivity || 'Medium'} onChange={e => setDraft(p => ({ ...p, sensitivity: e.target.value }))} style={{ ...inpStyle, fontSize: 10 }}>
-                              {SENSITIVITIES.map(s => <option key={s}>{s}</option>)}
-                            </select>
-                          </td>
-                          <td style={{ padding: '4px 4px', whiteSpace: 'nowrap' }}>
-                            <button onClick={handleSaveNewItem} disabled={!draft.description?.trim() || addSaving} style={{ background: 'none', border: 'none', cursor: 'pointer', color: COLORS.gn, fontWeight: 700, fontSize: 13, padding: '0 2px' }}>{addSaving ? '…' : '✓'}</button>
-                            <button onClick={cancelAddItem} style={{ background: 'none', border: 'none', cursor: 'pointer', color: COLORS.mg, fontSize: 13, padding: '0 2px' }}>✕</button>
-                          </td>
-                        </tr>
-                      : <tr key={`${g.c}_addtrig`} onClick={() => openAddItem(g.c)} style={{ cursor: 'pointer', borderBottom: `1px solid ${COLORS.bl}` }}>
-                          <td colSpan={13} style={{ padding: '5px 8px 5px 28px', fontSize: 11, color: COLORS.mg, fontFamily: FONTS.body, userSelect: 'none' }}>+ Add item</td>
-                        </tr>,
-                  ];
-                }).flat()}
-
-                {/* ── Pending new category (no items yet) ── */}
-                {addingItemCat && !groups.some(g => g.c === addingItemCat) && [
-                  <tr key="newcat_hdr" style={{ background: '#FAFAF6', borderBottom: `1px solid ${COLORS.bd}` }}>
-                    <td style={{ padding: '8px 4px' }}><span style={{ color: COLORS.gn, fontSize: 9 }}>▼</span></td>
-                    <td colSpan={12} style={{ padding: '8px 8px', fontWeight: 700, fontSize: 12, fontFamily: FONTS.heading, color: COLORS.gn }}>{addingItemCat.toUpperCase()} <span style={{ color: COLORS.mg, fontWeight: 400, fontSize: 10, fontFamily: FONTS.body }}>(new)</span></td>
-                  </tr>,
-                  <tr key="newcat_newr" style={{ background: `${COLORS.gn}06`, borderBottom: `1px solid ${COLORS.bd}` }}>
-                    <td style={{ padding: '4px 4px' }} />
-                    <td style={{ padding: '4px 8px' }}><input autoFocus placeholder="Description…" value={draft.description || ''} onChange={e => setDraft(p => ({ ...p, description: e.target.value }))} onKeyDown={e => e.key === 'Enter' && handleSaveNewItem()} style={inpStyle} /></td>
-                    <td style={{ padding: '4px 8px' }}><input placeholder="Subcategory" value={draft.subcategory || ''} onChange={e => setDraft(p => ({ ...p, subcategory: e.target.value }))} style={inpStyle} /></td>
-                    <td style={{ padding: '4px 8px' }}><input type="number" placeholder="1" value={draft.qtyMin ?? ''} onChange={e => setDraft(p => ({ ...p, qtyMin: e.target.value }))} style={{ ...inpStyle, textAlign: 'right' }} /></td>
-                    <td style={{ padding: '4px 8px' }}><input type="number" placeholder="1" value={draft.qtyMax ?? ''} onChange={e => setDraft(p => ({ ...p, qtyMax: e.target.value }))} style={{ ...inpStyle, textAlign: 'right' }} /></td>
-                    <td style={{ padding: '4px 8px' }}><input placeholder="LS" value={draft.unit || ''} onChange={e => setDraft(p => ({ ...p, unit: e.target.value }))} style={{ ...inpStyle, textAlign: 'center' }} /></td>
-                    <td style={{ padding: '4px 8px' }}><input type="number" placeholder="0" value={draft.unitCostLow ?? ''} onChange={e => setDraft(p => ({ ...p, unitCostLow: e.target.value }))} style={{ ...inpStyle, textAlign: 'right' }} /></td>
-                    <td style={{ padding: '4px 8px' }}><input type="number" placeholder="0" value={draft.unitCostMid ?? ''} onChange={e => setDraft(p => ({ ...p, unitCostMid: e.target.value }))} style={{ ...inpStyle, textAlign: 'right' }} /></td>
-                    <td style={{ padding: '4px 8px' }}><input type="number" placeholder="0" value={draft.unitCostHigh ?? ''} onChange={e => setDraft(p => ({ ...p, unitCostHigh: e.target.value }))} style={{ ...inpStyle, textAlign: 'right' }} /></td>
-                    <td style={{ padding: '4px 8px', textAlign: 'right', fontSize: 10, color: COLORS.mg }}>—</td>
-                    <td style={{ padding: '4px 8px', textAlign: 'right', fontSize: 10, color: COLORS.mg }}>—</td>
-                    <td style={{ padding: '4px 8px' }}>
-                      <select value={draft.sensitivity || 'Medium'} onChange={e => setDraft(p => ({ ...p, sensitivity: e.target.value }))} style={{ ...inpStyle, fontSize: 10 }}>
-                        {SENSITIVITIES.map(s => <option key={s}>{s}</option>)}
-                      </select>
+                  {/* ── Add Category footer row ── */}
+                  <tr>
+                    <td colSpan={13} style={{ padding: '10px 16px', borderTop: `1px solid ${COLORS.bd}` }}>
+                      {addingCat
+                        ? <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                            <input autoFocus placeholder="Category name…" value={newCatName} onChange={e => setNewCatName(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') handleAddCategory(); if (e.key === 'Escape') { setAddingCat(false); setNewCatName(''); } }} style={{ border: `1px solid ${COLORS.bd}`, borderRadius: 6, padding: '5px 10px', fontSize: 12, fontFamily: FONTS.body, outline: 'none', color: COLORS.dg, width: 220 }} />
+                            <button onClick={handleAddCategory} style={{ background: COLORS.gn, color: '#fff', border: 'none', borderRadius: 6, padding: '5px 12px', fontSize: 11, fontFamily: FONTS.heading, fontWeight: 600, cursor: 'pointer' }}>Add</button>
+                            <button onClick={() => { setAddingCat(false); setNewCatName(''); }} style={{ background: 'none', border: 'none', color: COLORS.mg, cursor: 'pointer', fontSize: 13 }}>✕</button>
+                          </span>
+                        : <button onClick={() => setAddingCat(true)} style={{ background: 'none', border: 'none', color: COLORS.mg, cursor: 'pointer', fontSize: 11, fontFamily: FONTS.body, padding: 0 }}>+ Add Category</button>
+                      }
                     </td>
-                    <td style={{ padding: '4px 4px', whiteSpace: 'nowrap' }}>
-                      <button onClick={handleSaveNewItem} disabled={!draft.description?.trim() || addSaving} style={{ background: 'none', border: 'none', cursor: 'pointer', color: COLORS.gn, fontWeight: 700, fontSize: 13, padding: '0 2px' }}>{addSaving ? '…' : '✓'}</button>
-                      <button onClick={cancelAddItem} style={{ background: 'none', border: 'none', cursor: 'pointer', color: COLORS.mg, fontSize: 13, padding: '0 2px' }}>✕</button>
-                    </td>
-                  </tr>,
-                ]}
-
-                {/* ── Add Category footer row ── */}
-                <tr>
-                  <td colSpan={13} style={{ padding: '10px 16px', borderTop: `1px solid ${COLORS.bd}` }}>
-                    {addingCat
-                      ? <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                          <input autoFocus placeholder="Category name…" value={newCatName} onChange={e => setNewCatName(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') handleAddCategory(); if (e.key === 'Escape') { setAddingCat(false); setNewCatName(''); } }} style={{ border: `1px solid ${COLORS.bd}`, borderRadius: 6, padding: '5px 10px', fontSize: 12, fontFamily: FONTS.body, outline: 'none', color: COLORS.dg, width: 220 }} />
-                          <button onClick={handleAddCategory} style={{ background: COLORS.gn, color: '#fff', border: 'none', borderRadius: 6, padding: '5px 12px', fontSize: 11, fontFamily: FONTS.heading, fontWeight: 600, cursor: 'pointer' }}>Add</button>
-                          <button onClick={() => { setAddingCat(false); setNewCatName(''); }} style={{ background: 'none', border: 'none', color: COLORS.mg, cursor: 'pointer', fontSize: 13 }}>✕</button>
-                        </span>
-                      : <button onClick={() => setAddingCat(true)} style={{ background: 'none', border: 'none', color: COLORS.mg, cursor: 'pointer', fontSize: 11, fontFamily: FONTS.body, padding: 0 }}>+ Add Category</button>
-                    }
-                  </td>
-                </tr>
-              </tbody>
-            </table>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
           </div>
-        </div>
+
+          {/* Floating drag overlay — renders outside table to avoid layout issues */}
+          <DragOverlay dropAnimation={{ duration: 150, easing: 'cubic-bezier(0.18, 0.67, 0.6, 1.22)' }}>
+            {dragItem && <DragOverlayCard item={dragItem} cv={cv} bsf={bsf} />}
+          </DragOverlay>
+        </DndContext>
       )}
 
       {/* Sticky totals */}

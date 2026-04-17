@@ -178,21 +178,28 @@ export function useProjectData(projectId) {
   }, [activeId, log]);
 
   // ── reorderItems ────────────────────────────────────────────────────────
-  // updates: [{ id, sortOrder }] — swaps sort_orders for moved items
+  // updates: [{ id, sortOrder, category? }]
+  // Only changed rows are included; all fire in parallel.
   const reorderItems = useCallback(async (updates) => {
     const map = {};
-    updates.forEach(u => { map[u.id] = u.sortOrder; });
+    updates.forEach(u => { map[u.id] = u; });
 
     setScenarios(prev => prev.map(s => {
       if (s.id !== activeId) return s;
-      const newItems = s.items.map(i =>
-        map[i.id] !== undefined ? { ...i, sortOrder: map[i.id] } : i
-      );
+      const newItems = s.items.map(i => {
+        const u = map[i.id];
+        if (!u) return i;
+        return { ...i, sortOrder: u.sortOrder, ...(u.category !== undefined ? { category: u.category } : {}) };
+      });
       newItems.sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
       return { ...s, items: newItems };
     }));
 
-    await Promise.all(updates.map(u => updateLineItem(u.id, { sort_order: u.sortOrder })));
+    await Promise.all(updates.map(u => {
+      const fields = { sort_order: u.sortOrder };
+      if (u.category !== undefined) fields.category = u.category;
+      return updateLineItem(u.id, fields);
+    }));
   }, [activeId]);
 
   // ── createItem ──────────────────────────────────────────────────────────
