@@ -25,14 +25,7 @@ export async function getProject(projectId) {
 }
 
 export async function createProject(project, userId) {
-  // Accept userId as a parameter so this function never has to call
-  // supabase.auth.getUser() — that call acquires the GoTrue lock and can
-  // race with onAuthStateChange during page load.
-  if (!userId) {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return { data: null, error: { message: 'Not authenticated' } };
-    userId = user.id;
-  }
+  if (!userId) return { data: null, error: { message: 'userId is required — pass user.id from the component that already holds the auth session' } };
 
   // Step 1: insert the project row
   const { data, error } = await supabase
@@ -234,15 +227,13 @@ export async function deleteLineItem(itemId) {
 // AUDIT LOG
 // ════════════════════════════════════════════
 
-export async function logChange(projectId, { scenarioId, itemId, fieldName, oldValue, newValue, description }) {
-  const { data: { user } } = await supabase.auth.getUser();
-
+export async function logChange(projectId, { scenarioId, itemId, fieldName, oldValue, newValue, description, userId = null }) {
   const { error } = await supabase
     .from('audit_log')
     .insert({
       project_id: projectId,
       scenario_id: scenarioId || null,
-      user_id: user?.id || null,
+      user_id: userId,
       item_id: itemId || null,
       field_name: fieldName,
       old_value: oldValue?.toString() ?? null,
