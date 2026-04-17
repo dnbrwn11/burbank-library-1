@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { getScenarios, createLineItems, updateGlobals as saveGlobals } from '../supabase/db';
 import { useGenerateEstimate } from '../../lib/useGenerateEstimate';
 import GenerationProgress from './GenerationProgress';
@@ -355,8 +355,8 @@ function FormStep({ project, onGenerate, onSkip }) {
   };
 
   const showRenovation = ['Renovation', 'Addition', 'Tenant Improvement'].includes(form.scope);
-  const bt = (project.building_type || '').toLowerCase();
-  const showResidential = bt.includes('residential') || bt.includes('hotel') || bt.includes('mixed-use');
+  const bt = project.building_type || '';
+  const showResidential = bt.includes('Residential') || bt === 'Hotel/Hospitality' || bt === 'Mixed-Use';
   const showParkingStalls = form.parking && form.parking !== 'None' && form.parking !== 'Unknown';
   const showNumElevators = form.elevators && form.elevators !== 'None' && form.elevators !== 'Unknown';
 
@@ -437,13 +437,7 @@ function FormStep({ project, onGenerate, onSkip }) {
         </FormSection>
 
         {/* ── Section 2: Renovation Details (conditional) ── */}
-        <div style={{
-          maxHeight: showRenovation ? '600px' : 0,
-          opacity: showRenovation ? 1 : 0,
-          overflow: 'hidden',
-          transition: 'max-height 0.35s ease, opacity 0.25s ease',
-          marginBottom: showRenovation ? 0 : 0,
-        }}>
+        <AnimatedSection show={showRenovation}>
           <FormSection title="Renovation Details" open={open.renovation} onToggle={() => toggle('renovation')}>
             <div style={{ display: 'grid', gridTemplateColumns: cols, gap: '14px 20px' }}>
               <GField label="Renovation Scope">
@@ -460,15 +454,10 @@ function FormStep({ project, onGenerate, onSkip }) {
               </GField>
             </div>
           </FormSection>
-        </div>
+        </AnimatedSection>
 
         {/* ── Section 3: Residential Details (conditional) ── */}
-        <div style={{
-          maxHeight: showResidential ? '600px' : 0,
-          opacity: showResidential ? 1 : 0,
-          overflow: 'hidden',
-          transition: 'max-height 0.35s ease, opacity 0.25s ease',
-        }}>
+        <AnimatedSection show={showResidential}>
           <FormSection title="Residential Details" open={open.residential} onToggle={() => toggle('residential')}>
             <div style={{ display: 'grid', gridTemplateColumns: cols, gap: '14px 20px' }}>
               <GField label="Total Units">
@@ -505,7 +494,7 @@ function FormStep({ project, onGenerate, onSkip }) {
               </GField>
             </div>
           </FormSection>
-        </div>
+        </AnimatedSection>
 
         {/* ── Section 4: Structure and Site ── */}
         <FormSection title="Structure & Site" open={open.structure} onToggle={() => toggle('structure')}>
@@ -519,11 +508,11 @@ function FormStep({ project, onGenerate, onSkip }) {
             <GField label="Parking">
               <GSelect value={form.parking} onChange={set('parking')} options={PARKING_OPTS} />
             </GField>
-            {showParkingStalls ? (
+            {showParkingStalls && (
               <GField label="Parking Stalls">
                 <GInput value={form.parking_stalls} onChange={set('parking_stalls')} placeholder="e.g. 350" type="number" min="0" />
               </GField>
-            ) : <div />}
+            )}
             <GField label="Site Conditions">
               <GSelect value={form.site_conditions} onChange={set('site_conditions')} options={SITE_OPTS} />
             </GField>
@@ -557,11 +546,11 @@ function FormStep({ project, onGenerate, onSkip }) {
             <GField label="Elevator / Vertical Transport">
               <GSelect value={form.elevators} onChange={set('elevators')} options={ELEVATOR_OPTS} />
             </GField>
-            {showNumElevators ? (
+            {showNumElevators && (
               <GField label="Number of Elevators">
                 <GInput value={form.num_elevators} onChange={set('num_elevators')} placeholder="e.g. 3" type="number" min="1" />
               </GField>
-            ) : <div />}
+            )}
           </div>
         </FormSection>
 
@@ -684,6 +673,44 @@ function FormStep({ project, onGenerate, onSkip }) {
         )}
       </div>
     </main>
+  );
+}
+
+// ── AnimatedSection ───────────────────────────────────────────────────────────
+// Mounts when show=true, unmounts after transition completes when show=false.
+// Two-frame delay on mount ensures CSS transition fires after initial paint.
+
+function AnimatedSection({ show, children }) {
+  const [mounted, setMounted] = useState(show);
+  const [expanded, setExpanded] = useState(show);
+
+  useEffect(() => {
+    if (show) {
+      setMounted(true);
+      // Two rAF frames: first lets React commit the mount with expanded=false,
+      // second fires after the browser paints so the transition is visible.
+      const id = requestAnimationFrame(() =>
+        requestAnimationFrame(() => setExpanded(true))
+      );
+      return () => cancelAnimationFrame(id);
+    } else {
+      setExpanded(false);
+      const t = setTimeout(() => setMounted(false), 340);
+      return () => clearTimeout(t);
+    }
+  }, [show]);
+
+  if (!mounted) return null;
+
+  return (
+    <div style={{
+      overflow: 'hidden',
+      maxHeight: expanded ? '900px' : '0px',
+      opacity: expanded ? 1 : 0,
+      transition: 'max-height 0.35s ease, opacity 0.25s ease',
+    }}>
+      {children}
+    </div>
   );
 }
 
