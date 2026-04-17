@@ -4,11 +4,22 @@ import * as CE from '../engine/CostEngine';
 import { COLORS, FONTS } from '../data/constants';
 import { fmt, fK, psf } from '../utils/format';
 
+const INDIRECT_CATEGORIES = new Set([
+  'General Conditions', 'Overhead & Fee', 'Contingency',
+  'Bond', 'Insurance', 'Bond & Insurance', 'Overhead & Profit',
+]);
+
 export function Dashboard({ totals, catGroups, activeItems, bsf, globals }) {
   const { mob, tab } = useWindowSize();
   const [costView, setCostView] = useState('total'); // 'total' | 'direct'
 
-  const mx = Math.max(...catGroups.map(g => g.t.m), 1);
+  const isDirect = costView === 'direct';
+
+  const chartGroups = isDirect
+    ? catGroups.filter(g => !INDIRECT_CATEGORIES.has(g.c))
+    : catGroups;
+
+  const mx = Math.max(...chartGroups.map(g => g.t.m), 1);
 
   const topDrivers = useMemo(() =>
     [...activeItems]
@@ -17,8 +28,6 @@ export function Dashboard({ totals, catGroups, activeItems, bsf, globals }) {
       .slice(0, 10),
     [activeItems]
   );
-
-  const isDirect = costView === 'direct';
 
   // KPI values switch based on mode
   const kpi = isDirect
@@ -80,7 +89,7 @@ export function Dashboard({ totals, catGroups, activeItems, bsf, globals }) {
           Cost by Category (Mid{isDirect ? ', Direct' : ', Loaded'}) — {bsf.toLocaleString()} SF
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: mob ? '1fr' : '1fr 1fr', gap: mob ? 6 : 8 }}>
-          {catGroups.map(g => (
+          {chartGroups.map(g => (
             <div key={g.c} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <span style={{ fontSize: mob ? 10 : 11, fontWeight: 500, width: mob ? 100 : 160, flexShrink: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{g.c}</span>
               <div style={{ flex: 1, background: COLORS.bl, borderRadius: 3, height: mob ? 14 : 18, position: 'relative', overflow: 'hidden', minWidth: 50 }}>
