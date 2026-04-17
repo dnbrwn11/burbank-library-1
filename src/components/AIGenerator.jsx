@@ -303,6 +303,7 @@ export default function AIGenerator({ project, user, onSave, onSkip, onSignOut }
   const [editedItems, setEditedItems] = useState([]);
   const [collapsed, setCollapsed] = useState({});
   const [saving, setSaving] = useState(false);
+  const [saveProgress, setSaveProgress] = useState({ saved: 0, total: 0 });
   const [saveError, setSaveError] = useState(null);
   const [genError, setGenError] = useState(null);
 
@@ -375,24 +376,22 @@ export default function AIGenerator({ project, user, onSave, onSkip, onSignOut }
     if (saving) return;
     setSaving(true);
     setSaveError(null);
+    setSaveProgress({ saved: 0, total: 0 });
 
-    const timeout = new Promise((_, reject) =>
-      setTimeout(() => reject(new Error('Save timed out after 30s — check your connection and try again')), 30_000)
-    );
+    const BATCH_SIZE = 10;
+    const deadline = Date.now() + 90_000;
+
+    const withTimeout = (promise, ms) =>
+      Promise.race([promise, new Promise((_, rej) => setTimeout(() => rej(new Error('Request timed out')), ms))]);
 
     try {
-      console.log('[AIGenerator] saveAll: starting, user:', user?.id, 'project:', project.id);
-
       if (!user?.id) throw new Error('Not logged in — please refresh and try again');
 
-      console.log('[AIGenerator] saveAll: fetching scenarios...');
-      const { data: scenarios, error: scErr } = await Promise.race([getScenarios(project.id), timeout]);
-      if (scErr) { console.error('[AIGenerator] saveAll: getScenarios error:', scErr); throw new Error(scErr.message); }
+      const { data: scenarios, error: scErr } = await withTimeout(getScenarios(project.id), 15_000);
+      if (scErr) throw new Error(scErr.message);
       if (!scenarios?.length) throw new Error('Could not find project scenario');
-      console.log('[AIGenerator] saveAll: got', scenarios.length, 'scenarios');
 
       const baseline = scenarios.find(s => s.is_baseline) ?? scenarios[0];
-      console.log('[AIGenerator] saveAll: baseline scenario:', baseline.id);
 
       const rows = editedItems.map((item, idx) => ({
         category: item.category || 'General Conditions',
@@ -412,19 +411,36 @@ export default function AIGenerator({ project, user, onSave, onSkip, onSignOut }
         sort_order: idx,
       }));
 
-      console.log('[AIGenerator] saveAll: inserting', rows.length, 'line items...');
-      const { error: liErr } = await Promise.race([createLineItems(baseline.id, rows), timeout]);
-      if (liErr) { console.error('[AIGenerator] saveAll: createLineItems error:', liErr); throw new Error(liErr.message); }
-      console.log('[AIGenerator] saveAll: line items saved');
+      setSaveProgress({ saved: 0, total: rows.length });
 
-      console.log('[AIGenerator] saveAll: saving globals...');
-      const { error: glErr } = await Promise.race([saveGlobals(baseline.id, generatedData.globals), timeout]);
-      if (glErr) { console.error('[AIGenerator] saveAll: saveGlobals error:', glErr); throw new Error(glErr.message); }
-      console.log('[AIGenerator] saveAll: done, calling onSave');
+      // Insert in batches of BATCH_SIZE, retry each batch once on failure
+      for (let i = 0; i < rows.length; i += BATCH_SIZE) {
+        if (Date.now() > deadline) throw new Error('Save timed out after 90s — please try again');
+
+        const batch = rows.slice(i, i + BATCH_SIZE);
+        const batchMs = Math.min(20_000, deadline - Date.now());
+
+        let lastErr;
+        for (let attempt = 0; attempt < 2; attempt++) {
+          const { error } = await withTimeout(createLineItems(baseline.id, batch), batchMs);
+          if (!error) { lastErr = null; break; }
+          lastErr = error;
+          if (attempt === 0) await new Promise(r => setTimeout(r, 600));
+        }
+        if (lastErr) throw new Error(`Batch ${Math.floor(i / BATCH_SIZE) + 1} failed: ${lastErr.message}`);
+
+        setSaveProgress({ saved: Math.min(i + BATCH_SIZE, rows.length), total: rows.length });
+
+        // Brief pause between batches to avoid connection saturation
+        if (i + BATCH_SIZE < rows.length) await new Promise(r => setTimeout(r, 150));
+      }
+
+      const { error: glErr } = await withTimeout(saveGlobals(baseline.id, generatedData.globals), 10_000);
+      if (glErr) throw new Error(glErr.message);
 
       onSave();
     } catch (err) {
-      console.error('[AIGenerator] saveAll: caught error:', err);
+      console.error('[AIGenerator] saveAll error:', err);
       setSaveError(err.message || 'Unknown error — check the browser console');
     } finally {
       setSaving(false);
@@ -482,6 +498,7 @@ export default function AIGenerator({ project, user, onSave, onSkip, onSignOut }
           updateItem={updateItem}
           deleteItem={deleteItem}
           saving={saving}
+          saveProgress={saveProgress}
           saveError={saveError}
           onSave={saveAll}
           onRegenerate={() => { setStep('describe'); setGenError(null); }}
@@ -709,7 +726,13 @@ function GeneratingStep({ statusMsg }) {
 
 // ── ReviewStep ────────────────────────────────────────────────────────────────
 
-function ReviewStep({ project, items, globals, collapsed, setCollapsed, updateItem, deleteItem, saving, saveError, onSave, onRegenerate, onSkip }) {
+function saveLabel(saving, saveProgress) {
+  if (!saving) return 'Save & Open Project →';
+  if (saveProgress.total > 0) return `Saving items… ${Math.min(saveProgress.saved, saveProgress.total)}/${saveProgress.total}`;
+  return 'Saving…';
+}
+
+function ReviewStep({ project, items, globals, collapsed, setCollapsed, updateItem, deleteItem, saving, saveProgress, saveError, onSave, onRegenerate, onSkip }) {
   const uniqueCats = [...new Set(items.map(i => i.category))];
   const orderedCats = [
     ...CSI_ORDER.filter(c => uniqueCats.includes(c)),
@@ -767,7 +790,7 @@ function ReviewStep({ project, items, globals, collapsed, setCollapsed, updateIt
               cursor: saving ? 'not-allowed' : 'pointer',
             }}
           >
-            {saving ? 'Saving…' : 'Save & Open Project →'}
+            {saveLabel(saving, saveProgress)}
           </button>
         </div>
       </div>
@@ -813,6 +836,7 @@ function ReviewStep({ project, items, globals, collapsed, setCollapsed, updateIt
             psf={psf}
             itemCount={items.length}
             saving={saving}
+            saveProgress={saveProgress}
             onSave={onSave}
             onSkip={onSkip}
           />
@@ -957,7 +981,7 @@ function ItemRow({ item, striped, updateItem, deleteItem }) {
   );
 }
 
-function SummarySidebar({ project, globals, totalRaw, totalFull, psf, itemCount, saving, onSave, onSkip }) {
+function SummarySidebar({ project, globals, totalRaw, totalFull, psf, itemCount, saving, saveProgress, onSave, onSkip }) {
   if (!globals) return null;
   const g = globals;
 
@@ -1057,7 +1081,7 @@ function SummarySidebar({ project, globals, totalRaw, totalFull, psf, itemCount,
             cursor: saving ? 'not-allowed' : 'pointer',
           }}
         >
-          {saving ? 'Saving…' : 'Save & Open Project →'}
+          {saveLabel(saving, saveProgress)}
         </button>
         <button
           onClick={onSkip}
