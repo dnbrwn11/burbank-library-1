@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   getScenarios, getLineItems, createScenario,
-  updateLineItem, createLineItems, updateGlobals,
+  updateLineItem, createLineItem, createLineItems, updateGlobals,
 } from '../supabase/db';
 
 const isLockError = (err) => {
@@ -175,6 +175,39 @@ export function useProjectData(projectId) {
     if (saveErr && !isLockError(saveErr)) setSaveError(`Save failed: ${saveErr.message}`);
   }, [activeId, log]);
 
+  // ── createItem ──────────────────────────────────────────────────────────
+  const createItem = useCallback(async (category, partial = {}) => {
+    const s = scenariosRef.current.find(s => s.id === activeId);
+    if (!s) return { error: 'No active scenario' };
+
+    const sortOrder = s.items.length;
+    const row = itemToInsertRow({
+      category,
+      subcategory: partial.subcategory ?? '',
+      description: partial.description ?? '',
+      qtyMin: partial.qtyMin ?? 1,
+      qtyMax: partial.qtyMax ?? 1,
+      unit: partial.unit ?? 'LS',
+      unitCostLow: partial.unitCostLow ?? 0,
+      unitCostMid: partial.unitCostMid ?? 0,
+      unitCostHigh: partial.unitCostHigh ?? 0,
+      sensitivity: partial.sensitivity ?? 'Medium',
+      inSummary: true,
+    }, sortOrder);
+
+    const { data, error: saveErr } = await createLineItem(activeId, row);
+    if (saveErr) {
+      if (!isLockError(saveErr)) setSaveError(`Could not create item: ${saveErr.message}`);
+      return { error: saveErr.message };
+    }
+
+    const created = rowToItem(data);
+    setScenarios(prev => prev.map(s =>
+      s.id === activeId ? { ...s, items: [...s.items, created] } : s
+    ));
+    return { data: created };
+  }, [activeId]);
+
   // ── updateGlobal ────────────────────────────────────────────────────────
   // Optimistic + debounced write (800ms) to avoid a round-trip per keystroke.
   const updateGlobal = useCallback((field, value) => {
@@ -260,6 +293,7 @@ export function useProjectData(projectId) {
     saveError,
     setSaveError,
     updateItem,
+    createItem,
     updateGlobal,
     addScenario,
     deleteScenario,

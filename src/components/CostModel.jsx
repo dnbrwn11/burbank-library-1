@@ -5,19 +5,55 @@ const CSI_ORDER = [
   'Substructure', 'Shell', 'Interiors', 'Services', 'Equipment',
   'Special Construction', 'Sitework', 'General Conditions', 'Overhead & Fee', 'Contingency',
 ];
-import { COLORS, FONTS } from '../data/constants';
+import { COLORS, FONTS, SENSITIVITIES } from '../data/constants';
 import { fmt, fK, psf } from '../utils/format';
 import { EditField } from './EditField';
 import { Badge } from './Badge';
 import { AIPanel } from './AIPanel';
 
-export function CostModel({ items, globals, activeItems, totals, updateItem, bsf, aiAdvice, aiLoading, askAI, applyAI }) {
+export function CostModel({ items, globals, activeItems, totals, updateItem, createItem, bsf, aiAdvice, aiLoading, askAI, applyAI }) {
   const { mob, tab } = useWindowSize();
   const [search, setSearch] = useState('');
   const [fCat, setFCat] = useState('All');
   const [col, setCol] = useState(new Set());
   const [expR, setExpR] = useState(null);
   const [cv, setCv] = useState('mid');
+  const [addingItemCat, setAddingItemCat] = useState(null);
+  const [draft, setDraft] = useState({});
+  const [addingCat, setAddingCat] = useState(false);
+  const [newCatName, setNewCatName] = useState('');
+  const [addSaving, setAddSaving] = useState(false);
+
+  const inpStyle = { width: '100%', border: 'none', borderBottom: `1px solid ${COLORS.bd}`, outline: 'none', background: 'transparent', fontSize: 12, fontFamily: FONTS.body, color: COLORS.dg, padding: '1px 0' };
+
+  const openAddItem = (cat) => { setAddingItemCat(cat); setDraft({ unit: 'LS', sensitivity: 'Medium' }); };
+  const cancelAddItem = () => { setAddingItemCat(null); setDraft({}); };
+
+  const handleSaveNewItem = async () => {
+    if (!draft.description?.trim() || addSaving) return;
+    setAddSaving(true);
+    const { error } = await createItem(addingItemCat, {
+      description: draft.description.trim(),
+      subcategory: draft.subcategory || '',
+      qtyMin: Number(draft.qtyMin) || 1,
+      qtyMax: Number(draft.qtyMax) || 1,
+      unit: draft.unit || 'LS',
+      unitCostLow: Number(draft.unitCostLow) || 0,
+      unitCostMid: Number(draft.unitCostMid) || 0,
+      unitCostHigh: Number(draft.unitCostHigh) || 0,
+      sensitivity: draft.sensitivity || 'Medium',
+    });
+    setAddSaving(false);
+    if (!error) cancelAddItem();
+  };
+
+  const handleAddCategory = () => {
+    const name = newCatName.trim();
+    if (!name) return;
+    setNewCatName('');
+    setAddingCat(false);
+    openAddItem(name);
+  };
 
   const filtered = useMemo(() => activeItems.filter(i => {
     if (fCat !== 'All' && i.category !== fCat) return false;
@@ -196,8 +232,79 @@ export function CostModel({ items, globals, activeItems, totals, updateItem, bsf
                         ),
                       ];
                     }).flat() : []),
+                    /* ── Add Item trigger / edit row ── */
+                    addingItemCat === g.c
+                      ? <tr key={`${g.c}_newr`} style={{ background: `${COLORS.gn}06`, borderBottom: `1px solid ${COLORS.bd}` }}>
+                          <td style={{ padding: '4px 4px' }} />
+                          <td style={{ padding: '4px 8px' }}><input autoFocus placeholder="Description…" value={draft.description || ''} onChange={e => setDraft(p => ({ ...p, description: e.target.value }))} onKeyDown={e => e.key === 'Enter' && handleSaveNewItem()} style={inpStyle} /></td>
+                          <td style={{ padding: '4px 8px' }}><input placeholder="Subcategory" value={draft.subcategory || ''} onChange={e => setDraft(p => ({ ...p, subcategory: e.target.value }))} style={inpStyle} /></td>
+                          <td style={{ padding: '4px 8px' }}><input type="number" placeholder="1" value={draft.qtyMin ?? ''} onChange={e => setDraft(p => ({ ...p, qtyMin: e.target.value }))} style={{ ...inpStyle, textAlign: 'right' }} /></td>
+                          <td style={{ padding: '4px 8px' }}><input type="number" placeholder="1" value={draft.qtyMax ?? ''} onChange={e => setDraft(p => ({ ...p, qtyMax: e.target.value }))} style={{ ...inpStyle, textAlign: 'right' }} /></td>
+                          <td style={{ padding: '4px 8px' }}><input placeholder="LS" value={draft.unit || ''} onChange={e => setDraft(p => ({ ...p, unit: e.target.value }))} style={{ ...inpStyle, textAlign: 'center' }} /></td>
+                          <td style={{ padding: '4px 8px' }}><input type="number" placeholder="0" value={draft.unitCostLow ?? ''} onChange={e => setDraft(p => ({ ...p, unitCostLow: e.target.value }))} style={{ ...inpStyle, textAlign: 'right' }} /></td>
+                          <td style={{ padding: '4px 8px' }}><input type="number" placeholder="0" value={draft.unitCostMid ?? ''} onChange={e => setDraft(p => ({ ...p, unitCostMid: e.target.value }))} style={{ ...inpStyle, textAlign: 'right' }} /></td>
+                          <td style={{ padding: '4px 8px' }}><input type="number" placeholder="0" value={draft.unitCostHigh ?? ''} onChange={e => setDraft(p => ({ ...p, unitCostHigh: e.target.value }))} style={{ ...inpStyle, textAlign: 'right' }} /></td>
+                          <td style={{ padding: '4px 8px', textAlign: 'right', fontSize: 10, color: COLORS.mg }}>—</td>
+                          <td style={{ padding: '4px 8px', textAlign: 'right', fontSize: 10, color: COLORS.mg }}>—</td>
+                          <td style={{ padding: '4px 8px' }}>
+                            <select value={draft.sensitivity || 'Medium'} onChange={e => setDraft(p => ({ ...p, sensitivity: e.target.value }))} style={{ ...inpStyle, fontSize: 10 }}>
+                              {SENSITIVITIES.map(s => <option key={s}>{s}</option>)}
+                            </select>
+                          </td>
+                          <td style={{ padding: '4px 4px', whiteSpace: 'nowrap' }}>
+                            <button onClick={handleSaveNewItem} disabled={!draft.description?.trim() || addSaving} style={{ background: 'none', border: 'none', cursor: 'pointer', color: COLORS.gn, fontWeight: 700, fontSize: 13, padding: '0 2px' }}>{addSaving ? '…' : '✓'}</button>
+                            <button onClick={cancelAddItem} style={{ background: 'none', border: 'none', cursor: 'pointer', color: COLORS.mg, fontSize: 13, padding: '0 2px' }}>✕</button>
+                          </td>
+                        </tr>
+                      : <tr key={`${g.c}_addtrig`} onClick={() => openAddItem(g.c)} style={{ cursor: 'pointer', borderBottom: `1px solid ${COLORS.bl}` }}>
+                          <td colSpan={13} style={{ padding: '5px 8px 5px 28px', fontSize: 11, color: COLORS.mg, fontFamily: FONTS.body, userSelect: 'none' }}>+ Add item</td>
+                        </tr>,
                   ];
                 }).flat()}
+
+                {/* ── Pending new category (no items yet) ── */}
+                {addingItemCat && !groups.some(g => g.c === addingItemCat) && [
+                  <tr key="newcat_hdr" style={{ background: '#FAFAF6', borderBottom: `1px solid ${COLORS.bd}` }}>
+                    <td style={{ padding: '8px 4px' }}><span style={{ color: COLORS.gn, fontSize: 9 }}>▼</span></td>
+                    <td colSpan={12} style={{ padding: '8px 8px', fontWeight: 700, fontSize: 12, fontFamily: FONTS.heading, color: COLORS.gn }}>{addingItemCat.toUpperCase()} <span style={{ color: COLORS.mg, fontWeight: 400, fontSize: 10, fontFamily: FONTS.body }}>(new)</span></td>
+                  </tr>,
+                  <tr key="newcat_newr" style={{ background: `${COLORS.gn}06`, borderBottom: `1px solid ${COLORS.bd}` }}>
+                    <td style={{ padding: '4px 4px' }} />
+                    <td style={{ padding: '4px 8px' }}><input autoFocus placeholder="Description…" value={draft.description || ''} onChange={e => setDraft(p => ({ ...p, description: e.target.value }))} onKeyDown={e => e.key === 'Enter' && handleSaveNewItem()} style={inpStyle} /></td>
+                    <td style={{ padding: '4px 8px' }}><input placeholder="Subcategory" value={draft.subcategory || ''} onChange={e => setDraft(p => ({ ...p, subcategory: e.target.value }))} style={inpStyle} /></td>
+                    <td style={{ padding: '4px 8px' }}><input type="number" placeholder="1" value={draft.qtyMin ?? ''} onChange={e => setDraft(p => ({ ...p, qtyMin: e.target.value }))} style={{ ...inpStyle, textAlign: 'right' }} /></td>
+                    <td style={{ padding: '4px 8px' }}><input type="number" placeholder="1" value={draft.qtyMax ?? ''} onChange={e => setDraft(p => ({ ...p, qtyMax: e.target.value }))} style={{ ...inpStyle, textAlign: 'right' }} /></td>
+                    <td style={{ padding: '4px 8px' }}><input placeholder="LS" value={draft.unit || ''} onChange={e => setDraft(p => ({ ...p, unit: e.target.value }))} style={{ ...inpStyle, textAlign: 'center' }} /></td>
+                    <td style={{ padding: '4px 8px' }}><input type="number" placeholder="0" value={draft.unitCostLow ?? ''} onChange={e => setDraft(p => ({ ...p, unitCostLow: e.target.value }))} style={{ ...inpStyle, textAlign: 'right' }} /></td>
+                    <td style={{ padding: '4px 8px' }}><input type="number" placeholder="0" value={draft.unitCostMid ?? ''} onChange={e => setDraft(p => ({ ...p, unitCostMid: e.target.value }))} style={{ ...inpStyle, textAlign: 'right' }} /></td>
+                    <td style={{ padding: '4px 8px' }}><input type="number" placeholder="0" value={draft.unitCostHigh ?? ''} onChange={e => setDraft(p => ({ ...p, unitCostHigh: e.target.value }))} style={{ ...inpStyle, textAlign: 'right' }} /></td>
+                    <td style={{ padding: '4px 8px', textAlign: 'right', fontSize: 10, color: COLORS.mg }}>—</td>
+                    <td style={{ padding: '4px 8px', textAlign: 'right', fontSize: 10, color: COLORS.mg }}>—</td>
+                    <td style={{ padding: '4px 8px' }}>
+                      <select value={draft.sensitivity || 'Medium'} onChange={e => setDraft(p => ({ ...p, sensitivity: e.target.value }))} style={{ ...inpStyle, fontSize: 10 }}>
+                        {SENSITIVITIES.map(s => <option key={s}>{s}</option>)}
+                      </select>
+                    </td>
+                    <td style={{ padding: '4px 4px', whiteSpace: 'nowrap' }}>
+                      <button onClick={handleSaveNewItem} disabled={!draft.description?.trim() || addSaving} style={{ background: 'none', border: 'none', cursor: 'pointer', color: COLORS.gn, fontWeight: 700, fontSize: 13, padding: '0 2px' }}>{addSaving ? '…' : '✓'}</button>
+                      <button onClick={cancelAddItem} style={{ background: 'none', border: 'none', cursor: 'pointer', color: COLORS.mg, fontSize: 13, padding: '0 2px' }}>✕</button>
+                    </td>
+                  </tr>,
+                ]}
+
+                {/* ── Add Category footer row ── */}
+                <tr>
+                  <td colSpan={13} style={{ padding: '10px 16px', borderTop: `1px solid ${COLORS.bd}` }}>
+                    {addingCat
+                      ? <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <input autoFocus placeholder="Category name…" value={newCatName} onChange={e => setNewCatName(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') handleAddCategory(); if (e.key === 'Escape') { setAddingCat(false); setNewCatName(''); } }} style={{ border: `1px solid ${COLORS.bd}`, borderRadius: 6, padding: '5px 10px', fontSize: 12, fontFamily: FONTS.body, outline: 'none', color: COLORS.dg, width: 220 }} />
+                          <button onClick={handleAddCategory} style={{ background: COLORS.gn, color: '#fff', border: 'none', borderRadius: 6, padding: '5px 12px', fontSize: 11, fontFamily: FONTS.heading, fontWeight: 600, cursor: 'pointer' }}>Add</button>
+                          <button onClick={() => { setAddingCat(false); setNewCatName(''); }} style={{ background: 'none', border: 'none', color: COLORS.mg, cursor: 'pointer', fontSize: 13 }}>✕</button>
+                        </span>
+                      : <button onClick={() => setAddingCat(true)} style={{ background: 'none', border: 'none', color: COLORS.mg, cursor: 'pointer', fontSize: 11, fontFamily: FONTS.body, padding: 0 }}>+ Add Category</button>
+                    }
+                  </td>
+                </tr>
               </tbody>
             </table>
           </div>
