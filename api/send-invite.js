@@ -2,6 +2,7 @@ import crypto from 'crypto';
 import { createClient } from '@supabase/supabase-js';
 import { resend, FROM_ADDRESS } from '../lib/resend.js';
 import { teamInvite } from '../lib/email-templates.js';
+import { SUPABASE_URL, SUPABASE_ANON_KEY, INVITE_SECRET } from '../lib/supabaseServer.js';
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -10,8 +11,8 @@ export default async function handler(req, res) {
 
   try {
     // Env var guard — fail fast with a clear message
-    if (!process.env.SUPABASE_URL || !process.env.SUPABASE_ANON_KEY) {
-      console.error('[send-invite] Missing SUPABASE_URL or SUPABASE_ANON_KEY');
+    if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+      console.error('[send-invite] Missing Supabase env vars — expected VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY');
       return res.status(500).json({ error: 'Server configuration error: Supabase env vars missing' });
     }
     if (!process.env.RESEND_API_KEY) {
@@ -25,8 +26,8 @@ export default async function handler(req, res) {
     }
 
     const supabase = createClient(
-      process.env.SUPABASE_URL,
-      process.env.SUPABASE_ANON_KEY,
+      SUPABASE_URL,
+      SUPABASE_ANON_KEY,
       { global: { headers: { Authorization: `Bearer ${token}` } } }
     );
 
@@ -58,7 +59,7 @@ export default async function handler(req, res) {
     console.log('[send-invite] Project found:', project.name);
 
     // Generate HMAC-signed invite token
-    const SECRET = process.env.INVITE_SECRET || process.env.SUPABASE_ANON_KEY;
+    const SECRET = INVITE_SECRET;
     const payloadStr = JSON.stringify({
       projectId,
       projectName: project.name,

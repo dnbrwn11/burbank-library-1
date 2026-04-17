@@ -1,5 +1,6 @@
 import crypto from 'crypto';
 import { createClient } from '@supabase/supabase-js';
+import { SUPABASE_URL, SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY, INVITE_SECRET } from '../lib/supabaseServer.js';
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -12,8 +13,8 @@ export default async function handler(req, res) {
   }
 
   const supabase = createClient(
-    process.env.SUPABASE_URL,
-    process.env.SUPABASE_ANON_KEY,
+    SUPABASE_URL,
+    SUPABASE_ANON_KEY,
     { global: { headers: { Authorization: `Bearer ${authToken}` } } }
   );
 
@@ -35,7 +36,7 @@ export default async function handler(req, res) {
   const payloadB64 = inviteToken.slice(0, dotIndex);
   const sig = inviteToken.slice(dotIndex + 1);
 
-  const SECRET = process.env.INVITE_SECRET || process.env.SUPABASE_ANON_KEY;
+  const SECRET = INVITE_SECRET;
   const expectedSig = crypto.createHmac('sha256', SECRET).update(payloadB64).digest('hex').slice(0, 16);
 
   if (sig !== expectedSig) {
@@ -60,8 +61,8 @@ export default async function handler(req, res) {
   }
 
   // Use service role to bypass RLS; fall back to user-scoped client
-  const writeClient = process.env.SUPABASE_SERVICE_ROLE_KEY
-    ? createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY)
+  const writeClient = SUPABASE_SERVICE_ROLE_KEY
+    ? createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
     : supabase;
 
   const { error: memberError } = await writeClient

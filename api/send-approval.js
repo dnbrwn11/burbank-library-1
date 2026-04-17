@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 import { resend, FROM_ADDRESS } from '../lib/resend.js';
 import { approvalRequest } from '../lib/email-templates.js';
+import { SUPABASE_URL, SUPABASE_ANON_KEY } from '../lib/supabaseServer.js';
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -13,8 +14,8 @@ export default async function handler(req, res) {
   }
 
   const supabase = createClient(
-    process.env.SUPABASE_URL,
-    process.env.SUPABASE_ANON_KEY,
+    SUPABASE_URL,
+    SUPABASE_ANON_KEY,
     { global: { headers: { Authorization: `Bearer ${token}` } } }
   );
 
