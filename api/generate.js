@@ -228,6 +228,19 @@ export default async function handler(req, res) {
 
   const prompt = buildPrompt(description.trim(), project);
 
+  const requestBody = {
+    model: 'claude-sonnet-4-6',
+    max_tokens: 8192,
+    system: 'You are a senior preconstruction cost estimator. Your output must be valid JSON only — no markdown code fences, no explanation text, no preamble. Start your response with { and end with }.',
+    messages: [{ role: 'user', content: prompt }],
+  };
+  console.log('[generate] Sending request to Anthropic:', {
+    url: 'https://api.anthropic.com/v1/messages',
+    model: requestBody.model,
+    max_tokens: requestBody.max_tokens,
+    promptLength: prompt.length,
+  });
+
   let anthropicRes;
   try {
     anthropicRes = await fetch('https://api.anthropic.com/v1/messages', {
@@ -237,30 +250,42 @@ export default async function handler(req, res) {
         'x-api-key': apiKey,
         'anthropic-version': '2023-06-01',
       },
-      body: JSON.stringify({
-        model: 'claude-sonnet-4-6',
-        max_tokens: 8192,
-        system: 'You are a senior preconstruction cost estimator. Your output must be valid JSON only — no markdown code fences, no explanation text, no preamble. Start your response with { and end with }.',
-        messages: [{ role: 'user', content: prompt }],
-      }),
+      body: JSON.stringify(requestBody),
     });
   } catch (networkErr) {
+    console.error('[generate] Network error calling Anthropic:', networkErr.message);
     return res.status(502).json({ error: `Network error calling Claude: ${networkErr.message}` });
   }
 
+  console.log('[generate] Anthropic response status:', anthropicRes.status, anthropicRes.statusText);
+
+  const rawBody = await anthropicRes.text().catch(() => '');
+  console.log('[generate] Anthropic raw response body:', rawBody.slice(0, 1000));
+
   if (!anthropicRes.ok) {
-    const errBody = await anthropicRes.text().catch(() => '');
+    let detail = rawBody;
+    try { detail = JSON.parse(rawBody)?.error?.message || rawBody; } catch {}
+    console.error('[generate] Anthropic error response:', anthropicRes.status, detail);
     return res.status(502).json({
-      error: `Claude API returned ${anthropicRes.status}`,
-      detail: errBody.slice(0, 400),
+      error: `Claude API returned ${anthropicRes.status}: ${detail.slice(0, 300)}`,
     });
   }
 
-  const anthropicData = await anthropicRes.json();
+  let anthropicData;
+  try {
+    anthropicData = JSON.parse(rawBody);
+  } catch (parseErr) {
+    console.error('[generate] Failed to parse Anthropic response as JSON:', parseErr.message);
+    return res.status(502).json({
+      error: `Anthropic returned non-JSON response: ${rawBody.slice(0, 300)}`,
+    });
+  }
+
   const rawText = anthropicData.content?.[0]?.text;
 
   if (!rawText) {
-    return res.status(502).json({ error: 'Empty response from Claude API' });
+    console.error('[generate] No text content in Anthropic response:', JSON.stringify(anthropicData).slice(0, 300));
+    return res.status(502).json({ error: 'Empty response from Claude API', detail: JSON.stringify(anthropicData).slice(0, 300) });
   }
 
   let parsed;
