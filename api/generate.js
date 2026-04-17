@@ -1,249 +1,4 @@
-// Vercel serverless function — calls Anthropic Claude API to generate a
-// construction cost estimate. Requires ANTHROPIC_API_KEY in Vercel env vars.
 export const config = { maxDuration: 300 };
-
-// ── Regional calibration ─────────────────────────────────────────────────────
-
-function getRegionFactor(city, state) {
-  const c = (city || '').toLowerCase();
-  const s = (state || '').toUpperCase();
-
-  if (s === 'CA') {
-    if (['san francisco', 'daly city', 'south san francisco'].some(k => c.includes(k))) return 1.30;
-    if (['palo alto', 'mountain view', 'sunnyvale', 'san jose', 'santa clara', 'cupertino'].some(k => c.includes(k))) return 1.28;
-    if (['oakland', 'berkeley', 'emeryville', 'alameda'].some(k => c.includes(k))) return 1.25;
-    if (['los angeles', 'burbank', 'pasadena', 'glendale', 'culver city', 'santa monica', 'west hollywood', 'el segundo'].some(k => c.includes(k))) return 1.15;
-    if (['long beach', 'torrance', 'compton', 'carson', 'hawthorne'].some(k => c.includes(k))) return 1.12;
-    if (['san diego', 'chula vista', 'el cajon', 'escondido', 'la mesa'].some(k => c.includes(k))) return 1.10;
-    if (['irvine', 'anaheim', 'fullerton', 'santa ana', 'garden grove', 'costa mesa', 'orange'].some(k => c.includes(k))) return 1.10;
-    if (['riverside', 'ontario', 'rancho cucamonga', 'fontana', 'san bernardino', 'moreno valley'].some(k => c.includes(k))) return 1.05;
-    if (['bakersfield', 'fresno', 'modesto', 'stockton', 'visalia'].some(k => c.includes(k))) return 1.02;
-    if (['sacramento', 'elk grove', 'roseville', 'folsom'].some(k => c.includes(k))) return 1.05;
-    return 1.08; // generic CA
-  }
-  if (s === 'NY') {
-    if (['new york', 'manhattan', 'brooklyn', 'bronx', 'queens', 'staten island', 'jersey city', 'hoboken'].some(k => c.includes(k))) return 1.40;
-    if (['white plains', 'yonkers', 'mount vernon'].some(k => c.includes(k))) return 1.25;
-    return 1.15;
-  }
-  if (s === 'WA') {
-    if (['seattle', 'bellevue', 'redmond', 'kirkland', 'renton', 'bothell'].some(k => c.includes(k))) return 1.20;
-    return 1.05;
-  }
-  if (s === 'OR') {
-    if (['portland', 'beaverton', 'hillsboro'].some(k => c.includes(k))) return 1.10;
-    return 0.98;
-  }
-  if (s === 'TX') {
-    if (['austin', 'round rock'].some(k => c.includes(k))) return 0.92;
-    if (['houston', 'dallas', 'fort worth', 'arlington', 'plano', 'irving'].some(k => c.includes(k))) return 0.90;
-    return 0.86;
-  }
-  if (s === 'FL') {
-    if (['miami', 'miami beach', 'coral gables', 'brickell'].some(k => c.includes(k))) return 1.00;
-    if (['orlando', 'tampa', 'st. pete', 'jacksonville'].some(k => c.includes(k))) return 0.92;
-    return 0.90;
-  }
-  if (s === 'IL') {
-    if (['chicago', 'evanston', 'oak park'].some(k => c.includes(k))) return 1.18;
-    return 0.98;
-  }
-  if (s === 'MA') {
-    if (['boston', 'cambridge', 'somerville', 'brookline'].some(k => c.includes(k))) return 1.22;
-    return 1.08;
-  }
-  if (s === 'CO') {
-    if (['denver', 'boulder', 'aurora', 'lakewood'].some(k => c.includes(k))) return 1.00;
-    return 0.92;
-  }
-  if (['AZ', 'NV'].includes(s)) return 0.95;
-  if (['CT', 'NJ'].includes(s)) return 1.10;
-  if (['VA', 'MD'].includes(s)) {
-    if (['arlington', 'bethesda', 'chevy chase', 'tysons'].some(k => c.includes(k))) return 1.12;
-    return 1.00;
-  }
-  if (['GA'].includes(s)) {
-    if (['atlanta', 'buckhead', 'midtown'].some(k => c.includes(k))) return 0.98;
-    return 0.88;
-  }
-  return 0.90; // national default
-}
-
-const STATE_TAX = {
-  CA: 0.0975, TX: 0.0825, FL: 0.07, NY: 0.08875, WA: 0.1025,
-  IL: 0.1025, PA: 0.06, OH: 0.0725, GA: 0.07, AZ: 0.086,
-  CO: 0.029, NV: 0.0685, OR: 0, MT: 0, NH: 0, DE: 0,
-  NJ: 0.06625, MA: 0.0625, CT: 0.0635, MI: 0.06, VA: 0.053, MD: 0.06,
-};
-
-function getLaborBurden(laborType) {
-  const lt = (laborType || '').toLowerCase();
-  if (lt.includes('open shop')) return 0.32;
-  if (lt.includes('mixed')) return 0.38;
-  return 0.42; // prevailing wage or union
-}
-
-function getLaborContext(laborType, state) {
-  const lt = (laborType || '').toLowerCase();
-  const inCA = (state || '').toUpperCase() === 'CA';
-  if (lt.includes('prevailing')) {
-    return `All labor at ${inCA ? 'California DIR' : 'federal/state'} prevailing wage rates. Representative all-in rates (labor + burden): Carpenter $${inCA ? '95-115' : '75-95'}/hr, Laborer $${inCA ? '70-85' : '55-70'}/hr, Iron Worker $${inCA ? '110-125' : '85-105'}/hr, MEP trades $${inCA ? '100-130' : '80-110'}/hr. Labor burden is 42% of base wage.`;
-  }
-  if (lt.includes('union')) {
-    return `All trades under collective bargaining agreements. Rates similar to prevailing wage in this market. Labor burden 42%.`;
-  }
-  if (lt.includes('open shop') || lt.includes('open')) {
-    return `Merit shop / open shop labor. All-in labor rates approximately 20-30% below prevailing wage. Competitive bidding on subcontracts. Labor burden 32%.`;
-  }
-  return `Mixed labor market. Union trades for structural, MEP, and heavy scope; open shop for finishes and specialty. Average burden 38%.`;
-}
-
-// ── Prompt builder ────────────────────────────────────────────────────────────
-
-function buildPrompt(description, project) {
-  const { name, city, state, building_type, delivery_method, labor_type, gross_sf, target_budget } = project;
-  const regionFactor = getRegionFactor(city, state);
-  const tax = STATE_TAX[(state || '').toUpperCase()] ?? 0.07;
-  const laborBurden = getLaborBurden(labor_type);
-  const laborContext = getLaborContext(labor_type, state);
-  const sfStr = gross_sf ? `${Number(gross_sf).toLocaleString()} SF` : 'size TBD';
-  const budgetStr = target_budget
-    ? `$${(target_budget / 1e6).toFixed(1)}M` : 'not specified';
-
-  return `You are a senior preconstruction cost estimator at a major general contractor. You are generating a detailed construction cost estimate. Respond with ONLY valid JSON — no markdown, no explanation, no text outside the JSON.
-
-PROJECT:
-Name: ${name || 'New Project'}
-Location: ${city || 'Unknown'}, ${state || 'Unknown'}
-Building Type: ${building_type || 'Not specified'}
-Delivery Method: ${delivery_method || 'Not specified'}
-Labor: ${labor_type || 'Prevailing Wage'} (${(laborBurden * 100).toFixed(0)}% burden)
-Size: ${sfStr}
-Target Budget: ${budgetStr}
-
-DESCRIPTION:
-${description}
-
-MARKET CONTEXT — ${city}, ${state} (2025-2026):
-${laborContext}
-Regional cost factor: ${regionFactor.toFixed(2)}x vs national baseline
-State/local sales tax: ${(tax * 100).toFixed(2)}%
-Unit costs = installed cost (labor + material + equipment). Do NOT include GC markup, fee, contingency, or tax in unit costs — those are applied via globals.
-
-REQUIRED JSON STRUCTURE:
-{
-  "globals": {
-    "escalation": <decimal 0.03-0.06 — escalation to construction midpoint>,
-    "laborBurden": ${laborBurden},
-    "tax": ${tax},
-    "insurance": 0.012,
-    "contingency": <decimal 0.05-0.15 based on project type, complexity, and design stage>,
-    "fee": 0.045,
-    "regionFactor": ${regionFactor},
-    "bond": 0.008,
-    "generalConditions": <decimal 0.06-0.12 based on project complexity>,
-    "buildingSF": ${gross_sf || 0},
-    "parkingStalls": <integer — estimate based on building type and SF, or 0>,
-    "openSpaceSF": <integer — estimate site open space SF, or 0>
-  },
-  "items": [
-    {
-      "category": "A - Substructure",
-      "subcategory": "Foundations",
-      "description": "Spread footings & grade beams",
-      "qty_min": 50000,
-      "qty_max": 50000,
-      "unit": "SF",
-      "unit_cost_low": 16,
-      "unit_cost_mid": 22,
-      "unit_cost_high": 30,
-      "basis": "4500 psi, seismic Cat D",
-      "sensitivity": "High",
-      "notes": "Geotech pending",
-      "sort_order": 0
-    }
-  ]
-}
-
-CATEGORIES — use exactly these strings, in this order, only include those applicable:
-"A - Substructure" — foundations, slab on grade, site excavation & shoring
-"B - Shell" — superstructure (frame, decking), exterior walls, roofing, windows & doors
-"C - Interiors" — interior partitions, doors, finishes (flooring, ceilings, paint), specialties
-"D - Services" — HVAC, plumbing, fire protection, electrical (power, lighting), communications/AV, elevators
-"E - Equipment & Furnishings" — fixed equipment, casework, FF&E if included in construction contract
-"F - Special Construction" — seismic isolation, blast resistance, clean rooms, special pools, hazmat
-"G - Sitework" — site clearing, paving & hardscape, site utilities, landscaping, site lighting, signage
-"General Conditions" — project management staff, temp facilities, equipment, site safety, bonds/insurance
-"Owner Soft Costs" — A/E design fees, permits & fees, testing & inspection, commissioning, owner contingency
-
-GUIDELINES:
-- Generate 40–60 line items covering all applicable categories.
-- qty_min/qty_max: same value if fixed; range if scope-variable.
-- unit_cost_low/mid/high: Low ≈ −20% of mid, High ≈ +20% of mid.
-- sensitivity: "Low" | "Medium" | "High" | "Very High"
-- basis: ≤50 chars. notes: brief context or null. sort_order: 0-indexed per category.
-- Calibrate quantities to ${sfStr}.
-- Include seismic allowances if in CA, WA, or AK.
-- Keep response compact. Use short descriptions. No extra whitespace.
-
-Respond ONLY with the JSON object. Start with { and end with }.`;
-}
-
-// ── Handler ───────────────────────────────────────────────────────────────────
-
-function repairTruncatedJSON(text) {
-  // Find the last complete object before truncation by walking back from the end
-  // looking for a closing } that balances an opening {
-  let s = text;
-
-  // Remove trailing incomplete object: find last '}' and cut there
-  const lastBrace = s.lastIndexOf('}');
-  if (lastBrace === -1) throw new Error('No closing brace found');
-  s = s.slice(0, lastBrace + 1);
-
-  // Count unclosed brackets/braces to determine what needs closing
-  let braces = 0, brackets = 0;
-  let inString = false, escape = false;
-  for (const ch of s) {
-    if (escape) { escape = false; continue; }
-    if (ch === '\\' && inString) { escape = true; continue; }
-    if (ch === '"') { inString = !inString; continue; }
-    if (inString) continue;
-    if (ch === '{') braces++;
-    else if (ch === '}') braces--;
-    else if (ch === '[') brackets++;
-    else if (ch === ']') brackets--;
-  }
-
-  // Close any unclosed arrays then objects
-  s += ']'.repeat(Math.max(0, brackets)) + '}'.repeat(Math.max(0, braces));
-  return JSON.parse(s);
-}
-
-function extractJSON(text, stopReason) {
-  // Strip markdown fences if Claude adds them despite instructions
-  const stripped = text.replace(/^```(?:json)?\s*/m, '').replace(/\s*```$/m, '').trim();
-
-  try {
-    return JSON.parse(stripped);
-  } catch {
-    // If truncated due to max_tokens, attempt repair before giving up
-    if (stopReason === 'max_tokens') {
-      console.warn('[generate] Response truncated (max_tokens) — attempting JSON repair');
-      try {
-        return repairTruncatedJSON(stripped);
-      } catch (repairErr) {
-        console.error('[generate] JSON repair failed:', repairErr.message);
-      }
-    }
-    // Last resort: find the outermost { ... } and try repairing that
-    const match = stripped.match(/\{[\s\S]*/);
-    if (match) {
-      try { return repairTruncatedJSON(match[0]); } catch {}
-    }
-    throw new Error('No valid JSON found in Claude response');
-  }
-}
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -255,119 +10,244 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: 'ANTHROPIC_API_KEY is not configured on the server.' });
   }
 
-  let description, project;
   try {
-    ({ description, project } = req.body);
-    if (!description?.trim()) throw new Error('description is required');
-    if (!project) throw new Error('project is required');
-  } catch (e) {
-    return res.status(400).json({ error: e.message });
-  }
+    const { description, project } = req.body;
 
-  const prompt = buildPrompt(description.trim(), project);
+    if (!description) {
+      return res.status(400).json({ error: 'Project description is required.' });
+    }
 
-  const requestBody = {
-    model: 'claude-sonnet-4-6',
-    max_tokens: 16384,
-    system: 'Output valid JSON only. No markdown, no explanation. Start with { and end with }.',
-    messages: [{ role: 'user', content: prompt }],
-  };
-  console.log('[generate] Sending request to Anthropic:', {
-    url: 'https://api.anthropic.com/v1/messages',
-    model: requestBody.model,
-    max_tokens: requestBody.max_tokens,
-    promptLength: prompt.length,
-  });
+    const projectContext = project
+      ? `Project Details:
+- Building Type: ${project.building_type || 'Not specified'}
+- Location: ${project.city || ''}, ${project.state || 'CA'}
+- Gross SF: ${project.gross_sf ? project.gross_sf.toLocaleString() : 'Not specified'}
+- Labor Type: ${project.labor_type || 'Not specified'}
+- Delivery Method: ${project.delivery_method || 'Not specified'}
+- Target Budget: ${project.target_budget ? '$' + Number(project.target_budget).toLocaleString() : 'Not specified'}`
+      : '';
 
-  let anthropicRes;
-  try {
-    anthropicRes = await fetch('https://api.anthropic.com/v1/messages', {
+    const systemPrompt = `You are a senior preconstruction estimator. Generate a construction cost estimate as a JSON array.
+
+CRITICAL RULES:
+1. Respond with ONLY a valid JSON array. No markdown, no backticks, no explanation.
+2. Generate exactly 35-45 line items. Do NOT exceed 45 items.
+3. Keep descriptions SHORT — max 6 words each.
+4. Use CSI UniFormat categories: Substructure, Shell, Interiors, Services, Equipment, Special Construction, Sitework, General Conditions, Overhead & Fee, Contingency.
+5. Calibrate costs to the location, labor type, and current 2025-2026 market rates.
+
+Each item in the array must have exactly these fields:
+{
+  "category": "CSI category name",
+  "subcategory": "specific system",
+  "description": "short name max 6 words",
+  "qty_min": number,
+  "qty_max": number,
+  "unit": "SF|LF|EA|LS|TON|CY|SQ",
+  "unit_cost_low": number,
+  "unit_cost_mid": number,
+  "unit_cost_high": number,
+  "basis": "how quantity was derived",
+  "sensitivity": "Low|Medium|High|Very High",
+  "notes": ""
+}
+
+Start your response with [ and end with ]. Nothing else.`;
+
+    const userPrompt = `Generate a construction cost estimate for:
+
+${description}
+
+${projectContext}
+
+Remember: JSON array ONLY. 35-45 items. Short descriptions. Start with [ end with ].`;
+
+    console.log('[generate] Calling Anthropic API...');
+
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'x-api-key': apiKey,
         'anthropic-version': '2023-06-01',
       },
-      body: JSON.stringify(requestBody),
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-6',
+        max_tokens: 16384,
+        system: systemPrompt,
+        messages: [{ role: 'user', content: userPrompt }],
+      }),
     });
-  } catch (networkErr) {
-    console.error('[generate] Network error calling Anthropic:', networkErr.message);
-    return res.status(502).json({ error: `Network error calling Claude: ${networkErr.message}` });
-  }
 
-  console.log('[generate] Anthropic response status:', anthropicRes.status, anthropicRes.statusText);
+    if (!response.ok) {
+      const errorBody = await response.text();
+      console.error('[generate] Anthropic error:', response.status, errorBody);
+      return res.status(502).json({
+        error: `Claude API returned ${response.status}: ${errorBody.substring(0, 200)}`,
+      });
+    }
 
-  const rawBody = await anthropicRes.text().catch(() => '');
-  console.log('[generate] Anthropic raw response body:', rawBody.slice(0, 1000));
+    const data = await response.json();
+    console.log('[generate] Response received. Stop reason:', data.stop_reason);
 
-  if (!anthropicRes.ok) {
-    let detail = rawBody;
-    try { detail = JSON.parse(rawBody)?.error?.message || rawBody; } catch {}
-    console.error('[generate] Anthropic error response:', anthropicRes.status, detail);
-    return res.status(502).json({
-      error: `Claude API returned ${anthropicRes.status}: ${detail.slice(0, 300)}`,
+    // Extract text from response
+    const rawText = data.content
+      .filter((block) => block.type === 'text')
+      .map((block) => block.text)
+      .join('');
+
+    // Clean up the response — remove markdown fences if present
+    let jsonText = rawText.trim();
+    if (jsonText.startsWith('```json')) jsonText = jsonText.slice(7);
+    if (jsonText.startsWith('```')) jsonText = jsonText.slice(3);
+    if (jsonText.endsWith('```')) jsonText = jsonText.slice(0, -3);
+    jsonText = jsonText.trim();
+
+    // Try to parse the JSON
+    let lineItems;
+    try {
+      lineItems = JSON.parse(jsonText);
+    } catch (parseError) {
+      console.warn('[generate] JSON parse failed, attempting repair...');
+      console.warn('[generate] Parse error:', parseError.message);
+
+      // Repair truncated JSON
+      lineItems = repairTruncatedJSON(jsonText);
+
+      if (!lineItems) {
+        console.error('[generate] JSON repair failed. Raw response length:', rawText.length);
+        console.error('[generate] Last 200 chars:', rawText.slice(-200));
+        return res.status(502).json({
+          error: `Could not parse JSON from Claude: ${parseError.message}`,
+        });
+      }
+    }
+
+    // Validate it's an array
+    if (!Array.isArray(lineItems)) {
+      // Maybe it's wrapped in an object
+      if (lineItems.line_items) lineItems = lineItems.line_items;
+      else if (lineItems.items) lineItems = lineItems.items;
+      else if (lineItems.data) lineItems = lineItems.data;
+      else {
+        return res.status(502).json({ error: 'Response was not an array of line items.' });
+      }
+    }
+
+    // Add sort_order
+    lineItems = lineItems.map((item, index) => ({
+      ...item,
+      sort_order: index,
+    }));
+
+    console.log(`[generate] Successfully generated ${lineItems.length} line items`);
+
+    return res.status(200).json({
+      lineItems,
+      globals: inferGlobals(project),
     });
+  } catch (err) {
+    console.error('[generate] Unexpected error:', err);
+    return res.status(500).json({ error: err.message || 'Unexpected server error' });
+  }
+}
+
+/**
+ * Attempt to repair truncated JSON arrays.
+ * When max_tokens cuts off mid-response, the JSON is incomplete.
+ */
+function repairTruncatedJSON(text) {
+  // Find the start of the array
+  const arrayStart = text.indexOf('[');
+  if (arrayStart === -1) return null;
+  text = text.slice(arrayStart);
+
+  // Split by the pattern that separates objects in the array
+  // Each complete object ends with }
+  const objects = [];
+  let depth = 0;
+  let currentObj = '';
+  let inString = false;
+  let prevChar = '';
+
+  for (let i = 1; i < text.length; i++) {
+    const char = text[i];
+
+    // Track string boundaries
+    if (char === '"' && prevChar !== '\\') {
+      inString = !inString;
+    }
+
+    if (!inString) {
+      if (char === '{') {
+        if (depth === 0) currentObj = '';
+        depth++;
+      }
+      if (char === '}') {
+        depth--;
+        if (depth === 0) {
+          currentObj += char;
+          try {
+            const parsed = JSON.parse(currentObj);
+            objects.push(parsed);
+          } catch (e) {
+            // skip malformed object
+          }
+          currentObj = '';
+          prevChar = char;
+          continue;
+        }
+      }
+    }
+
+    if (depth > 0) {
+      currentObj += char;
+    }
+    prevChar = char;
   }
 
-  let anthropicData;
-  try {
-    anthropicData = JSON.parse(rawBody);
-  } catch (parseErr) {
-    console.error('[generate] Failed to parse Anthropic response as JSON:', parseErr.message);
-    return res.status(502).json({
-      error: `Anthropic returned non-JSON response: ${rawBody.slice(0, 300)}`,
-    });
+  if (objects.length > 0) {
+    console.log('[generate] Repaired JSON: recovered ' + objects.length + ' items from truncated response');
+    return objects;
   }
 
-  const rawText = anthropicData.content?.[0]?.text;
-  const stopReason = anthropicData.stop_reason;
+  return null;
+}
 
-  console.log('[generate] stop_reason:', stopReason);
-  if (stopReason === 'max_tokens') {
-    console.warn('[generate] Response hit max_tokens limit — JSON may be truncated, will attempt repair');
-  }
+/**
+ * Infer global assumptions from project location
+ */
+function inferGlobals(project) {
+  if (!project) return {};
 
-  if (!rawText) {
-    console.error('[generate] No text content in Anthropic response:', JSON.stringify(anthropicData).slice(0, 300));
-    return res.status(502).json({ error: 'Empty response from Claude API', detail: JSON.stringify(anthropicData).slice(0, 300) });
-  }
+  const state = (project.state || 'CA').toUpperCase();
 
-  let parsed;
-  try {
-    parsed = extractJSON(rawText, stopReason);
-  } catch (parseErr) {
-    return res.status(502).json({
-      error: `Could not parse JSON from Claude: ${parseErr.message}`,
-      raw: rawText.slice(0, 600),
-    });
-  }
+  // Regional cost factors (California baseline = 1.15)
+  const regionFactors = {
+    CA: 1.15, NY: 1.25, WA: 1.1, TX: 0.9, FL: 0.92,
+    IL: 1.05, CO: 1.0, AZ: 0.88, GA: 0.9, MA: 1.18,
+    OR: 1.08, NV: 1.0, HI: 1.35, PA: 1.05, OH: 0.92,
+  };
 
-  if (!Array.isArray(parsed.items) || parsed.items.length === 0) {
-    return res.status(502).json({
-      error: 'Claude did not return any line items',
-      raw: rawText.slice(0, 600),
-    });
-  }
+  // Tax rates by state
+  const taxRates = {
+    CA: 0.0975, NY: 0.08, WA: 0.1, TX: 0.0825, FL: 0.07,
+    IL: 0.0875, CO: 0.079, AZ: 0.08, GA: 0.074, MA: 0.0625,
+    OR: 0.0, NV: 0.0825, HI: 0.045, PA: 0.06, OH: 0.0725,
+  };
 
-  // Ensure every item has required defaults
-  parsed.items = parsed.items.map((item, idx) => ({
-    category: 'General Conditions',
-    subcategory: '',
-    description: '',
-    qty_min: 0,
-    qty_max: 0,
-    unit: 'LS',
-    unit_cost_low: 0,
-    unit_cost_mid: 0,
-    unit_cost_high: 0,
-    basis: null,
-    sensitivity: 'Medium',
-    notes: null,
-    ...item,
-    in_summary: true,
-    is_archived: false,
-    sort_order: idx,
-  }));
-
-  return res.status(200).json(parsed);
+  return {
+    regionFactor: regionFactors[state] || 1.0,
+    tax: taxRates[state] || 0.08,
+    escalation: 0.04,
+    laborBurden: project.labor_type === 'Prevailing Wage' ? 0.45 : 0.35,
+    insurance: 0.012,
+    contingency: 0.05,
+    fee: 0.045,
+    bond: 0.008,
+    generalConditions: 0.08,
+    buildingSF: project.gross_sf || 0,
+    parkingStalls: project.parking_stalls || 0,
+    openSpaceSF: 0,
+  };
 }
