@@ -27,6 +27,8 @@ export async function getProject(projectId) {
 export async function createProject(project, userId) {
   if (!userId) return { data: null, error: { message: 'userId is required — pass user.id from the component that already holds the auth session' } };
 
+  console.log('[createProject] inserting project', { name: project.name, userId });
+
   // Step 1: insert the project row
   const { data, error } = await supabase
     .from('projects')
@@ -34,7 +36,13 @@ export async function createProject(project, userId) {
     .select()
     .single();
 
-  if (error || !data) return { data, error };
+  if (error || !data) {
+    console.error('[createProject] insert failed — full error:', error);
+    console.error('[createProject] code:', error?.code, '| message:', error?.message, '| details:', error?.details, '| hint:', error?.hint);
+    return { data, error };
+  }
+
+  console.log('[createProject] project created:', data.id);
 
   // Step 2: create the Baseline scenario — must complete before the caller
   // navigates into the project so useProjectData finds at least one scenario.
@@ -63,7 +71,8 @@ export async function createProject(project, userId) {
     .single();
 
   if (scError) {
-    console.error('Failed to create Baseline scenario:', scError.message);
+    console.error('[createProject] Baseline scenario failed — full error:', scError);
+    console.error('[createProject] code:', scError?.code, '| message:', scError?.message, '| details:', scError?.details);
   }
 
   return { data, error: null };

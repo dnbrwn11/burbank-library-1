@@ -71,6 +71,8 @@ export default function ProjectDashboard({ user, onSignOut, onSelectProject, onP
         user.id, // pass userId so createProject skips supabase.auth.getUser()
       );
       if (error) {
+        console.error('[handleCreate] createProject error — full object:', error);
+        console.error('[handleCreate] code:', error?.code, '| message:', error?.message, '| details:', error?.details, '| hint:', error?.hint);
         if (isLockError(error)) {
           // Lock errors are auth race conditions — project may still have been created.
           // Query for a matching project before surfacing an error.
@@ -84,7 +86,9 @@ export default function ProjectDashboard({ user, onSignOut, onSelectProject, onP
           }
           setFormError('Project creation failed due to a temporary issue. Please try again.');
         } else {
-          setFormError(error.message);
+          // Show the real Supabase error — code + message together when available
+          const detail = [error.code, error.message].filter(Boolean).join(': ');
+          setFormError(detail || 'Project creation failed. Check the browser console for details.');
         }
       } else {
         setForm(EMPTY_FORM);
