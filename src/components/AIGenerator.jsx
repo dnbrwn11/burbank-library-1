@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react';
 import { getScenarios, createLineItems, updateGlobals as saveGlobals } from '../supabase/db';
+import { useGenerateEstimate } from '../../lib/useGenerateEstimate';
+import GenerationProgress from './GenerationProgress';
 
 const ACCENT = '#B89030';
 const HEADER = '#222222';
@@ -246,15 +248,6 @@ function buildChips(project) {
   return [...new Set(chips)].slice(0, 10);
 }
 
-const STATUS_MSGS = [
-  'Analyzing project scope…',
-  'Calibrating to {city} market pricing…',
-  'Generating CSI UniFormat line items…',
-  'Applying regional labor rates…',
-  'Computing quantities and unit costs…',
-  'Validating estimate structure…',
-];
-
 const CSI_ORDER = [
   'Substructure', 'Shell', 'Interiors', 'Services', 'Equipment',
   'Special Construction', 'Sitework', 'General Conditions', 'Overhead & Fee', 'Contingency',
@@ -298,7 +291,6 @@ export default function AIGenerator({ project, user, onSave, onSkip, onSignOut }
   const [tab, setTab] = useState('describe');
   const [description, setDescription] = useState(() => buildStarterText(project));
   const [phIdx, setPhIdx] = useState(0);
-  const [statusIdx, setStatusIdx] = useState(0);
   const [generatedData, setGeneratedData] = useState(null);
   const [editedItems, setEditedItems] = useState([]);
   const [collapsed, setCollapsed] = useState({});
@@ -307,60 +299,34 @@ export default function AIGenerator({ project, user, onSave, onSkip, onSignOut }
   const [saveError, setSaveError] = useState(null);
   const [genError, setGenError] = useState(null);
 
+  const { generate: streamGenerate, progress, isGenerating } = useGenerateEstimate();
+
   useEffect(() => {
     if (step !== 'describe') return;
     const t = setInterval(() => setPhIdx(i => (i + 1) % PLACEHOLDERS.length), 4000);
     return () => clearInterval(t);
   }, [step]);
 
-  useEffect(() => {
-    if (step !== 'generating') return;
-    const t = setInterval(() => setStatusIdx(i => (i + 1) % STATUS_MSGS.length), 2800);
-    return () => clearInterval(t);
-  }, [step]);
-
   const generate = async () => {
     const desc = description.trim();
     if (!desc) return;
-    console.log('[AIGenerator] Starting generation...');
     setStep('generating');
-    setStatusIdx(0);
     setGenError(null);
 
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 90_000);
-
-    const requestBody = { description: desc, project };
-    console.log('[AIGenerator] Calling /api/generate with:', requestBody);
-
     try {
-      const res = await fetch('/api/generate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(requestBody),
-        signal: controller.signal,
-      });
-      clearTimeout(timeout);
-      console.log('[AIGenerator] API response status:', res.status);
-      const data = await res.json();
-      console.log('[AIGenerator] API response body:', data);
-      if (!res.ok) throw new Error(data.error || `API returned ${res.status}`);
-      const lineItems = data.lineItems;
-      console.log('[AIGenerator] Line items found:', lineItems);
-      if (!Array.isArray(lineItems) || !lineItems.length) throw new Error('No line items returned from AI');
-      setGeneratedData(data);
+      const result = await streamGenerate(desc, project);
+      const lineItems = result?.items ?? [];
+      if (!lineItems.length) throw new Error('No line items returned from AI');
+      setGeneratedData({ lineItems, globals: result.globals });
       setEditedItems(lineItems.map((item, i) => ({ ...item, _key: i })));
       const allCats = [...new Set(lineItems.map(i => i.category))];
       setCollapsed(Object.fromEntries(allCats.map(c => [c, false])));
       setStep('review');
     } catch (err) {
-      clearTimeout(timeout);
-      if (err.name === 'AbortError') {
-        setGenError('Generation is taking longer than expected. Try again with a simpler description.');
-      } else {
-        setGenError(err.message);
+      if (err.name !== 'AbortError') {
+        setGenError(err.message || 'Generation failed');
+        setStep('error');
       }
-      setStep('error');
     }
   };
 
@@ -447,8 +413,6 @@ export default function AIGenerator({ project, user, onSave, onSkip, onSignOut }
     }
   };
 
-  const statusMsg = STATUS_MSGS[statusIdx].replace('{city}', project.city || 'local');
-
   return (
     <div style={{ minHeight: '100vh', background: BG, display: 'flex', flexDirection: 'column' }}>
       <header style={{
@@ -486,7 +450,7 @@ export default function AIGenerator({ project, user, onSave, onSkip, onSignOut }
         />
       )}
 
-      {step === 'generating' && <GeneratingStep statusMsg={statusMsg} />}
+      {step === 'generating' && <GenerationProgress progress={progress} />}
 
       {step === 'review' && (
         <ReviewStep
@@ -680,47 +644,6 @@ function TemplateCard({ tpl, active, onClick }) {
         {tpl.text}
       </div>
     </button>
-  );
-}
-
-// ── GeneratingStep ────────────────────────────────────────────────────────────
-
-function GeneratingStep({ statusMsg }) {
-  return (
-    <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 40 }}>
-      <style>{`
-        @keyframes spin { to { transform: rotate(360deg); } }
-        @keyframes barSlide {
-          0%   { width: 20%; margin-left: 0; }
-          50%  { width: 45%; margin-left: 25%; }
-          100% { width: 20%; margin-left: 80%; }
-        }
-      `}</style>
-      <div style={{
-        background: '#fff', border: '1px solid #e6e6e2', borderRadius: 16,
-        padding: '48px 48px', textAlign: 'center', maxWidth: 440,
-        boxShadow: '0 2px 20px rgba(0,0,0,0.06)',
-      }}>
-        <div style={{
-          width: 48, height: 48, borderRadius: '50%',
-          border: '3px solid #f0f0ee', borderTopColor: ACCENT,
-          margin: '0 auto 24px',
-          animation: 'spin 0.9s linear infinite',
-        }} />
-        <h2 style={{ fontFamily: "'Archivo', sans-serif", fontWeight: 800, fontSize: 20, color: '#111', marginBottom: 10 }}>
-          Generating Estimate
-        </h2>
-        <p style={{ fontFamily: "'Figtree', sans-serif", color: '#888', fontSize: 14, marginBottom: 28, lineHeight: 1.5, minHeight: 40 }}>
-          {statusMsg}
-        </p>
-        <div style={{ width: '100%', height: 4, background: '#f0f0ee', borderRadius: 2, overflow: 'hidden' }}>
-          <div style={{ height: '100%', background: ACCENT, borderRadius: 2, animation: 'barSlide 2s ease-in-out infinite' }} />
-        </div>
-        <p style={{ fontFamily: "'Figtree', sans-serif", color: '#bbb', fontSize: 12, marginTop: 20 }}>
-          This typically takes 20–40 seconds
-        </p>
-      </div>
-    </div>
   );
 }
 
