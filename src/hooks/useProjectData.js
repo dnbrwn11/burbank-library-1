@@ -3,6 +3,7 @@ import {
   getScenarios, getLineItems, createScenario,
   updateLineItem, createLineItem, createLineItems, updateGlobals,
 } from '../supabase/db';
+import { supabase } from '../supabase/supabaseClient';
 import { analytics } from '../analytics';
 
 const isLockError = (err) => {
@@ -70,6 +71,8 @@ function itemToInsertRow(item, sortOrder) {
  * Supabase-backed replacement for useScenarios.
  * Exposes the same API surface + loading / error / saveError.
  */
+const LOAD_TIMEOUT_MS = 10_000;
+
 export function useProjectData(projectId) {
   const [scenarios, setScenarios] = useState([]);
   const [activeId, setActiveId] = useState(null);
@@ -79,6 +82,9 @@ export function useProjectData(projectId) {
   const [saveError, setSaveError] = useState(null);
   const [savePending, setSavePending] = useState(0);
   const [lastSaved, setLastSaved] = useState(null);
+  const [retryCount, setRetryCount] = useState(0);
+
+  const retry = useCallback(() => setRetryCount(n => n + 1), []);
 
   // Mutable ref kept in sync — lets async callbacks read the latest state
   // without becoming stale closures.
@@ -92,61 +98,116 @@ export function useProjectData(projectId) {
   useEffect(() => {
     if (!projectId) return;
     let cancelled = false;
+    let timeoutId = null;
 
     const load = async (attempt = 0) => {
       setLoading(true);
       setError(null);
 
-      const { data: scenarioRows, error: scErr } = await getScenarios(projectId);
-      if (cancelled) return;
+      // Hard timeout — if loading hasn't finished in 10s, surface an error
+      // instead of spinning forever.
+      timeoutId = setTimeout(() => {
+        if (!cancelled) {
+          console.error('[useProjectData] Load timed out after 10s for project', projectId);
+          setError('Project data is taking too long to load. Check your connection and try again.');
+          setLoading(false);
+        }
+      }, LOAD_TIMEOUT_MS);
 
-      if (scErr && isLockError(scErr) && attempt < 1) {
-        console.warn('Auth lock error loading scenarios, retrying…');
-        await new Promise(r => setTimeout(r, 400));
-        if (!cancelled) load(1);
-        return;
-      }
+      try {
+        // Await session before querying — prevents a race condition on page
+        // reload where the data fetch fires before GoTrue has re-hydrated the
+        // stored session, which causes RLS to reject the queries silently.
+        const { data: { session }, error: sessionErr } = await supabase.auth.getSession();
+        if (cancelled) return;
 
-      if (scErr || !scenarioRows?.length) {
-        setError(scErr?.message ?? 'No scenarios found for this project.');
-        setLoading(false);
-        return;
-      }
-
-      // Load scenarios sequentially — Promise.all would fire multiple
-      // requests in parallel, and if any triggers a token refresh the
-      // parallel requests contend on the GoTrue lock.
-      const loaded = [];
-      for (const sr of scenarioRows) {
-        const globals = sr.globals ?? { ...DEFAULT_GLOBALS };
-
-        let { data: itemRows, error: liErr } = await getLineItems(sr.id);
-        if (liErr) itemRows = [];
-
-        let items;
-        if (!itemRows?.length) {
-          // First open — seed the default line items into this scenario
-          const seeds = createSeedItems();
-          const insertRows = seeds.map((item, idx) => itemToInsertRow(item, idx));
-          const { data: created, error: cErr } = await createLineItems(sr.id, insertRows);
-          // Fall back to in-memory items if the insert fails
-          items = !cErr && created?.length ? created.map(rowToItem) : seeds;
-        } else {
-          items = itemRows.map(rowToItem);
+        if (sessionErr || !session) {
+          console.error('[useProjectData] No active session:', sessionErr?.message);
+          setError('Your session has expired. Please sign in again.');
+          setLoading(false);
+          return;
         }
 
-        loaded.push({ id: sr.id, name: sr.name, globals, items });
-      }
+        const { data: scenarioRows, error: scErr } = await getScenarios(projectId);
+        if (cancelled) return;
 
-      if (cancelled) return;
-      setScenarios(loaded);
-      setActiveId(loaded[0]?.id ?? null);
-      setLoading(false);
+        if (scErr && isLockError(scErr) && attempt < 1) {
+          console.warn('[useProjectData] Auth lock error — retrying in 400ms…');
+          clearTimeout(timeoutId);
+          await new Promise(r => setTimeout(r, 400));
+          if (!cancelled) load(1);
+          return;
+        }
+
+        if (scErr) {
+          console.error('[useProjectData] getScenarios error:', scErr.message, '| code:', scErr.code);
+          setError(`Failed to load project: ${scErr.message}`);
+          setLoading(false);
+          return;
+        }
+
+        if (!scenarioRows?.length) {
+          setError('No scenarios found for this project. It may have been deleted or you may not have access.');
+          setLoading(false);
+          return;
+        }
+
+        // Load scenarios sequentially — Promise.all would fire multiple
+        // requests in parallel, and if any triggers a token refresh the
+        // parallel requests contend on the GoTrue lock.
+        const loaded = [];
+        for (const sr of scenarioRows) {
+          if (cancelled) return;
+
+          const globals = sr.globals ?? { ...DEFAULT_GLOBALS };
+
+          let { data: itemRows, error: liErr } = await getLineItems(sr.id);
+          if (cancelled) return;
+
+          if (liErr) {
+            console.error(`[useProjectData] getLineItems failed for scenario ${sr.id}:`, liErr.message);
+            itemRows = []; // degrade gracefully — show empty scenario
+          }
+
+          let items;
+          if (!itemRows?.length) {
+            // First open — seed default line items into this scenario
+            const seeds = createSeedItems();
+            const insertRows = seeds.map((item, idx) => itemToInsertRow(item, idx));
+            const { data: created, error: cErr } = await createLineItems(sr.id, insertRows);
+            if (cErr) {
+              console.error(`[useProjectData] createLineItems failed for scenario ${sr.id}:`, cErr.message);
+            }
+            items = !cErr && created?.length ? created.map(rowToItem) : seeds;
+          } else {
+            items = itemRows.map(rowToItem);
+          }
+
+          loaded.push({ id: sr.id, name: sr.name, globals, items });
+        }
+
+        if (cancelled) return;
+        clearTimeout(timeoutId);
+        setScenarios(loaded);
+        setActiveId(loaded[0]?.id ?? null);
+        setLoading(false);
+      } catch (err) {
+        if (cancelled) return;
+        clearTimeout(timeoutId);
+        console.error('[useProjectData] Unexpected load error:', err?.message, err);
+        setError(`Unexpected error loading project: ${err?.message || 'Unknown error'}`);
+        setLoading(false);
+      }
     };
 
     load();
-    return () => { cancelled = true; };
-  }, [projectId]);
+    return () => {
+      cancelled = true;
+      clearTimeout(timeoutId);
+    };
+  // retryCount is intentionally included — incrementing it re-triggers this effect
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [projectId, retryCount]);
 
   // ── Audit log helper ────────────────────────────────────────────────────
   const log = useCallback((itemId, field, oldVal, newVal) => {
@@ -334,6 +395,7 @@ export function useProjectData(projectId) {
     audit,
     loading,
     error,
+    retry,
     saveError,
     setSaveError,
     savePending,

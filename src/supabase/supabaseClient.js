@@ -9,7 +9,7 @@ if (typeof navigator !== 'undefined' && navigator.locks) {
     return await callback();
   };
 }
-2
+
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 

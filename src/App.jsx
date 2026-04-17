@@ -210,6 +210,121 @@ export default function App() {
   );
 }
 
+// ─── Project loading skeleton ────────────────────────────────────────────────
+
+// Inject shimmer keyframes once so SkeletonBar can animate without a CSS file
+if (typeof document !== 'undefined' && !document.getElementById('cd-shimmer')) {
+  const s = document.createElement('style');
+  s.id = 'cd-shimmer';
+  s.textContent = '@keyframes cd-shimmer{0%{background-position:-200% 0}100%{background-position:200% 0}}';
+  document.head.appendChild(s);
+}
+
+function SkeletonBar({ width = '100%', height = 12, mb = 0, radius = 4 }) {
+  return (
+    <div style={{
+      width, height, borderRadius: radius, marginBottom: mb, flexShrink: 0,
+      background: 'linear-gradient(90deg,#ebebea 25%,#e1e1de 50%,#ebebea 75%)',
+      backgroundSize: '200% 100%',
+      animation: 'cd-shimmer 1.5s ease-in-out infinite',
+    }} />
+  );
+}
+
+function ProjectLoadingSkeleton({ project, mob }) {
+  const cols = mob ? 2 : 4;
+  return (
+    <div style={{ minHeight: '100vh', background: COLORS.bg, display: 'flex', flexDirection: 'column' }}>
+      {/* Header */}
+      <div style={{ background: HEADER, height: 52, padding: '0 20px', display: 'flex', alignItems: 'center', gap: 14, flexShrink: 0 }}>
+        <span style={{ color: ACCENT, fontFamily: "'Archivo', sans-serif", fontWeight: 800, fontSize: 16, letterSpacing: 2 }}>COSTDECK</span>
+        {!mob && <SkeletonBar width={180} height={9} />}
+        <div style={{ flex: 1 }} />
+        <SkeletonBar width={90} height={26} radius={6} />
+        <SkeletonBar width={60} height={26} radius={6} />
+        <SkeletonBar width={72} height={26} radius={6} />
+      </div>
+      {/* Tab nav */}
+      <div style={{ background: '#fff', borderBottom: `1px solid ${COLORS.bd}`, display: 'flex', padding: '0 20px', gap: 2 }}>
+        {[88, 96, 80, 110, 64].map((w, i) => (
+          <div key={i} style={{ padding: '12px 18px' }}>
+            <SkeletonBar width={w} height={8} />
+          </div>
+        ))}
+      </div>
+      {/* Body */}
+      <div style={{ flex: 1, padding: mob ? 12 : 18 }}>
+        {/* KPI cards */}
+        <div style={{ display: 'grid', gridTemplateColumns: `repeat(${cols},1fr)`, gap: 12, marginBottom: 20 }}>
+          {Array.from({ length: cols }).map((_, i) => (
+            <div key={i} style={{ background: '#fff', border: `1px solid ${COLORS.bd}`, borderRadius: 10, padding: '16px 18px' }}>
+              <SkeletonBar width={56} height={8} mb={10} />
+              <SkeletonBar width={mob ? 80 : 110} height={22} mb={6} />
+              <SkeletonBar width={70} height={8} />
+            </div>
+          ))}
+        </div>
+        {/* Table skeleton */}
+        {!mob && (
+          <div style={{ background: '#fff', border: `1px solid ${COLORS.bd}`, borderRadius: 10, overflow: 'hidden' }}>
+            {/* Header row */}
+            <div style={{ background: '#F5F5F0', padding: '10px 18px', display: 'flex', gap: 12, borderBottom: `2px solid #e8e8e4` }}>
+              {[24, 200, 110, 60, 60, 40, 70, 70, 70, 90, 50, 50].map((w, i) => (
+                <SkeletonBar key={i} width={w} height={8} />
+              ))}
+            </div>
+            {/* Category + rows */}
+            {[
+              { catW: 160, rows: 3 },
+              { catW: 120, rows: 4 },
+              { catW: 180, rows: 2 },
+            ].map((g, gi) => (
+              <div key={gi}>
+                <div style={{ background: '#FAFAF6', padding: '10px 18px', borderBottom: `1px solid ${COLORS.bd}`, display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <SkeletonBar width={g.catW} height={10} />
+                  <div style={{ flex: 1 }} />
+                  <SkeletonBar width={80} height={10} />
+                </div>
+                {Array.from({ length: g.rows }).map((_, ri) => (
+                  <div key={ri} style={{ padding: '11px 18px', borderBottom: `1px solid ${COLORS.bl}`, display: 'flex', alignItems: 'center', gap: 12 }}>
+                    <SkeletonBar width={24} height={8} />
+                    <SkeletonBar width={`${28 + ((gi + ri) % 3) * 9}%`} height={9} />
+                    <SkeletonBar width={`${8 + (ri % 2) * 4}%`} height={9} />
+                    <div style={{ flex: 1 }} />
+                    <SkeletonBar width={64} height={9} />
+                    <SkeletonBar width={40} height={9} />
+                    <SkeletonBar width={48} height={20} radius={3} />
+                    <SkeletonBar width={16} height={16} radius={3} />
+                  </div>
+                ))}
+              </div>
+            ))}
+          </div>
+        )}
+        {/* Mobile card skeleton */}
+        {mob && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {[3, 4, 2].map((count, gi) => (
+              <div key={gi}>
+                <div style={{ background: '#fff', border: `1px solid ${COLORS.bd}`, borderRadius: 10, padding: '12px 14px', marginBottom: 6, display: 'flex', justifyContent: 'space-between' }}>
+                  <SkeletonBar width={120} height={11} />
+                  <SkeletonBar width={60} height={11} />
+                </div>
+                {Array.from({ length: count }).map((_, ri) => (
+                  <div key={ri} style={{ background: '#fff', border: `1px solid ${COLORS.bd}`, borderRadius: 10, padding: '12px 14px', marginBottom: 6 }}>
+                    <SkeletonBar width={`${60 + ri * 10}%`} height={12} mb={8} />
+                    <SkeletonBar width={90} height={8} />
+                  </div>
+                ))}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ─── Save indicator ──────────────────────────────────────────────────────────
 
 function SaveIndicator({ savePending, lastSaved }) {
@@ -430,7 +545,8 @@ function CostModelApp({ user, project, onBack, onSignOut }) {
   const { mob } = useWindowSize();
   const {
     scenarios, active, activeId, setActiveId,
-    audit, loading, error, saveError, setSaveError,
+    audit, loading, error, retry,
+    saveError, setSaveError,
     savePending, lastSaved,
     updateItem, createItem, reorderItems, updateGlobal, addScenario, deleteScenario,
   } = useProjectData(project.id);
@@ -567,20 +683,7 @@ function CostModelApp({ user, project, onBack, onSignOut }) {
   ];
 
   if (loading) {
-    return (
-      <div style={{ minHeight: '100vh', background: COLORS.bg, display: 'flex', flexDirection: 'column' }}>
-        <div style={{ background: HEADER, height: 52, padding: '0 20px', display: 'flex', alignItems: 'center' }}>
-          <span style={{ color: ACCENT, fontFamily: "'Archivo', sans-serif", fontWeight: 800, fontSize: 16, letterSpacing: 2 }}>COSTDECK</span>
-          <span style={{ color: '#555', fontSize: 11, marginLeft: 12 }}>{project.name}</span>
-        </div>
-        <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 12 }}>
-          <div style={{ fontFamily: "'Figtree', sans-serif", color: '#aaa', fontSize: 14 }}>Loading project data…</div>
-          <div style={{ width: 200, height: 3, background: '#eee', borderRadius: 2, overflow: 'hidden' }}>
-            <div style={{ height: '100%', width: '60%', background: ACCENT, borderRadius: 2, animation: 'pulse 1.4s ease-in-out infinite' }} />
-          </div>
-        </div>
-      </div>
-    );
+    return <ProjectLoadingSkeleton project={project} mob={mob} />;
   }
 
   if (error) {
@@ -590,11 +693,24 @@ function CostModelApp({ user, project, onBack, onSignOut }) {
           <span style={{ color: ACCENT, fontFamily: "'Archivo', sans-serif", fontWeight: 800, fontSize: 16, letterSpacing: 2 }}>COSTDECK</span>
         </div>
         <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
-          <div style={{ background: '#fff', border: '1px solid #fdd', borderRadius: 12, padding: 32, maxWidth: 420, textAlign: 'center' }}>
+          <div style={{ background: '#fff', border: '1px solid #fdd', borderRadius: 12, padding: 32, maxWidth: 440, textAlign: 'center' }}>
             <div style={{ fontSize: 28, marginBottom: 12 }}>⚠️</div>
             <div style={{ fontFamily: "'Archivo', sans-serif", fontWeight: 700, fontSize: 16, color: '#333', marginBottom: 8 }}>Failed to load project</div>
-            <div style={{ fontFamily: "'Figtree', sans-serif", color: '#888', fontSize: 14, marginBottom: 20 }}>{error}</div>
-            <button onClick={onBack} style={{ background: ACCENT, color: '#fff', border: 'none', borderRadius: 8, padding: '10px 24px', fontFamily: "'Archivo', sans-serif", fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>← Back to Projects</button>
+            <div style={{ fontFamily: "'Figtree', sans-serif", color: '#888', fontSize: 14, marginBottom: 24, lineHeight: 1.5 }}>{error}</div>
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'center' }}>
+              <button
+                onClick={retry}
+                style={{ background: ACCENT, color: '#fff', border: 'none', borderRadius: 8, padding: '10px 22px', fontFamily: "'Archivo', sans-serif", fontWeight: 700, fontSize: 13, cursor: 'pointer' }}
+              >
+                Try Again
+              </button>
+              <button
+                onClick={onBack}
+                style={{ background: 'none', border: '1px solid #ddd', borderRadius: 8, padding: '10px 22px', fontFamily: "'Figtree', sans-serif", fontSize: 13, color: '#555', cursor: 'pointer' }}
+              >
+                ← Back to Projects
+              </button>
+            </div>
           </div>
         </div>
       </div>
