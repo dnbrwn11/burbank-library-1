@@ -21,7 +21,7 @@ import AIGenerator from './components/AIGenerator';
 import TeamPanel, { Avatar, initials } from './components/TeamPanel';
 import { supabase } from './supabase/supabaseClient';
 import { getProjectMembers, getProjectMemberRole } from './supabase/db';
-import { initCrisp, identifyUser, identifyCrispUser, resetAnalyticsUser } from './analytics';
+import { analytics, initCrisp, identifyUser, identifyCrispUser, resetAnalyticsUser } from './analytics';
 
 const ACCENT = '#B89030';
 const HEADER = '#222222';
@@ -368,6 +368,7 @@ function CostModelApp({ user, project, onBack, onSignOut }) {
   const [showNewScen, setShowNewScen] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [showTeamPanel, setShowTeamPanel] = useState(false);
+  const [exportingPdf, setExportingPdf] = useState(false);
 
   // Role: owner always canEdit; others look up project_members
   const [userRole, setUserRole] = useState(
@@ -428,6 +429,40 @@ function CostModelApp({ user, project, onBack, onSignOut }) {
     updateItem(itemId, 'unitCostMid', advice.mid);
     updateItem(itemId, 'unitCostHigh', advice.high);
   }, [updateItem]);
+
+  async function exportPdf() {
+    setExportingPdf(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const res = await fetch('/api/export-pdf', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session?.access_token}`,
+        },
+        body: JSON.stringify({ projectId: project.id, scenarioId: activeId }),
+      });
+      if (!res.ok) {
+        const e = await res.json().catch(() => ({ error: 'Export failed' }));
+        throw new Error(e.error || 'Export failed');
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      const date = new Date().toISOString().slice(0, 10);
+      a.href = url;
+      a.download = `${project.name.replace(/[^a-zA-Z0-9]/g, '_')}_Estimate_${date}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      analytics.pdfExported(project.id);
+    } catch (err) {
+      setSaveError(`PDF export failed: ${err.message}`);
+    } finally {
+      setExportingPdf(false);
+    }
+  }
 
   const viewProps = {
     items, globals, activeItems, totals, catGroups, bsf,
@@ -563,6 +598,29 @@ function CostModelApp({ user, project, onBack, onSignOut }) {
             <span style={{ color: ACCENT, fontSize: 13, fontFamily: FONTS.heading, fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>
               {fK(totals.full.m.tot)}
             </span>
+          )}
+
+          {!mob && (
+            <button
+              onClick={exportPdf}
+              disabled={exportingPdf}
+              title="Export PDF report"
+              style={{
+                display: 'flex', alignItems: 'center', gap: 5,
+                background: exportingPdf ? '#2a2a2a' : '#2a2a2a',
+                border: '1px solid #444', borderRadius: 6,
+                padding: '5px 10px', cursor: exportingPdf ? 'default' : 'pointer',
+                color: exportingPdf ? '#666' : '#aaa',
+                fontFamily: "'Figtree', sans-serif", fontSize: 11,
+              }}
+            >
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                <polyline points="7 10 12 15 17 10" />
+                <line x1="12" y1="15" x2="12" y2="3" />
+              </svg>
+              {exportingPdf ? 'Exporting…' : 'PDF'}
+            </button>
           )}
 
           {/* Team avatar stack + team button */}
