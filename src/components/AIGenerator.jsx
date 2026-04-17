@@ -70,6 +70,121 @@ const TEMPLATE_DEFS = [
   },
 ];
 
+// Subtype cards keyed by ProjectDashboard BUILDING_TYPES values.
+// `recommended: true` marks the most common subtype (shown first with badge).
+const SUBTYPE_DEFS = {
+  'Library / Civic Center': [
+    { label: 'Main Branch Library',       icon: '📚', recommended: true,
+      buildText: (p) => `New ${p.sf} SF main branch public library in ${p.city}, ${p.state}. Three-story building with full-height reading room, digital media lab, children's wing with story room, teen center, community meeting rooms, maker space, café, and underground parking structure. ${p.labor}. ${p.delivery}. LEED Silver target.` },
+    { label: 'Community Branch Library',  icon: '📖', recommended: false,
+      buildText: (p) => `New ${p.sf} SF community branch library in ${p.city}, ${p.state}. Single-story building with open reading room, children's corner, study rooms, computer lab, and surface parking. ${p.labor}. ${p.delivery}.` },
+    { label: 'Civic Center + Library',    icon: '🏛️', recommended: false,
+      buildText: (p) => `New ${p.sf} SF combined civic center and public library in ${p.city}, ${p.state}. Library with reading room and media lab, city council chambers, administrative offices, public meeting rooms, and structured parking. ${p.labor}. ${p.delivery}. LEED Gold target.` },
+    { label: 'Library Renovation / Expansion', icon: '🔄', recommended: false,
+      buildText: (p) => `Renovation and ${p.sf} SF addition to existing public library in ${p.city}, ${p.state}. New wing with expanded children's services, digital media lab, updated HVAC/electrical, ADA upgrades, new roof, and reconfigured parking. ${p.labor}. ${p.delivery}.` },
+  ],
+  'Office': [
+    { label: 'Class A High-Rise Office',   icon: '🏢', recommended: true,
+      buildText: (p) => `${p.sf} SF Class A high-rise office tower in ${p.city}, ${p.state}. 12 stories, open floor plates, two-story lobby with feature stair, ground-floor retail, 4-level parking podium (600 stalls). ${p.labor}. ${p.delivery}. LEED Gold target. Steel moment frame.` },
+    { label: 'Mid-Rise Office Campus',     icon: '🏬', recommended: false,
+      buildText: (p) => `${p.sf} SF mid-rise office campus in ${p.city}, ${p.state}. 4–6 story buildings, structured parking, campus walkways, outdoor amenity space, shared conference center. ${p.labor}. ${p.delivery}. LEED Silver target.` },
+    { label: 'Medical Office Building',   icon: '🏥', recommended: false,
+      buildText: (p) => `${p.sf} SF medical office building (MOB) in ${p.city}, ${p.state}. Clinical suites, imaging, procedure rooms, administrative offices. Surface and structured parking. ${p.labor}. ${p.delivery}. Healthcare-grade MEP throughout.` },
+    { label: 'Government / Civic Office', icon: '🏛️', recommended: false,
+      buildText: (p) => `${p.sf} SF government office building in ${p.city}, ${p.state}. Open office floors, public-facing service counters, hearing rooms, server room, emergency generator, and secure parking. ${p.labor}. ${p.delivery}.` },
+    { label: 'Creative / Tech Office',    icon: '💡', recommended: false,
+      buildText: (p) => `${p.sf} SF creative/tech office in ${p.city}, ${p.state}. Open plan, exposed structure, collaborative breakout areas, rooftop deck, bike storage, showers. ${p.labor}. ${p.delivery}. LEED Gold target.` },
+    { label: 'Tenant Improvement',        icon: '🔧', recommended: false,
+      buildText: (p) => `${p.sf} SF office tenant improvement in ${p.city}, ${p.state}. Full demolition and rebuild: new partitions, ceiling, lighting, MEP distribution, IT infrastructure, custom millwork, restroom upgrades. ${p.labor}. ${p.delivery}.` },
+    { label: 'Office + Ground Floor Retail', icon: '🏪', recommended: false,
+      buildText: (p) => `${p.sf} SF mixed-use office building in ${p.city}, ${p.state}. Ground-floor retail/restaurant (8,000 SF), upper floors Class A office, structured parking. ${p.labor}. ${p.delivery}. LEED Silver target.` },
+    { label: 'Corporate Headquarters',    icon: '🏆', recommended: false,
+      buildText: (p) => `${p.sf} SF corporate headquarters campus in ${p.city}, ${p.state}. Signature architecture, executive floors, full-service café, fitness center, auditorium (300 seats), structured parking. ${p.labor}. ${p.delivery}. LEED Platinum target.` },
+  ],
+  'Multi-Family Residential': [
+    { label: 'High-Rise Residential',  icon: '🏢', recommended: true,
+      buildText: (p) => `${p.sf} SF high-rise residential tower in ${p.city}, ${p.state}. 450 market-rate units (studios, 1BR, 2BR), 3-level podium parking, ground-floor retail, amenity deck, rooftop terrace. ${p.labor}. ${p.delivery}. Concrete moment frame, Type I-A.` },
+    { label: 'Mid-Rise Apartments',   icon: '🏘️', recommended: false,
+      buildText: (p) => `${p.sf} SF mid-rise apartment complex in ${p.city}, ${p.state}. 6–8 story wood-frame over concrete podium, 150 units, podium parking, courtyard amenity space, rooftop deck. ${p.labor}. ${p.delivery}. Type III-A construction.` },
+    { label: 'Podium Mixed-Use',      icon: '🏙️', recommended: false,
+      buildText: (p) => `${p.sf} SF podium mixed-use residential in ${p.city}, ${p.state}. Ground-floor retail (10,000 SF), 2 levels parking, 6 residential floors (120 units). ${p.labor}. ${p.delivery}. Type III-A over Type I-A podium.` },
+    { label: 'Affordable Housing',    icon: '🏠', recommended: false,
+      buildText: (p) => `${p.sf} SF affordable housing complex in ${p.city}, ${p.state}. 100 units (1BR–3BR), surface parking, community room, on-site management office. LIHTC project. ${p.labor}. ${p.delivery}.` },
+    { label: 'Senior Living',         icon: '🧓', recommended: false,
+      buildText: (p) => `${p.sf} SF senior living facility in ${p.city}, ${p.state}. Independent living units, assisted living suites, memory care wing, dining, fitness, activity rooms, surface parking. ${p.labor}. ${p.delivery}.` },
+    { label: 'Build-to-Rent',         icon: '🏡', recommended: false,
+      buildText: (p) => `${p.sf} SF build-to-rent single-family community in ${p.city}, ${p.state}. Detached and attached units, private yards, community clubhouse and pool, alley-loaded garages. ${p.labor}. ${p.delivery}.` },
+  ],
+  'Mixed-Use': [
+    { label: 'TOD Mixed-Use',        icon: '🚆', recommended: true,
+      buildText: (p) => `${p.sf} SF transit-oriented mixed-use in ${p.city}, ${p.state}. Ground-floor retail, residential floors above, 2-level underground parking, courtyard amenity deck, rooftop terrace. ${p.labor}. ${p.delivery}.` },
+    { label: 'Urban Infill Mixed-Use', icon: '🏙️', recommended: false,
+      buildText: (p) => `${p.sf} SF urban infill mixed-use in ${p.city}, ${p.state}. Retail ground floor, office floors 2–4, residential floors 5–8, underground parking. ${p.labor}. ${p.delivery}. LEED Silver target.` },
+    { label: 'Retail + Residential', icon: '🏬', recommended: false,
+      buildText: (p) => `${p.sf} SF retail-over-residential in ${p.city}, ${p.state}. Ground-floor retail (12,000 SF), 5 residential floors (80 units), podium parking. ${p.labor}. ${p.delivery}.` },
+    { label: 'Hotel + Retail',       icon: '🏨', recommended: false,
+      buildText: (p) => `${p.sf} SF hotel and retail mixed-use in ${p.city}, ${p.state}. 150-key select service hotel, ground-floor retail and restaurant, structured parking, rooftop bar. ${p.labor}. ${p.delivery}.` },
+  ],
+  'Retail': [
+    { label: 'Neighborhood Shopping Center', icon: '🏪', recommended: true,
+      buildText: (p) => `${p.sf} SF neighborhood shopping center in ${p.city}, ${p.state}. Inline retail suites, anchor grocery tenant (45,000 SF), surface parking (400 stalls), outpads for drive-through tenants. ${p.labor}. ${p.delivery}.` },
+    { label: 'Grocery-Anchored Strip Mall', icon: '🛒', recommended: false,
+      buildText: (p) => `${p.sf} SF grocery-anchored strip center in ${p.city}, ${p.state}. 50,000 SF anchor, inline retail, drive-through endcap, ample surface parking. ${p.labor}. ${p.delivery}.` },
+    { label: 'Single Tenant Retail',       icon: '🏬', recommended: false,
+      buildText: (p) => `${p.sf} SF freestanding single-tenant retail building in ${p.city}, ${p.state}. Drive-through service window, surface parking, prominent signage. ${p.labor}. ${p.delivery}.` },
+    { label: 'Retail Renovation',          icon: '🔄', recommended: false,
+      buildText: (p) => `${p.sf} SF retail renovation in ${p.city}, ${p.state}. Full interior and facade upgrade, updated MEP systems, ADA compliance, parking lot resurfacing. ${p.labor}. ${p.delivery}.` },
+  ],
+  'Hospitality': [
+    { label: 'Select Service Hotel', icon: '🏨', recommended: true,
+      buildText: (p) => `${p.sf} SF select service hotel in ${p.city}, ${p.state}. 120 keys, fitness center, breakfast area, meeting room, surface parking. ${p.labor}. ${p.delivery}. Franchise flag (Marriott/Hilton/IHG).` },
+    { label: 'Full Service Hotel',   icon: '🌟', recommended: false,
+      buildText: (p) => `${p.sf} SF full service hotel in ${p.city}, ${p.state}. 200 keys, full-service restaurant and bar, ballroom (5,000 SF), 10,000 SF meeting space, fitness center, pool, structured parking. ${p.labor}. ${p.delivery}.` },
+    { label: 'Extended Stay',        icon: '🛏️', recommended: false,
+      buildText: (p) => `${p.sf} SF extended stay hotel in ${p.city}, ${p.state}. 150 studio and 1BR suites with kitchenettes, fitness center, coin laundry, surface parking. ${p.labor}. ${p.delivery}.` },
+    { label: 'Boutique Hotel',       icon: '✨', recommended: false,
+      buildText: (p) => `${p.sf} SF boutique hotel in ${p.city}, ${p.state}. 80 uniquely designed rooms, rooftop bar and lounge, ground-floor restaurant, valet parking. ${p.labor}. ${p.delivery}. High-end finishes throughout.` },
+  ],
+  'Industrial': [
+    { label: 'Distribution Warehouse',     icon: '📦', recommended: true,
+      buildText: (p) => `${p.sf} SF distribution warehouse in ${p.city}, ${p.state}. 36' clear height, 60 dock doors, 4 drive-in doors, ESFR sprinkler, LED lighting, 200 trailer stalls. ${p.labor}. ${p.delivery}.` },
+    { label: 'Light Industrial / Flex',    icon: '🏭', recommended: false,
+      buildText: (p) => `${p.sf} SF light industrial/flex building in ${p.city}, ${p.state}. 24' clear height, grade-level doors, front office build-out (20% of area), surface parking. ${p.labor}. ${p.delivery}.` },
+    { label: 'Cold Storage / Food Grade',  icon: '❄️', recommended: false,
+      buildText: (p) => `${p.sf} SF cold storage facility in ${p.city}, ${p.state}. Blast freeze, cooler and freezer zones, insulated metal panel construction, refrigerated dock doors, ammonia refrigeration. ${p.labor}. ${p.delivery}.` },
+    { label: 'Manufacturing',              icon: '⚙️', recommended: false,
+      buildText: (p) => `${p.sf} SF manufacturing facility in ${p.city}, ${p.state}. Heavy power (4 MW), overhead crane provisions (50-ton), 30' clear height, process piping, hazmat storage, surface parking. ${p.labor}. ${p.delivery}.` },
+  ],
+  'Healthcare': [
+    { label: 'Outpatient Medical Office', icon: '🏥', recommended: true,
+      buildText: (p) => `${p.sf} SF outpatient medical office building in ${p.city}, ${p.state}. Imaging suite (MRI, CT, X-ray), ASC (4 ORs, PACU, sterile processing), general clinic floors. ${p.labor}. ${p.delivery}. OSHPD-3 compliant. N+1 emergency generator.` },
+    { label: 'Ambulatory Surgery Center', icon: '⚕️', recommended: false,
+      buildText: (p) => `${p.sf} SF ambulatory surgery center in ${p.city}, ${p.state}. 6 ORs, PACU, pre-op holding, central sterile, pharmacy, medical gas systems. ${p.labor}. ${p.delivery}. OSHPD-2 compliant. 100% backup generator.` },
+    { label: 'Urgent Care / Clinic',      icon: '🩺', recommended: false,
+      buildText: (p) => `${p.sf} SF urgent care clinic in ${p.city}, ${p.state}. Exam rooms, procedure room, X-ray suite, waiting area, lab draw station. ${p.labor}. ${p.delivery}. OSHPD-3 compliant.` },
+    { label: 'Hospital Wing Addition',    icon: '🏨', recommended: false,
+      buildText: (p) => `${p.sf} SF hospital inpatient wing addition in ${p.city}, ${p.state}. 80 private patient rooms, nursing stations, clean/soiled utility, patient lift system, dock connection to existing. ${p.labor}. ${p.delivery}. OSHPD-1 compliant.` },
+  ],
+  'Education': [
+    { label: 'K-12 School Campus',            icon: '🏫', recommended: true,
+      buildText: (p) => `${p.sf} SF K-12 campus in ${p.city}, ${p.state}. Classroom wings, administration building, gymnasium with bleachers, cafeteria with commercial kitchen, covered walkways. ${p.labor}. ${p.delivery}. DSA-compliant. Phased to keep existing school operational.` },
+    { label: 'Community College Building',    icon: '🎓', recommended: false,
+      buildText: (p) => `${p.sf} SF community college instructional building in ${p.city}, ${p.state}. Flexible classrooms, computer labs, student collaboration areas, faculty offices, campus-connected covered walkways. ${p.labor}. ${p.delivery}. DSA-compliant. LEED Silver target.` },
+    { label: 'University Classroom Building', icon: '🏛️', recommended: false,
+      buildText: (p) => `${p.sf} SF university classroom and office building in ${p.city}, ${p.state}. Lecture halls (150, 300, 500 seats), seminar rooms, faculty offices, student lounge, underground parking. ${p.labor}. ${p.delivery}. LEED Gold target.` },
+    { label: 'Early Childhood Center',        icon: '🧒', recommended: false,
+      buildText: (p) => `${p.sf} SF early childhood education center in ${p.city}, ${p.state}. Classrooms for infant through pre-K, outdoor play areas, kitchen, multipurpose room. ${p.labor}. ${p.delivery}. DSA-compliant.` },
+  ],
+  'Parking Structure': [
+    { label: 'Above-Grade Parking Garage',  icon: '🚗', recommended: true,
+      buildText: (p) => `${p.sf} SF above-grade parking structure in ${p.city}, ${p.state}. 600 stalls, post-tensioned concrete, open-air design, EV charging (20%), ground-floor activated frontage. ${p.labor}. ${p.delivery}.` },
+    { label: 'Underground Parking',         icon: '⬇️', recommended: false,
+      buildText: (p) => `${p.sf} SF underground parking structure in ${p.city}, ${p.state}. 300 stalls, 2 basement levels, waterproofing, sump pumps, mechanical ventilation, EV charging rough-in. ${p.labor}. ${p.delivery}.` },
+    { label: 'Mixed-Use Parking + Retail',  icon: '🏪', recommended: false,
+      buildText: (p) => `${p.sf} SF parking structure with ground-floor retail in ${p.city}, ${p.state}. 500 stalls, activated retail frontage (8,000 SF), EV charging, bicycle parking. ${p.labor}. ${p.delivery}.` },
+  ],
+};
+
 function buildTemplates(project) {
   const params = {
     sf:       project.gross_sf ? Number(project.gross_sf).toLocaleString() : '97,500',
@@ -79,6 +194,15 @@ function buildTemplates(project) {
     delivery: project.delivery_method || 'CM at Risk (GMP)',
   };
   const bt = project.building_type || '';
+
+  // If we have subtypes for this building type, use them (recommended first)
+  const subtypeDefs = bt && SUBTYPE_DEFS[bt];
+  if (subtypeDefs?.length) {
+    const all = subtypeDefs.map(t => ({ label: t.label, icon: t.icon, text: t.buildText(params), recommended: t.recommended }));
+    return [...all.filter(t => t.recommended), ...all.filter(t => !t.recommended)];
+  }
+
+  // Fallback: generic cross-type templates with project values
   const recLabel = TEMPLATE_DEFS.find(t => t.matchTypes.some(m => bt.includes(m)))?.label ?? null;
   const all = TEMPLATE_DEFS.map(t => ({ label: t.label, icon: t.icon, text: t.buildText(params), recommended: t.label === recLabel }));
   return [...all.filter(t => t.recommended), ...all.filter(t => !t.recommended)];
