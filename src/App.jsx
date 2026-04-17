@@ -63,6 +63,7 @@ export default function App() {
     return (
       <AIGenerator
         project={generatingProject}
+        user={user}
         onSave={() => { setActiveProject(generatingProject); setGeneratingProject(null); }}
         onSkip={() => { setActiveProject(generatingProject); setGeneratingProject(null); }}
         onSignOut={signOut}

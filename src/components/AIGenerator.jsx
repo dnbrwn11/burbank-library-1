@@ -107,7 +107,7 @@ function applyGlobals(raw, g) {
 
 // ── Main component ────────────────────────────────────────────────────────────
 
-export default function AIGenerator({ project, onSave, onSkip, onSignOut }) {
+export default function AIGenerator({ project, user, onSave, onSkip, onSignOut }) {
   const [step, setStep] = useState('describe');
   const [tab, setTab] = useState('describe');
   const [description, setDescription] = useState('');
@@ -163,7 +163,8 @@ export default function AIGenerator({ project, onSave, onSkip, onSignOut }) {
       if (!Array.isArray(lineItems) || !lineItems.length) throw new Error('No line items returned from AI');
       setGeneratedData(data);
       setEditedItems(lineItems.map((item, i) => ({ ...item, _key: i })));
-      setCollapsed(Object.fromEntries(CSI_ORDER.map(c => [c, false])));
+      const allCats = [...new Set(lineItems.map(i => i.category))];
+      setCollapsed(Object.fromEntries(allCats.map(c => [c, false])));
       setStep('review');
     } catch (err) {
       clearTimeout(timeout);
@@ -188,10 +189,24 @@ export default function AIGenerator({ project, onSave, onSkip, onSignOut }) {
     if (saving) return;
     setSaving(true);
     setSaveError(null);
+
+    const timeout = new Promise((_, reject) =>
+      setTimeout(() => reject(new Error('Save timed out after 30s — check your connection and try again')), 30_000)
+    );
+
     try {
-      const { data: scenarios, error: scErr } = await getScenarios(project.id);
-      if (scErr || !scenarios?.length) throw new Error('Could not find project scenario');
+      console.log('[AIGenerator] saveAll: starting, user:', user?.id, 'project:', project.id);
+
+      if (!user?.id) throw new Error('Not logged in — please refresh and try again');
+
+      console.log('[AIGenerator] saveAll: fetching scenarios...');
+      const { data: scenarios, error: scErr } = await Promise.race([getScenarios(project.id), timeout]);
+      if (scErr) { console.error('[AIGenerator] saveAll: getScenarios error:', scErr); throw new Error(scErr.message); }
+      if (!scenarios?.length) throw new Error('Could not find project scenario');
+      console.log('[AIGenerator] saveAll: got', scenarios.length, 'scenarios');
+
       const baseline = scenarios.find(s => s.is_baseline) ?? scenarios[0];
+      console.log('[AIGenerator] saveAll: baseline scenario:', baseline.id);
 
       const rows = editedItems.map((item, idx) => ({
         category: item.category || 'General Conditions',
@@ -211,13 +226,20 @@ export default function AIGenerator({ project, onSave, onSkip, onSignOut }) {
         sort_order: idx,
       }));
 
-      const { error: liErr } = await createLineItems(baseline.id, rows);
-      if (liErr) throw new Error(liErr.message);
+      console.log('[AIGenerator] saveAll: inserting', rows.length, 'line items...');
+      const { error: liErr } = await Promise.race([createLineItems(baseline.id, rows), timeout]);
+      if (liErr) { console.error('[AIGenerator] saveAll: createLineItems error:', liErr); throw new Error(liErr.message); }
+      console.log('[AIGenerator] saveAll: line items saved');
 
-      await saveGlobals(baseline.id, generatedData.globals);
+      console.log('[AIGenerator] saveAll: saving globals...');
+      const { error: glErr } = await Promise.race([saveGlobals(baseline.id, generatedData.globals), timeout]);
+      if (glErr) { console.error('[AIGenerator] saveAll: saveGlobals error:', glErr); throw new Error(glErr.message); }
+      console.log('[AIGenerator] saveAll: done, calling onSave');
+
       onSave();
     } catch (err) {
-      setSaveError(err.message);
+      console.error('[AIGenerator] saveAll: caught error:', err);
+      setSaveError(err.message || 'Unknown error — check the browser console');
     } finally {
       setSaving(false);
     }
