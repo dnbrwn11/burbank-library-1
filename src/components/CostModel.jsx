@@ -134,15 +134,39 @@ export function CostModel({ items, globals, activeItems, totals, updateItem, bsf
         </div>
       ) : (
         /* Desktop/Tablet: Table layout */
-        <div style={{ borderRadius: 10, border: `1px solid ${COLORS.bd}`, overflow: 'hidden', background: COLORS.wh }}>
+        <div style={{ borderRadius: 10, border: `1px solid ${COLORS.bd}`, overflow: 'clip', background: COLORS.wh }}>
           <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, fontFamily: FONTS.body, minWidth: tab ? 750 : 950 }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, fontFamily: FONTS.body, tableLayout: 'fixed', minWidth: tab ? 700 : 1020 }}>
+              <colgroup>
+                <col style={{ width: 28 }} />
+                <col />
+                <col style={{ width: tab ? 100 : 120 }} />
+                {!tab && <col style={{ width: 72 }} />}
+                <col style={{ width: 72 }} />
+                <col style={{ width: 52 }} />
+                {!tab && <col style={{ width: 78 }} />}
+                <col style={{ width: 78 }} />
+                {!tab && <col style={{ width: 78 }} />}
+                <col style={{ width: 92 }} />
+                <col style={{ width: 62 }} />
+                <col style={{ width: 58 }} />
+                <col style={{ width: 30 }} />
+              </colgroup>
               <thead>
                 <tr style={{ background: '#F5F5F0' }}>
                   {['', 'Description', 'Sub', !tab && 'Qty Min', 'Qty Max', 'Unit', !tab && '$/Low', '$/Mid', !tab && '$/High', `${cv.toUpperCase()} Total`, '$/SF', 'Sens', '']
                     .filter(Boolean)
                     .map((h, i) => (
-                      <th key={i} style={{ padding: '9px 6px', textAlign: ['Description', 'Sub'].includes(h) ? 'left' : 'right', fontSize: 9, fontFamily: FONTS.heading, fontWeight: 600, color: COLORS.mg, textTransform: 'uppercase', letterSpacing: 1, borderBottom: `2px solid ${COLORS.gn}22`, whiteSpace: 'nowrap' }}>{h}</th>
+                      <th key={i} style={{
+                        position: 'sticky', top: 0, zIndex: 2,
+                        background: '#F5F5F0',
+                        padding: '9px 8px',
+                        textAlign: ['Description', 'Sub'].includes(h) ? 'left' : 'right',
+                        fontSize: 9, fontFamily: FONTS.heading, fontWeight: 600,
+                        color: COLORS.mg, textTransform: 'uppercase', letterSpacing: 1,
+                        borderBottom: `2px solid ${COLORS.gn}22`,
+                        whiteSpace: 'nowrap', overflow: 'hidden',
+                      }}>{h}</th>
                     ))}
                 </tr>
               </thead>
@@ -151,10 +175,10 @@ export function CostModel({ items, globals, activeItems, totals, updateItem, bsf
                   const cl = col.has(g.c);
                   return [
                     <tr key={`c_${g.c}`} style={{ background: '#FAFAF6', cursor: 'pointer', borderBottom: `1px solid ${COLORS.bd}` }} onClick={() => toggleCol(g.c)}>
-                      <td style={{ padding: '8px 6px', width: 22 }}><span style={{ color: COLORS.gn, fontSize: 9 }}>{cl ? '▶' : '▼'}</span></td>
-                      <td colSpan={tab ? 5 : 7} style={{ padding: '8px 6px', fontWeight: 700, fontSize: 12, fontFamily: FONTS.heading, color: COLORS.gn }}>{g.c.toUpperCase()} <span style={{ color: COLORS.mg, fontWeight: 400, fontSize: 10, fontFamily: FONTS.body }}>({g.items.length})</span></td>
-                      <td style={{ padding: 8, textAlign: 'right', fontWeight: 700, fontFamily: FONTS.heading, color: COLORS.gn, fontVariantNumeric: 'tabular-nums' }}>{fmt(g.t[cvk])}</td>
-                      <td style={{ padding: '8px 6px', textAlign: 'right', fontSize: 10, color: COLORS.mg, fontVariantNumeric: 'tabular-nums' }}>{psf(g.t[cvk], bsf)}</td>
+                      <td style={{ padding: '8px 8px' }}><span style={{ color: COLORS.gn, fontSize: 9 }}>{cl ? '▶' : '▼'}</span></td>
+                      <td colSpan={tab ? 5 : 7} style={{ padding: '8px 8px', fontWeight: 700, fontSize: 12, fontFamily: FONTS.heading, color: COLORS.gn }}>{g.c.toUpperCase()} <span style={{ color: COLORS.mg, fontWeight: 400, fontSize: 10, fontFamily: FONTS.body }}>({g.items.length})</span></td>
+                      <td style={{ padding: '8px 8px', textAlign: 'right', fontWeight: 700, fontFamily: FONTS.heading, color: COLORS.gn, fontVariantNumeric: 'tabular-nums' }}>{fmt(g.t[cvk])}</td>
+                      <td style={{ padding: '8px 8px', textAlign: 'right', fontSize: 10, color: COLORS.mg, fontVariantNumeric: 'tabular-nums' }}>{psf(g.t[cvk], bsf)}</td>
                       <td colSpan={2} />
                     </tr>,
                     ...(!cl ? g.items.map(item => {
@@ -165,21 +189,21 @@ export function CostModel({ items, globals, activeItems, totals, updateItem, bsf
                         <tr key={item.id} style={{ borderBottom: `1px solid ${COLORS.bl}`, background: hasAI ? `${COLORS.gn}06` : COLORS.wh }}
                           onMouseEnter={e => e.currentTarget.style.background = hasAI ? `${COLORS.gn}08` : '#FCFCF9'}
                           onMouseLeave={e => e.currentTarget.style.background = hasAI ? `${COLORS.gn}06` : COLORS.wh}>
-                          <td style={{ padding: '0 4px', cursor: 'pointer' }} onClick={() => setExpR(ex ? null : item.id)}>
+                          <td style={{ padding: '0 8px', cursor: 'pointer' }} onClick={() => setExpR(ex ? null : item.id)}>
                             <span style={{ color: hasAI ? COLORS.gn : COLORS.mg, fontSize: 8 }}>{ex ? '▼' : '▸'}</span>
                           </td>
-                          <td style={{ padding: '3px 5px', maxWidth: 180 }}><EditField value={item.description} onCommit={uI(item.id, 'description')} type="text" /></td>
-                          <td style={{ padding: '3px 5px', fontSize: 10, color: COLORS.mg, maxWidth: 70, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.subcategory}</td>
-                          {!tab && <td style={{ padding: '3px 3px' }}><EditField value={item.qtyMin} onCommit={uI(item.id, 'qtyMin')} /></td>}
-                          <td style={{ padding: '3px 3px' }}><EditField value={item[tab ? 'qtyMin' : 'qtyMax']} onCommit={uI(item.id, tab ? 'qtyMin' : 'qtyMax')} /></td>
-                          <td style={{ padding: '3px 3px', fontSize: 10, color: COLORS.mg, textAlign: 'center' }}>{item.unit}</td>
-                          {!tab && <td style={{ padding: '3px 3px' }}><EditField value={item.unitCostLow} onCommit={uI(item.id, 'unitCostLow')} /></td>}
-                          <td style={{ padding: '3px 3px' }}><EditField value={item.unitCostMid} onCommit={uI(item.id, 'unitCostMid')} /></td>
-                          {!tab && <td style={{ padding: '3px 3px' }}><EditField value={item.unitCostHigh} onCommit={uI(item.id, 'unitCostHigh')} /></td>}
-                          <td style={{ padding: '3px 6px', textAlign: 'right', fontWeight: 600, color: COLORS.gn, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>{fmt(sh)}</td>
-                          <td style={{ padding: '3px 6px', textAlign: 'right', fontSize: 10, color: COLORS.mg, fontVariantNumeric: 'tabular-nums' }}>{psf(sh, bsf)}</td>
-                          <td style={{ padding: '3px 3px' }}><Badge sensitivity={item.sensitivity} /></td>
-                          <td style={{ padding: '3px 3px' }}><button onClick={() => updateItem(item.id, 'isArchived', true)} style={{ background: 'transparent', border: 'none', color: COLORS.ltg, cursor: 'pointer', fontSize: 10 }}>✕</button></td>
+                          <td style={{ padding: '4px 8px', overflow: 'hidden' }}><EditField value={item.description} onCommit={uI(item.id, 'description')} type="text" /></td>
+                          <td style={{ padding: '4px 8px', fontSize: 10, color: COLORS.mg, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.subcategory}</td>
+                          {!tab && <td style={{ padding: '4px 8px' }}><EditField value={item.qtyMin} onCommit={uI(item.id, 'qtyMin')} /></td>}
+                          <td style={{ padding: '4px 8px' }}><EditField value={item[tab ? 'qtyMin' : 'qtyMax']} onCommit={uI(item.id, tab ? 'qtyMin' : 'qtyMax')} /></td>
+                          <td style={{ padding: '4px 8px', fontSize: 10, color: COLORS.mg, textAlign: 'center' }}>{item.unit}</td>
+                          {!tab && <td style={{ padding: '4px 8px' }}><EditField value={item.unitCostLow} onCommit={uI(item.id, 'unitCostLow')} /></td>}
+                          <td style={{ padding: '4px 8px' }}><EditField value={item.unitCostMid} onCommit={uI(item.id, 'unitCostMid')} /></td>
+                          {!tab && <td style={{ padding: '4px 8px' }}><EditField value={item.unitCostHigh} onCommit={uI(item.id, 'unitCostHigh')} /></td>}
+                          <td style={{ padding: '4px 8px', textAlign: 'right', fontWeight: 600, color: COLORS.gn, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>{fmt(sh)}</td>
+                          <td style={{ padding: '4px 8px', textAlign: 'right', fontSize: 10, color: COLORS.mg, fontVariantNumeric: 'tabular-nums' }}>{psf(sh, bsf)}</td>
+                          <td style={{ padding: '4px 8px' }}><Badge sensitivity={item.sensitivity} /></td>
+                          <td style={{ padding: '4px 4px' }}><button onClick={() => updateItem(item.id, 'isArchived', true)} style={{ background: 'transparent', border: 'none', color: COLORS.ltg, cursor: 'pointer', fontSize: 10 }}>✕</button></td>
                         </tr>,
                         ex && (
                           <tr key={`${item.id}_x`} style={{ background: '#F8F8F3', borderBottom: `1px solid ${COLORS.bd}` }}>
