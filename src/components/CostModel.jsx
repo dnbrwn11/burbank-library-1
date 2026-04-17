@@ -136,21 +136,21 @@ export function CostModel({ items, globals, activeItems, totals, updateItem, bsf
         /* Desktop/Tablet: Table layout */
         <div style={{ borderRadius: 10, border: `1px solid ${COLORS.bd}`, overflow: 'clip', background: COLORS.wh }}>
           <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, fontFamily: FONTS.body, tableLayout: 'fixed', minWidth: tab ? 700 : 1020 }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, fontFamily: FONTS.body, tableLayout: 'fixed', minWidth: tab ? 800 : 1180 }}>
               <colgroup>
                 <col style={{ width: 28 }} />
-                <col />
-                <col style={{ width: tab ? 100 : 120 }} />
+                <col style={{ width: tab ? '26%' : '28%' }} />
+                <col style={{ width: tab ? 130 : 150 }} />
                 {!tab && <col style={{ width: 72 }} />}
                 <col style={{ width: 72 }} />
-                <col style={{ width: 52 }} />
-                {!tab && <col style={{ width: 78 }} />}
-                <col style={{ width: 78 }} />
-                {!tab && <col style={{ width: 78 }} />}
-                <col style={{ width: 92 }} />
-                <col style={{ width: 62 }} />
-                <col style={{ width: 58 }} />
-                <col style={{ width: 30 }} />
+                <col style={{ width: 54 }} />
+                {!tab && <col style={{ width: 76 }} />}
+                <col style={{ width: 76 }} />
+                {!tab && <col style={{ width: 76 }} />}
+                <col style={{ width: 94 }} />
+                <col style={{ width: 64 }} />
+                <col style={{ width: 80 }} />
+                <col style={{ width: 28 }} />
               </colgroup>
               <thead>
                 <tr style={{ background: '#F5F5F0' }}>

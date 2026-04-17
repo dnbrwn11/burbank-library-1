@@ -19,7 +19,7 @@ export function AIPanel({ item, advice, loading, onAsk, onApply, mob }) {
           animation: 'aispin 0.8s linear infinite',
         }} />
         <span style={{ fontSize: 13, color: COLORS.dg, fontFamily: FONTS.body }}>
-          Analyzing costs for Burbank CA prevailing wage...
+          Analyzing costs for this line item...
         </span>
         <style>{`@keyframes aispin{to{transform:rotate(360deg)}}`}</style>
       </div>

@@ -1,29 +1,23 @@
-/* ═══════════════════════════════════════════════════════════
-   PCL Brand Colors
-   Primary: Yellow #FFC425, Green #00502F, White
-   Secondary: Indigo #4E5BA8, Light Green #098371, Orange #D83C31
-   Grays: Dark #36383D, Mid #A6A6A6, Light #CFCFCF
-   ═══════════════════════════════════════════════════════════ */
-
 export const COLORS = {
   yl: '#FFC425',
-  gn: '#00502F',
+  gn: '#B89030',
   wh: '#FFFFFF',
   ind: '#4E5BA8',
-  lg: '#098371',
+  lg: '#6B8CAE',
   or: '#D83C31',
-  dg: '#36383D',
+  dg: '#1A1A1A',
   mg: '#A6A6A6',
   ltg: '#CFCFCF',
-  bg: '#F7F7F5',
+  bg: '#F9F9F8',
   sf: '#FFFFFF',
   bd: '#E5E5E0',
   bl: '#EEEEEA',
+  hdr: '#222222',
 };
 
 export const FONTS = {
-  body: "'Barlow', Arial, sans-serif",
-  heading: "'Barlow Condensed', Arial, sans-serif",
+  body: "'Figtree', Arial, sans-serif",
+  heading: "'Archivo', Arial, sans-serif",
 };
 
 export const SENSITIVITIES = ['Low', 'Medium', 'High', 'Very High'];

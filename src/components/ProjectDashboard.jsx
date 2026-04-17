@@ -190,11 +190,11 @@ export default function ProjectDashboard({ user, onSignOut, onSelectProject, onP
                 <FormField label="Project Name" required span={2}>
                   <FormInput
                     value={form.name} onChange={set('name')}
-                    placeholder="Burbank Library & Civic Center" required
+                    placeholder="e.g. Downtown Civic Center" required
                   />
                 </FormField>
                 <FormField label="City" required>
-                  <FormInput value={form.city} onChange={set('city')} placeholder="Burbank" required />
+                  <FormInput value={form.city} onChange={set('city')} placeholder="e.g. Los Angeles" required />
                 </FormField>
                 <FormField label="State" required>
                   <FormSelect value={form.state} onChange={set('state')} options={US_STATES} required />
