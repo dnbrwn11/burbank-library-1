@@ -177,28 +177,70 @@ CATEGORIES — use exactly these strings, in this order, only include those appl
 "Owner Soft Costs" — A/E design fees, permits & fees, testing & inspection, commissioning, owner contingency
 
 GUIDELINES:
-- Generate 50–80 line items covering all applicable categories.
+- Generate 40–60 line items covering all applicable categories.
 - qty_min/qty_max: same value if fixed; range if scope-variable.
 - unit_cost_low/mid/high: Low ≈ −20% of mid, High ≈ +20% of mid.
 - sensitivity: "Low" | "Medium" | "High" | "Very High"
 - basis: ≤50 chars. notes: brief context or null. sort_order: 0-indexed per category.
 - Calibrate quantities to ${sfStr}.
 - Include seismic allowances if in CA, WA, or AK.
+- Keep response compact. Use short descriptions. No extra whitespace.
 
 Respond ONLY with the JSON object. Start with { and end with }.`;
 }
 
 // ── Handler ───────────────────────────────────────────────────────────────────
 
-function extractJSON(text) {
+function repairTruncatedJSON(text) {
+  // Find the last complete object before truncation by walking back from the end
+  // looking for a closing } that balances an opening {
+  let s = text;
+
+  // Remove trailing incomplete object: find last '}' and cut there
+  const lastBrace = s.lastIndexOf('}');
+  if (lastBrace === -1) throw new Error('No closing brace found');
+  s = s.slice(0, lastBrace + 1);
+
+  // Count unclosed brackets/braces to determine what needs closing
+  let braces = 0, brackets = 0;
+  let inString = false, escape = false;
+  for (const ch of s) {
+    if (escape) { escape = false; continue; }
+    if (ch === '\\' && inString) { escape = true; continue; }
+    if (ch === '"') { inString = !inString; continue; }
+    if (inString) continue;
+    if (ch === '{') braces++;
+    else if (ch === '}') braces--;
+    else if (ch === '[') brackets++;
+    else if (ch === ']') brackets--;
+  }
+
+  // Close any unclosed arrays then objects
+  s += ']'.repeat(Math.max(0, brackets)) + '}'.repeat(Math.max(0, braces));
+  return JSON.parse(s);
+}
+
+function extractJSON(text, stopReason) {
   // Strip markdown fences if Claude adds them despite instructions
   const stripped = text.replace(/^```(?:json)?\s*/m, '').replace(/\s*```$/m, '').trim();
+
   try {
     return JSON.parse(stripped);
   } catch {
-    // Try to find the outermost JSON object
-    const match = stripped.match(/\{[\s\S]*\}/);
-    if (match) return JSON.parse(match[0]);
+    // If truncated due to max_tokens, attempt repair before giving up
+    if (stopReason === 'max_tokens') {
+      console.warn('[generate] Response truncated (max_tokens) — attempting JSON repair');
+      try {
+        return repairTruncatedJSON(stripped);
+      } catch (repairErr) {
+        console.error('[generate] JSON repair failed:', repairErr.message);
+      }
+    }
+    // Last resort: find the outermost { ... } and try repairing that
+    const match = stripped.match(/\{[\s\S]*/);
+    if (match) {
+      try { return repairTruncatedJSON(match[0]); } catch {}
+    }
     throw new Error('No valid JSON found in Claude response');
   }
 }
@@ -226,7 +268,7 @@ export default async function handler(req, res) {
 
   const requestBody = {
     model: 'claude-sonnet-4-6',
-    max_tokens: 4096,
+    max_tokens: 16384,
     system: 'Output valid JSON only. No markdown, no explanation. Start with { and end with }.',
     messages: [{ role: 'user', content: prompt }],
   };
@@ -278,6 +320,12 @@ export default async function handler(req, res) {
   }
 
   const rawText = anthropicData.content?.[0]?.text;
+  const stopReason = anthropicData.stop_reason;
+
+  console.log('[generate] stop_reason:', stopReason);
+  if (stopReason === 'max_tokens') {
+    console.warn('[generate] Response hit max_tokens limit — JSON may be truncated, will attempt repair');
+  }
 
   if (!rawText) {
     console.error('[generate] No text content in Anthropic response:', JSON.stringify(anthropicData).slice(0, 300));
@@ -286,7 +334,7 @@ export default async function handler(req, res) {
 
   let parsed;
   try {
-    parsed = extractJSON(rawText);
+    parsed = extractJSON(rawText, stopReason);
   } catch (parseErr) {
     return res.status(502).json({
       error: `Could not parse JSON from Claude: ${parseErr.message}`,
