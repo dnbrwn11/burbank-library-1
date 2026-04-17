@@ -152,10 +152,11 @@ export default function AIGenerator({ project, onSave, onSkip, onSignOut }) {
       });
       clearTimeout(timeout);
       const data = await res.json();
+      console.log('[AIGenerator] API response:', data);
       if (!res.ok) throw new Error(data.error || `API returned ${res.status}`);
-      if (!Array.isArray(data.items) || !data.items.length) throw new Error('No line items returned from AI');
+      if (!Array.isArray(data.lineItems) || !data.lineItems.length) throw new Error('No line items returned from AI');
       setGeneratedData(data);
-      setEditedItems(data.items.map((item, i) => ({ ...item, _key: i })));
+      setEditedItems(data.lineItems.map((item, i) => ({ ...item, _key: i })));
       setCollapsed(Object.fromEntries(CSI_ORDER.map(c => [c, false])));
       setStep('review');
     } catch (err) {
