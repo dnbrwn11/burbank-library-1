@@ -3,6 +3,11 @@ import {
   getScenarios, getLineItems, createScenario,
   updateLineItem, createLineItems, updateGlobals,
 } from '../supabase/db';
+
+const isLockError = (err) => {
+  const msg = (err?.message || '').toLowerCase();
+  return msg.includes('lock') && (msg.includes('stole') || msg.includes('released'));
+};
 import { createSeedItems } from '../data/seedData';
 import { DEFAULT_GLOBALS } from '../data/defaults';
 
@@ -83,12 +88,19 @@ export function useProjectData(projectId) {
     if (!projectId) return;
     let cancelled = false;
 
-    const load = async () => {
+    const load = async (attempt = 0) => {
       setLoading(true);
       setError(null);
 
       const { data: scenarioRows, error: scErr } = await getScenarios(projectId);
       if (cancelled) return;
+
+      if (scErr && isLockError(scErr) && attempt < 1) {
+        console.warn('Auth lock error loading scenarios, retrying…');
+        await new Promise(r => setTimeout(r, 400));
+        if (!cancelled) load(1);
+        return;
+      }
 
       if (scErr || !scenarioRows?.length) {
         setError(scErr?.message ?? 'No scenarios found for this project.');
@@ -160,7 +172,7 @@ export function useProjectData(projectId) {
 
     // Persist — maps camelCase field to snake_case DB column
     const { error: saveErr } = await updateLineItem(id, { [toDb(field)]: value });
-    if (saveErr) setSaveError(`Save failed: ${saveErr.message}`);
+    if (saveErr && !isLockError(saveErr)) setSaveError(`Save failed: ${saveErr.message}`);
   }, [activeId, log]);
 
   // ── updateGlobal ────────────────────────────────────────────────────────
@@ -196,7 +208,7 @@ export function useProjectData(projectId) {
       globals: { ...base.globals },
     });
     if (scErr || !newSr) {
-      setSaveError(`Could not create scenario: ${scErr?.message}`);
+      if (!isLockError(scErr)) setSaveError(`Could not create scenario: ${scErr?.message}`);
       return;
     }
 

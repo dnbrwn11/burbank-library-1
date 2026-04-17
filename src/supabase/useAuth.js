@@ -1,6 +1,11 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from './supabaseClient';
 
+const isLockError = (err) => {
+  const msg = (err?.message || '').toLowerCase();
+  return msg.includes('lock') && (msg.includes('stole') || msg.includes('released'));
+};
+
 /**
  * useAuth — handles magic link login, session state, and logout.
  *
@@ -18,11 +23,15 @@ export function useAuth() {
 
   // Fetch profile from public.profiles
   const fetchProfile = useCallback(async (userId) => {
-    const { data, error } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('id', userId)
-      .single();
+    const query = () => supabase.from('profiles').select('*').eq('id', userId).single();
+
+    let { data, error } = await query();
+
+    if (error && isLockError(error)) {
+      // Lock race condition — retry once after a short delay
+      await new Promise(r => setTimeout(r, 300));
+      ({ data, error } = await query());
+    }
 
     if (error) {
       console.error('Error fetching profile:', error.message);

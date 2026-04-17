@@ -1,6 +1,11 @@
 import { useState, useEffect } from 'react';
 import { getProjects, createProject } from '../supabase/db';
 
+const isLockError = (err) => {
+  const msg = (err?.message || '').toLowerCase();
+  return msg.includes('lock') && (msg.includes('stole') || msg.includes('released'));
+};
+
 const ACCENT = '#B89030';
 const HEADER = '#222222';
 const BG = '#F9F9F8';
@@ -66,7 +71,21 @@ export default function ProjectDashboard({ user, onSignOut, onSelectProject, onP
         user.id, // pass userId so createProject skips supabase.auth.getUser()
       );
       if (error) {
-        setFormError(error.message);
+        if (isLockError(error)) {
+          // Lock errors are auth race conditions — project may still have been created.
+          // Query for a matching project before surfacing an error.
+          const { data: existing } = await getProjects();
+          const created = existing?.find(p => p.name === form.name.trim());
+          if (created) {
+            setForm(EMPTY_FORM);
+            setShowForm(false);
+            onProjectCreated ? onProjectCreated(created) : onSelectProject(created);
+            return;
+          }
+          setFormError('Project creation failed due to a temporary issue. Please try again.');
+        } else {
+          setFormError(error.message);
+        }
       } else {
         setForm(EMPTY_FORM);
         setShowForm(false);
