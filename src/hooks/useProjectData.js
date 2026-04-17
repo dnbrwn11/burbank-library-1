@@ -20,6 +20,7 @@ const TO_DB = {
   unitCostHigh: 'unit_cost_high',
   isArchived: 'is_archived',
   inSummary: 'in_summary',
+  sortOrder: 'sort_order',
 };
 const toDb = (f) => TO_DB[f] ?? f;
 
@@ -40,6 +41,7 @@ function rowToItem(row) {
     notes: row.notes,
     inSummary: row.in_summary ?? true,
     isArchived: row.is_archived ?? false,
+    sortOrder: row.sort_order ?? 0,
   };
 }
 
@@ -175,6 +177,24 @@ export function useProjectData(projectId) {
     if (saveErr && !isLockError(saveErr)) setSaveError(`Save failed: ${saveErr.message}`);
   }, [activeId, log]);
 
+  // ── reorderItems ────────────────────────────────────────────────────────
+  // updates: [{ id, sortOrder }] — swaps sort_orders for moved items
+  const reorderItems = useCallback(async (updates) => {
+    const map = {};
+    updates.forEach(u => { map[u.id] = u.sortOrder; });
+
+    setScenarios(prev => prev.map(s => {
+      if (s.id !== activeId) return s;
+      const newItems = s.items.map(i =>
+        map[i.id] !== undefined ? { ...i, sortOrder: map[i.id] } : i
+      );
+      newItems.sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
+      return { ...s, items: newItems };
+    }));
+
+    await Promise.all(updates.map(u => updateLineItem(u.id, { sort_order: u.sortOrder })));
+  }, [activeId]);
+
   // ── createItem ──────────────────────────────────────────────────────────
   const createItem = useCallback(async (category, partial = {}) => {
     const s = scenariosRef.current.find(s => s.id === activeId);
@@ -294,6 +314,7 @@ export function useProjectData(projectId) {
     setSaveError,
     updateItem,
     createItem,
+    reorderItems,
     updateGlobal,
     addScenario,
     deleteScenario,

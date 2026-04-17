@@ -97,7 +97,7 @@ function CostModelApp({ user, project, onBack, onSignOut }) {
   const {
     scenarios, active, activeId, setActiveId,
     audit, loading, error, saveError, setSaveError,
-    updateItem, createItem, updateGlobal, addScenario, deleteScenario,
+    updateItem, createItem, reorderItems, updateGlobal, addScenario, deleteScenario,
   } = useProjectData(project.id);
 
   const [view, setView] = useState('dashboard');
@@ -149,7 +149,7 @@ function CostModelApp({ user, project, onBack, onSignOut }) {
 
   const viewProps = {
     items, globals, activeItems, totals, catGroups, bsf,
-    updateItem, createItem, updateGlobal, scenarios, active,
+    updateItem, createItem, reorderItems, updateGlobal, scenarios, active,
     aiAdvice, aiLoading, askAI, applyAI,
   };
 
