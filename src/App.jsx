@@ -4,7 +4,10 @@ import { useWindowSize } from './hooks/useWindowSize';
 import { useProjectData } from './hooks/useProjectData';
 import * as CE from './engine/CostEngine';
 import { fetchAIAdvice } from './engine/AIAdvisor';
-import { CATEGORIES } from './data/seedData';
+const CSI_ORDER = [
+  'Substructure', 'Shell', 'Interiors', 'Services', 'Equipment',
+  'Special Construction', 'Sitework', 'General Conditions', 'Overhead & Fee', 'Contingency',
+];
 import { COLORS, FONTS, SCENARIO_TYPES } from './data/constants';
 import { fK } from './utils/format';
 import { Dashboard } from './components/Dashboard';
@@ -114,7 +117,13 @@ function CostModelApp({ user, project, onBack, onSignOut }) {
       if (!g[i.category]) g[i.category] = [];
       g[i.category].push(i);
     });
-    return CATEGORIES.filter(c => g[c]).map(c => ({
+    const allCats = Object.keys(g);
+    console.log('[App] Loaded categories:', allCats);
+    const ordered = [
+      ...CSI_ORDER.filter(c => g[c]),
+      ...allCats.filter(c => !CSI_ORDER.includes(c)),
+    ];
+    return ordered.map(c => ({
       c, items: g[c], t: CE.categoryTotals(items, globals, c),
     }));
   }, [activeItems, items, globals]);

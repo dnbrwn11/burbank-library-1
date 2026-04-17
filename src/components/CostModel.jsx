@@ -1,7 +1,10 @@
 import { useState, useMemo } from 'react';
 import { useWindowSize } from '../hooks/useWindowSize';
 import * as CE from '../engine/CostEngine';
-import { CATEGORIES } from '../data/seedData';
+const CSI_ORDER = [
+  'Substructure', 'Shell', 'Interiors', 'Services', 'Equipment',
+  'Special Construction', 'Sitework', 'General Conditions', 'Overhead & Fee', 'Contingency',
+];
 import { COLORS, FONTS } from '../data/constants';
 import { fmt, fK, psf } from '../utils/format';
 import { EditField } from './EditField';
@@ -25,7 +28,9 @@ export function CostModel({ items, globals, activeItems, totals, updateItem, bsf
   const groups = useMemo(() => {
     const g = {};
     filtered.forEach(i => { if (!g[i.category]) g[i.category] = []; g[i.category].push(i); });
-    return CATEGORIES.filter(c => g[c]).map(c => ({ c, items: g[c], t: CE.categoryTotals(items, globals, c) }));
+    const allCats = Object.keys(g);
+    const ordered = [...CSI_ORDER.filter(c => g[c]), ...allCats.filter(c => !CSI_ORDER.includes(c))];
+    return ordered.map(c => ({ c, items: g[c], t: CE.categoryTotals(items, globals, c) }));
   }, [filtered, items, globals]);
 
   const toggleCol = (c) => setCol(p => { const n = new Set(p); n.has(c) ? n.delete(c) : n.add(c); return n; });

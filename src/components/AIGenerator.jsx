@@ -70,9 +70,8 @@ const STATUS_MSGS = [
 ];
 
 const CSI_ORDER = [
-  'A - Substructure', 'B - Shell', 'C - Interiors', 'D - Services',
-  'E - Equipment & Furnishings', 'F - Special Construction', 'G - Sitework',
-  'General Conditions', 'Owner Soft Costs',
+  'Substructure', 'Shell', 'Interiors', 'Services', 'Equipment',
+  'Special Construction', 'Sitework', 'General Conditions', 'Overhead & Fee', 'Contingency',
 ];
 
 function fmtM(n) {
@@ -490,7 +489,12 @@ function GeneratingStep({ statusMsg }) {
 // ── ReviewStep ────────────────────────────────────────────────────────────────
 
 function ReviewStep({ project, items, globals, collapsed, setCollapsed, updateItem, deleteItem, saving, saveError, onSave, onRegenerate, onSkip }) {
-  const categoryGroups = CSI_ORDER
+  const uniqueCats = [...new Set(items.map(i => i.category))];
+  const orderedCats = [
+    ...CSI_ORDER.filter(c => uniqueCats.includes(c)),
+    ...uniqueCats.filter(c => !CSI_ORDER.includes(c)),
+  ];
+  const categoryGroups = orderedCats
     .map(cat => ({ cat, items: items.filter(i => i.category === cat) }))
     .filter(g => g.items.length > 0);
 
