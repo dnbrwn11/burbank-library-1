@@ -286,7 +286,7 @@ function applyGlobals(raw, g) {
 
 // ── Main component ────────────────────────────────────────────────────────────
 
-export default function AIGenerator({ project, user, onSave, onSkip, onSignOut }) {
+export default function AIGenerator({ project, user, onSave, onSkip, onGoHome, onSignOut }) {
   const [step, setStep] = useState('describe');
   const [tab, setTab] = useState('describe');
   const [description, setDescription] = useState(() => buildStarterText(project));
@@ -419,9 +419,17 @@ export default function AIGenerator({ project, user, onSave, onSkip, onSignOut }
         background: HEADER, height: 56, padding: '0 28px', flexShrink: 0,
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
       }}>
-        <span style={{ color: ACCENT, fontFamily: "'Archivo', sans-serif", fontWeight: 800, fontSize: 18, letterSpacing: 2 }}>
+        <button
+          onClick={onGoHome}
+          style={{
+            background: 'none', border: 'none', padding: 0, cursor: 'pointer',
+            color: ACCENT, fontFamily: "'Archivo', sans-serif",
+            fontWeight: 800, fontSize: 18, letterSpacing: 2,
+            textDecoration: 'none',
+          }}
+        >
           COSTDECK
-        </span>
+        </button>
         <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
           <span style={{ color: '#666', fontFamily: "'Figtree', sans-serif", fontSize: 13 }}>
             {project.name}

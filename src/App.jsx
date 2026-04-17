@@ -66,6 +66,7 @@ export default function App() {
         user={user}
         onSave={() => { setActiveProject(generatingProject); setGeneratingProject(null); }}
         onSkip={() => { setActiveProject(generatingProject); setGeneratingProject(null); }}
+        onGoHome={() => setGeneratingProject(null)}
         onSignOut={signOut}
       />
     );
@@ -232,12 +233,17 @@ function CostModelApp({ user, project, onBack, onSignOut }) {
           >
             ‹
           </button>
-          <span style={{
-            color: ACCENT, fontFamily: "'Archivo', sans-serif",
-            fontWeight: 800, fontSize: mob ? 12 : 14, letterSpacing: 2,
-          }}>
+          <button
+            onClick={onBack}
+            style={{
+              background: 'none', border: 'none', padding: 0, cursor: 'pointer',
+              color: ACCENT, fontFamily: "'Archivo', sans-serif",
+              fontWeight: 800, fontSize: mob ? 12 : 14, letterSpacing: 2,
+              textDecoration: 'none',
+            }}
+          >
             COSTDECK
-          </span>
+          </button>
           {!mob && (
             <span style={{
               fontSize: 11, color: '#666',
