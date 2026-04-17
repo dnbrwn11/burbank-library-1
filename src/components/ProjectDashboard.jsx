@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { getProjects, createProject } from '../supabase/db';
+import { analytics } from '../analytics';
 
 const isLockError = (err) => {
   const msg = (err?.message || '').toLowerCase();
@@ -83,6 +84,7 @@ export default function ProjectDashboard({ user, onSignOut, onSelectProject, onP
           if (created) {
             setForm(EMPTY_FORM);
             setShowForm(false);
+            analytics.projectCreated(created);
             onProjectCreated ? onProjectCreated(created) : onSelectProject(created);
             return;
           }
@@ -94,7 +96,10 @@ export default function ProjectDashboard({ user, onSignOut, onSelectProject, onP
       } else {
         setForm(EMPTY_FORM);
         setShowForm(false);
-        if (data) onProjectCreated ? onProjectCreated(data) : onSelectProject(data);
+        if (data) {
+          analytics.projectCreated(data);
+          onProjectCreated ? onProjectCreated(data) : onSelectProject(data);
+        }
       }
     } finally {
       setSaving(false);

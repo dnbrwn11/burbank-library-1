@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../supabase/supabaseClient';
 import { getProjectMembers, removeProjectMember } from '../supabase/db';
+import { analytics } from '../analytics';
 
 const ACCENT = '#B89030';
 const HEADER_BG = '#222222';
@@ -90,6 +91,7 @@ export default function TeamPanel({ project, user, onClose }) {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to send invite');
+      analytics.teamMemberInvited(role);
       setMessage({ ok: true, text: `Invite sent to ${email.trim()}` });
       setEmail('');
     } catch (err) {

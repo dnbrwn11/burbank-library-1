@@ -3,6 +3,7 @@ import {
   getScenarios, getLineItems, createScenario,
   updateLineItem, createLineItem, createLineItems, updateGlobals,
 } from '../supabase/db';
+import { analytics } from '../analytics';
 
 const isLockError = (err) => {
   const msg = (err?.message || '').toLowerCase();
@@ -166,6 +167,8 @@ export function useProjectData(projectId) {
     const item = s?.items.find(i => i.id === id);
     if (item) log(id, field, item[field], value);
 
+    analytics.lineItemEdited(field);
+
     // Optimistic UI update
     setScenarios(prev => prev.map(s => {
       if (s.id !== activeId) return s;
@@ -287,6 +290,7 @@ export function useProjectData(projectId) {
       globals: newSr.globals ?? { ...base.globals },
       items,
     };
+    analytics.scenarioCreated(name);
     setScenarios(prev => [...prev, ns]);
     setActiveId(ns.id);
     return ns.id;

@@ -3,6 +3,7 @@ import { getScenarios, createLineItems, updateGlobals as saveGlobals } from '../
 import { useGenerateEstimate } from '../../lib/useGenerateEstimate';
 import GenerationProgress from './GenerationProgress';
 import { useWindowSize } from '../hooks/useWindowSize';
+import { analytics } from '../analytics';
 
 const ACCENT = '#B89030';
 const HEADER = '#222222';
@@ -180,6 +181,7 @@ export default function AIGenerator({ project, user, onSave, onSkip, onGoHome, o
       setEditedItems(lineItems.map((item, i) => ({ ...item, _key: i })));
       const allCats = [...new Set(lineItems.map(i => i.category))];
       setCollapsed(Object.fromEntries(allCats.map(c => [c, false])));
+      analytics.estimateGenerated(project, lineItems.length);
       setStep('review');
     } catch (err) {
       if (err.name !== 'AbortError') {

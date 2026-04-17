@@ -21,6 +21,7 @@ import AIGenerator from './components/AIGenerator';
 import TeamPanel, { Avatar, initials } from './components/TeamPanel';
 import { supabase } from './supabase/supabaseClient';
 import { getProjectMembers, getProjectMemberRole } from './supabase/db';
+import { initCrisp, identifyUser, identifyCrispUser, resetAnalyticsUser } from './analytics';
 
 const ACCENT = '#B89030';
 const HEADER = '#222222';
@@ -38,7 +39,23 @@ function decodeInviteToken(token) {
 }
 
 export default function App() {
-  const { user, loading: authLoading, signIn, signOut } = useAuth();
+  const { user, profile, loading: authLoading, signIn, signOut } = useAuth();
+
+  // Init Crisp once on mount (deferred — won't block first paint)
+  useEffect(() => { initCrisp(); }, []);
+
+  // Identify user in PostHog + Crisp after auth
+  useEffect(() => {
+    if (!user) return;
+    const name = profile?.full_name || null;
+    identifyUser(user.id, { email: user.email, name, company: profile?.company });
+    identifyCrispUser(user.email, name);
+  }, [user?.id, profile?.full_name]);
+
+  const handleSignOut = async () => {
+    resetAnalyticsUser();
+    await signOut();
+  };
   const [activeProject, setActiveProject] = useState(null);
   const [generatingProject, setGeneratingProject] = useState(null);
 
@@ -136,7 +153,7 @@ export default function App() {
         onSave={() => { setActiveProject(generatingProject); setGeneratingProject(null); }}
         onSkip={() => { setActiveProject(generatingProject); setGeneratingProject(null); }}
         onGoHome={() => setGeneratingProject(null)}
-        onSignOut={signOut}
+        onSignOut={handleSignOut}
       />
     );
   }
@@ -145,7 +162,7 @@ export default function App() {
     return (
       <ProjectDashboard
         user={user}
-        onSignOut={signOut}
+        onSignOut={handleSignOut}
         onSelectProject={setActiveProject}
         onProjectCreated={(p) => { setGeneratingProject(p); }}
       />
@@ -157,7 +174,7 @@ export default function App() {
       user={user}
       project={activeProject}
       onBack={() => setActiveProject(null)}
-      onSignOut={signOut}
+      onSignOut={handleSignOut}
     />
   );
 }
