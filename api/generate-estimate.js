@@ -57,13 +57,50 @@ const ITEM_SCHEMA = `{
 
 function buildProjectContext(project) {
   if (!project) return '';
-  return `Project Details:
-- Building Type: ${project.building_type || 'Not specified'}
-- Location: ${project.city || ''}, ${project.state || 'CA'}
-- Gross SF: ${project.gross_sf ? Number(project.gross_sf).toLocaleString() : 'Not specified'}
-- Labor Type: ${project.labor_type || 'Not specified'}
-- Delivery Method: ${project.delivery_method || 'Not specified'}
-- Target Budget: ${project.target_budget ? '$' + Number(project.target_budget).toLocaleString() : 'Not specified'}`;
+  const lines = [
+    `Building Type: ${project.building_type || 'Not specified'}`,
+    `Location: ${project.city || ''}, ${project.state || 'CA'}`,
+    `Scope: ${project.scope || 'New Construction'}`,
+    `Gross SF: ${project.gross_sf ? Number(project.gross_sf).toLocaleString() : 'Not specified'}`,
+    `Stories: ${project.stories || 'Not specified'}`,
+    `Labor Type: ${project.labor_type || 'Not specified'}`,
+    `Delivery Method: ${project.delivery_method || 'Not specified'}`,
+    `Target Budget: ${project.target_budget ? '$' + Number(project.target_budget).toLocaleString() : 'Not specified'}`,
+  ];
+
+  const optional = [
+    ['Structure Type', project.structure_type],
+    ['Foundation', project.foundation_type],
+    ['Parking', project.parking && project.parking !== 'None'
+      ? project.parking + (project.parking_stalls ? ` (${project.parking_stalls} stalls)` : '')
+      : null],
+    ['Site Conditions', project.site_conditions],
+    ['Soil Conditions', project.soil_conditions],
+    ['Exterior Envelope', project.exterior_envelope],
+    ['Roofing', project.roofing],
+    ['HVAC', project.hvac],
+    ['Electrical Service', project.electrical_service],
+    ['Fire Protection', project.fire_protection],
+    ['Sustainability', project.sustainability],
+    ['Elevators', project.elevators && project.elevators !== 'None'
+      ? project.elevators + (project.num_elevators ? ` (${project.num_elevators})` : '')
+      : null],
+    ['Total Units', project.total_units],
+    ['Unit Mix', project.unit_mix],
+    ['Amenities', Array.isArray(project.amenities) && project.amenities.length ? project.amenities.join(', ') : null],
+    ['Renovation Scope', project.reno_scope],
+    ['Occupied During Construction', project.occupied],
+    ['Existing Structure', project.existing_structure],
+    ['Hazmat Status', project.hazmat],
+  ];
+
+  for (const [label, val] of optional) {
+    if (val && val !== 'Unknown' && val !== 'None / Code Minimum') {
+      lines.push(`${label}: ${val}`);
+    }
+  }
+
+  return `Project Details:\n${lines.map(l => `- ${l}`).join('\n')}`;
 }
 
 function parseItems(rawText) {
@@ -123,18 +160,27 @@ function inferGlobals(project) {
     IL: 0.0875, CO: 0.079, AZ: 0.08, GA: 0.074, MA: 0.0625,
     OR: 0.0, NV: 0.0825, HI: 0.045, PA: 0.06, OH: 0.0725,
   };
+
+  // pctVal: parse custom % from form (stored as "5" for 5%) or fall back to default
+  const pctVal = (field, def) => {
+    const v = project[field];
+    return (v !== '' && v !== undefined && v !== null) ? parseFloat(v) / 100 : def;
+  };
+
+  const defaultLaborBurden = project.labor_type === 'Prevailing Wage' ? 0.45 : 0.35;
+
   return {
-    regionFactor: regionFactors[state] || 1.0,
-    tax: taxRates[state] || 0.08,
-    escalation: 0.04,
-    laborBurden: project.labor_type === 'Prevailing Wage' ? 0.45 : 0.35,
-    insurance: 0.012,
-    contingency: 0.05,
-    fee: 0.045,
-    bond: 0.008,
-    generalConditions: 0.08,
-    buildingSF: project.gross_sf || 0,
-    parkingStalls: project.parking_stalls || 0,
+    regionFactor: project.region_factor ? parseFloat(project.region_factor) : (regionFactors[state] || 1.0),
+    tax: pctVal('sales_tax', taxRates[state] || 0.08),
+    escalation: pctVal('escalation', 0.04),
+    laborBurden: pctVal('labor_burden', defaultLaborBurden),
+    insurance: pctVal('insurance', 0.012),
+    contingency: pctVal('contingency', 0.05),
+    fee: pctVal('gc_fee', 0.045),
+    bond: pctVal('bond', 0.008),
+    generalConditions: pctVal('general_conditions', 0.08),
+    buildingSF: project.gross_sf ? Number(project.gross_sf) : 0,
+    parkingStalls: project.parking_stalls ? Number(project.parking_stalls) : 0,
     openSpaceSF: 0,
   };
 }

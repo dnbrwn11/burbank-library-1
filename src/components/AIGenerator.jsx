@@ -1,252 +1,120 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { getScenarios, createLineItems, updateGlobals as saveGlobals } from '../supabase/db';
 import { useGenerateEstimate } from '../../lib/useGenerateEstimate';
 import GenerationProgress from './GenerationProgress';
+import { useWindowSize } from '../hooks/useWindowSize';
 
 const ACCENT = '#B89030';
 const HEADER = '#222222';
 const BG = '#F9F9F8';
 
-const PLACEHOLDERS = [
-  "97,500 SF civic library — reading room, digital media lab, children's wing, underground parking. LEED Silver. Seismic Zone D.",
-  "12-story Class A office tower, 220,000 SF. LEED Gold. 4-level parking podium, ground-floor retail.",
-  "52-story residential high-rise, 450 units, 3-level podium parking, rooftop terrace, Phase 1 of master plan.",
-  "85,000 SF K-12 campus — gymnasium, cafeteria, DSA compliance, phased to keep existing school open.",
-  "65,000 SF outpatient medical building — imaging suite, 4 ORs, OSHPD compliance, emergency generator backup.",
-  "8-story mixed-use TOD — ground-floor retail, 120 residential units above, 2-level underground parking.",
-];
+// ── Form options ──────────────────────────────────────────────────────────────
 
-// ── Project-aware helpers ──────────────────────────────────────────────────────
+const SCOPE_OPTS = ['New Construction', 'Renovation', 'Addition', 'Tenant Improvement', 'Demolition Only'];
+const LABOR_OPTS = ['Prevailing Wage', 'Union', 'Open Shop'];
+const RENO_SCOPE_OPTS = ['Gut Renovation', 'Cosmetic Refresh', 'Systems Upgrade', 'Seismic Retrofit', 'Historic Restoration', 'ADA Compliance'];
+const OCCUPIED_OPTS = ['Yes — Phased', 'Yes — Off-Hours Only', 'No — Fully Vacant'];
+const EXIST_STRUCT_OPTS = ['Steel Frame', 'Concrete Frame', 'Wood Frame', 'Masonry Bearing Wall', 'Unknown'];
+const HAZMAT_OPTS = ['Yes — Confirmed', 'Assumed — ACM/LBP Likely', 'No — Survey Complete', 'Unknown — No Survey'];
+const AMENITY_OPTS = ['Pool', 'Fitness Center', 'Clubhouse', 'Rooftop Deck', 'Dog Park', 'Co-Working', 'Package Lockers', 'EV Charging', 'Bike Storage'];
+const STRUCTURE_OPTS = ['Steel Moment Frame', 'Steel Braced Frame', 'Cast-in-Place Concrete', 'Post-Tensioned Concrete', 'Precast Concrete', 'Wood Frame — Type V', 'Wood Frame — Type III', 'Mass Timber / CLT', 'Masonry Bearing Wall', 'Tilt-Up Concrete', 'Pre-Engineered Metal', 'Hybrid', 'Unknown'];
+const FOUNDATION_OPTS = ['Spread Footings', 'Continuous Footings', 'Mat/Raft', 'Driven Piles', 'Drilled Caissons/Shafts', 'Helical Piles', 'Micropiles', 'Unknown'];
+const PARKING_OPTS = ['None', 'Surface Lot', 'Above-Grade Structure', 'Subterranean — 1 Level', 'Subterranean — 2+ Levels', 'Podium', 'Unknown'];
+const SITE_OPTS = ['Greenfield — Open', 'Urban — Constrained Access', 'Brownfield — Remediation Likely', 'Hillside — Significant Grading', 'Waterfront', 'Unknown'];
+const SOIL_OPTS = ['Normal', 'Rock — Blasting Likely', 'High Water Table', 'Poor Soils — Surcharge Needed', 'Unknown'];
+const ENVELOPE_OPTS = ['Curtain Wall', 'Storefront Glazing', 'Brick Veneer', 'Metal Panel — ACM/MCM', 'Fiber Cement Panel', 'Stucco/EIFS', 'Precast Concrete', 'Stone Veneer', 'Glass Fiber Reinforced Concrete', 'Wood/Composite Siding', 'Mixed/Multiple Systems', 'Unknown'];
+const ROOFING_OPTS = ['TPO/PVC Membrane', 'Modified Bitumen', 'Standing Seam Metal', 'Built-Up', 'Green/Vegetated Roof', 'Shingle', 'Tile', 'Unknown'];
+const HVAC_OPTS = ['VAV with Central Plant', 'VRF/VRV', 'Split Systems / Mini-Split', 'Packaged Rooftop Units', 'Chilled Beams', 'Geothermal', 'Radiant', '4-Pipe Fan Coil', 'DOAS + ERV', 'Unknown'];
+const ELECTRICAL_OPTS = ['Normal Power', 'High Power — Data/Lab', 'Emergency Generator — Full', 'Emergency Generator — Life Safety Only', 'Solar PV Included', 'Unknown'];
+const FIRE_OPTS = ['Full Wet Sprinkler', 'Partial Sprinkler', 'Dry System', 'Pre-Action — Data/Archive', 'Special Suppression — Clean Agent', 'None', 'Unknown'];
+const SUSTAIN_OPTS = ['None / Code Minimum', 'LEED Silver', 'LEED Gold', 'LEED Platinum', 'Net Zero Energy', 'Net Zero Carbon', 'Living Building Challenge', 'Passive House', 'WELL Certified', 'Fitwel', 'CalGreen Tier 1', 'CalGreen Tier 2', 'Unknown'];
+const ELEVATOR_OPTS = ['None', 'Hydraulic', 'Traction — Low-Rise', 'Traction — High-Rise', 'Machine-Room-Less', 'Freight Only', 'Unknown'];
 
-function buildStarterText(project) {
-  const sf   = project.gross_sf  ? `${Number(project.gross_sf).toLocaleString()} SF` : '';
-  const type = project.building_type || '';
-  const loc  = [project.city, project.state].filter(Boolean).join(', ');
-  let text   = [sf, type, loc ? `in ${loc}` : ''].filter(Boolean).join(' ');
-  const extras = [project.labor_type, project.delivery_method].filter(Boolean);
-  if (extras.length) text += `. ${extras.join(', ')}`;
-  if (project.target_budget) text += `. Target budget: $${Number(project.target_budget).toLocaleString()}`;
-  return text ? text + '.' : '';
-}
-
-const TEMPLATE_DEFS = [
-  {
-    label: 'Civic Library', icon: '📚',
-    matchTypes: ['Library', 'Civic'],
-    buildText: (p) => `New ${p.sf} SF public library and civic center in ${p.city}, ${p.state}. Three-story building with full-height reading room, digital media lab, children's wing with story room, community meeting rooms, maker space, and underground parking structure. ${p.labor}. ${p.delivery}. LEED Silver target.`,
-  },
-  {
-    label: 'K-12 School', icon: '🏫',
-    matchTypes: ['Education'],
-    buildText: (p) => `New ${p.sf} SF K-12 campus in ${p.city}, ${p.state}. Single-story classroom wings, two-story administration building, gymnasium with bleachers, cafeteria and full commercial kitchen, covered outdoor walkways. ${p.labor}. ${p.delivery}. DSA-compliant. Phased to keep existing school operational.`,
-  },
-  {
-    label: 'High-Rise Residential', icon: '🏢',
-    matchTypes: ['Multi-Family', 'Residential'],
-    buildText: (p) => `52-story high-rise residential tower in ${p.city}, ${p.state}. 450 market-rate units (studios, 1BR, 2BR), 3-level podium parking (400 stalls), ground-floor retail, amenity deck on level 6, rooftop terrace. ${p.labor}. ${p.delivery}. Concrete moment frame, Type I-A construction.`,
-  },
-  {
-    label: 'Office Building', icon: '🏬',
-    matchTypes: ['Office'],
-    buildText: (p) => `12-story Class A office building in ${p.city}, ${p.state}, ${p.sf} GSF. LEED Gold target. Open floor plates averaging 18,500 SF, two-story lobby, ground-floor retail, 4-level parking podium (600 stalls). ${p.labor}. ${p.delivery}. Steel moment frame with concrete core.`,
-  },
-  {
-    label: 'Healthcare', icon: '🏥',
-    matchTypes: ['Healthcare'],
-    buildText: (p) => `${p.sf} SF outpatient medical office building in ${p.city}, ${p.state}. Ground-floor imaging suite (MRI, CT, X-ray), second-floor ASC (4 ORs, PACU, sterile processing), upper floors general clinic. ${p.labor}. ${p.delivery}. OSHPD compliant. N+1 emergency generator.`,
-  },
-  {
-    label: 'Data Center', icon: '💻',
-    matchTypes: [],
-    buildText: (p) => `Tier III data center in ${p.city}, ${p.state}, 40,000 SF. 15,000 SF critical whitespace, 8 MW IT load. N+1 UPS and generator redundancy, raised floor, precision cooling, fiber entry vaults. ${p.labor}. ${p.delivery}.`,
-  },
-  {
-    label: 'Mixed-Use', icon: '🏙️',
-    matchTypes: ['Mixed-Use'],
-    buildText: (p) => `Mixed-use transit-oriented development in ${p.city}, ${p.state}. 8-story building: ground-floor retail/restaurant (8,000 SF), 7 floors residential (120 units, 1BR and 2BR), 2 levels underground parking (140 stalls), courtyard amenity deck, rooftop terrace. ${p.labor}. ${p.delivery}.`,
-  },
-  {
-    label: 'Sports Arena', icon: '🏟️',
-    matchTypes: [],
-    buildText: (p) => `Multi-purpose indoor arena in ${p.city}, ${p.state}, 8,500 seats, 285,000 GSF. Main bowl with retractable seating, premium club level, 12 luxury suites, broadcast infrastructure, commercial kitchen, locker rooms, surface parking. ${p.labor}. ${p.delivery}.`,
-  },
-];
-
-// Subtype cards keyed by ProjectDashboard BUILDING_TYPES values.
-// `recommended: true` marks the most common subtype (shown first with badge).
-const SUBTYPE_DEFS = {
-  'Library / Civic Center': [
-    { label: 'Main Branch Library',       icon: '📚', recommended: true,
-      buildText: (p) => `New ${p.sf} SF main branch public library in ${p.city}, ${p.state}. Three-story building with full-height reading room, digital media lab, children's wing with story room, teen center, community meeting rooms, maker space, café, and underground parking structure. ${p.labor}. ${p.delivery}. LEED Silver target.` },
-    { label: 'Community Branch Library',  icon: '📖', recommended: false,
-      buildText: (p) => `New ${p.sf} SF community branch library in ${p.city}, ${p.state}. Single-story building with open reading room, children's corner, study rooms, computer lab, and surface parking. ${p.labor}. ${p.delivery}.` },
-    { label: 'Civic Center + Library',    icon: '🏛️', recommended: false,
-      buildText: (p) => `New ${p.sf} SF combined civic center and public library in ${p.city}, ${p.state}. Library with reading room and media lab, city council chambers, administrative offices, public meeting rooms, and structured parking. ${p.labor}. ${p.delivery}. LEED Gold target.` },
-    { label: 'Library Renovation / Expansion', icon: '🔄', recommended: false,
-      buildText: (p) => `Renovation and ${p.sf} SF addition to existing public library in ${p.city}, ${p.state}. New wing with expanded children's services, digital media lab, updated HVAC/electrical, ADA upgrades, new roof, and reconfigured parking. ${p.labor}. ${p.delivery}.` },
-  ],
-  'Office': [
-    { label: 'Class A High-Rise Office',   icon: '🏢', recommended: true,
-      buildText: (p) => `${p.sf} SF Class A high-rise office tower in ${p.city}, ${p.state}. 12 stories, open floor plates, two-story lobby with feature stair, ground-floor retail, 4-level parking podium (600 stalls). ${p.labor}. ${p.delivery}. LEED Gold target. Steel moment frame.` },
-    { label: 'Mid-Rise Office Campus',     icon: '🏬', recommended: false,
-      buildText: (p) => `${p.sf} SF mid-rise office campus in ${p.city}, ${p.state}. 4–6 story buildings, structured parking, campus walkways, outdoor amenity space, shared conference center. ${p.labor}. ${p.delivery}. LEED Silver target.` },
-    { label: 'Medical Office Building',   icon: '🏥', recommended: false,
-      buildText: (p) => `${p.sf} SF medical office building (MOB) in ${p.city}, ${p.state}. Clinical suites, imaging, procedure rooms, administrative offices. Surface and structured parking. ${p.labor}. ${p.delivery}. Healthcare-grade MEP throughout.` },
-    { label: 'Government / Civic Office', icon: '🏛️', recommended: false,
-      buildText: (p) => `${p.sf} SF government office building in ${p.city}, ${p.state}. Open office floors, public-facing service counters, hearing rooms, server room, emergency generator, and secure parking. ${p.labor}. ${p.delivery}.` },
-    { label: 'Creative / Tech Office',    icon: '💡', recommended: false,
-      buildText: (p) => `${p.sf} SF creative/tech office in ${p.city}, ${p.state}. Open plan, exposed structure, collaborative breakout areas, rooftop deck, bike storage, showers. ${p.labor}. ${p.delivery}. LEED Gold target.` },
-    { label: 'Tenant Improvement',        icon: '🔧', recommended: false,
-      buildText: (p) => `${p.sf} SF office tenant improvement in ${p.city}, ${p.state}. Full demolition and rebuild: new partitions, ceiling, lighting, MEP distribution, IT infrastructure, custom millwork, restroom upgrades. ${p.labor}. ${p.delivery}.` },
-    { label: 'Office + Ground Floor Retail', icon: '🏪', recommended: false,
-      buildText: (p) => `${p.sf} SF mixed-use office building in ${p.city}, ${p.state}. Ground-floor retail/restaurant (8,000 SF), upper floors Class A office, structured parking. ${p.labor}. ${p.delivery}. LEED Silver target.` },
-    { label: 'Corporate Headquarters',    icon: '🏆', recommended: false,
-      buildText: (p) => `${p.sf} SF corporate headquarters campus in ${p.city}, ${p.state}. Signature architecture, executive floors, full-service café, fitness center, auditorium (300 seats), structured parking. ${p.labor}. ${p.delivery}. LEED Platinum target.` },
-  ],
-  'Multi-Family Residential': [
-    { label: 'High-Rise Residential',  icon: '🏢', recommended: true,
-      buildText: (p) => `${p.sf} SF high-rise residential tower in ${p.city}, ${p.state}. 450 market-rate units (studios, 1BR, 2BR), 3-level podium parking, ground-floor retail, amenity deck, rooftop terrace. ${p.labor}. ${p.delivery}. Concrete moment frame, Type I-A.` },
-    { label: 'Mid-Rise Apartments',   icon: '🏘️', recommended: false,
-      buildText: (p) => `${p.sf} SF mid-rise apartment complex in ${p.city}, ${p.state}. 6–8 story wood-frame over concrete podium, 150 units, podium parking, courtyard amenity space, rooftop deck. ${p.labor}. ${p.delivery}. Type III-A construction.` },
-    { label: 'Podium Mixed-Use',      icon: '🏙️', recommended: false,
-      buildText: (p) => `${p.sf} SF podium mixed-use residential in ${p.city}, ${p.state}. Ground-floor retail (10,000 SF), 2 levels parking, 6 residential floors (120 units). ${p.labor}. ${p.delivery}. Type III-A over Type I-A podium.` },
-    { label: 'Affordable Housing',    icon: '🏠', recommended: false,
-      buildText: (p) => `${p.sf} SF affordable housing complex in ${p.city}, ${p.state}. 100 units (1BR–3BR), surface parking, community room, on-site management office. LIHTC project. ${p.labor}. ${p.delivery}.` },
-    { label: 'Senior Living',         icon: '🧓', recommended: false,
-      buildText: (p) => `${p.sf} SF senior living facility in ${p.city}, ${p.state}. Independent living units, assisted living suites, memory care wing, dining, fitness, activity rooms, surface parking. ${p.labor}. ${p.delivery}.` },
-    { label: 'Build-to-Rent',         icon: '🏡', recommended: false,
-      buildText: (p) => `${p.sf} SF build-to-rent single-family community in ${p.city}, ${p.state}. Detached and attached units, private yards, community clubhouse and pool, alley-loaded garages. ${p.labor}. ${p.delivery}.` },
-  ],
-  'Mixed-Use': [
-    { label: 'TOD Mixed-Use',        icon: '🚆', recommended: true,
-      buildText: (p) => `${p.sf} SF transit-oriented mixed-use in ${p.city}, ${p.state}. Ground-floor retail, residential floors above, 2-level underground parking, courtyard amenity deck, rooftop terrace. ${p.labor}. ${p.delivery}.` },
-    { label: 'Urban Infill Mixed-Use', icon: '🏙️', recommended: false,
-      buildText: (p) => `${p.sf} SF urban infill mixed-use in ${p.city}, ${p.state}. Retail ground floor, office floors 2–4, residential floors 5–8, underground parking. ${p.labor}. ${p.delivery}. LEED Silver target.` },
-    { label: 'Retail + Residential', icon: '🏬', recommended: false,
-      buildText: (p) => `${p.sf} SF retail-over-residential in ${p.city}, ${p.state}. Ground-floor retail (12,000 SF), 5 residential floors (80 units), podium parking. ${p.labor}. ${p.delivery}.` },
-    { label: 'Hotel + Retail',       icon: '🏨', recommended: false,
-      buildText: (p) => `${p.sf} SF hotel and retail mixed-use in ${p.city}, ${p.state}. 150-key select service hotel, ground-floor retail and restaurant, structured parking, rooftop bar. ${p.labor}. ${p.delivery}.` },
-  ],
-  'Retail': [
-    { label: 'Neighborhood Shopping Center', icon: '🏪', recommended: true,
-      buildText: (p) => `${p.sf} SF neighborhood shopping center in ${p.city}, ${p.state}. Inline retail suites, anchor grocery tenant (45,000 SF), surface parking (400 stalls), outpads for drive-through tenants. ${p.labor}. ${p.delivery}.` },
-    { label: 'Grocery-Anchored Strip Mall', icon: '🛒', recommended: false,
-      buildText: (p) => `${p.sf} SF grocery-anchored strip center in ${p.city}, ${p.state}. 50,000 SF anchor, inline retail, drive-through endcap, ample surface parking. ${p.labor}. ${p.delivery}.` },
-    { label: 'Single Tenant Retail',       icon: '🏬', recommended: false,
-      buildText: (p) => `${p.sf} SF freestanding single-tenant retail building in ${p.city}, ${p.state}. Drive-through service window, surface parking, prominent signage. ${p.labor}. ${p.delivery}.` },
-    { label: 'Retail Renovation',          icon: '🔄', recommended: false,
-      buildText: (p) => `${p.sf} SF retail renovation in ${p.city}, ${p.state}. Full interior and facade upgrade, updated MEP systems, ADA compliance, parking lot resurfacing. ${p.labor}. ${p.delivery}.` },
-  ],
-  'Hospitality': [
-    { label: 'Select Service Hotel', icon: '🏨', recommended: true,
-      buildText: (p) => `${p.sf} SF select service hotel in ${p.city}, ${p.state}. 120 keys, fitness center, breakfast area, meeting room, surface parking. ${p.labor}. ${p.delivery}. Franchise flag (Marriott/Hilton/IHG).` },
-    { label: 'Full Service Hotel',   icon: '🌟', recommended: false,
-      buildText: (p) => `${p.sf} SF full service hotel in ${p.city}, ${p.state}. 200 keys, full-service restaurant and bar, ballroom (5,000 SF), 10,000 SF meeting space, fitness center, pool, structured parking. ${p.labor}. ${p.delivery}.` },
-    { label: 'Extended Stay',        icon: '🛏️', recommended: false,
-      buildText: (p) => `${p.sf} SF extended stay hotel in ${p.city}, ${p.state}. 150 studio and 1BR suites with kitchenettes, fitness center, coin laundry, surface parking. ${p.labor}. ${p.delivery}.` },
-    { label: 'Boutique Hotel',       icon: '✨', recommended: false,
-      buildText: (p) => `${p.sf} SF boutique hotel in ${p.city}, ${p.state}. 80 uniquely designed rooms, rooftop bar and lounge, ground-floor restaurant, valet parking. ${p.labor}. ${p.delivery}. High-end finishes throughout.` },
-  ],
-  'Industrial': [
-    { label: 'Distribution Warehouse',     icon: '📦', recommended: true,
-      buildText: (p) => `${p.sf} SF distribution warehouse in ${p.city}, ${p.state}. 36' clear height, 60 dock doors, 4 drive-in doors, ESFR sprinkler, LED lighting, 200 trailer stalls. ${p.labor}. ${p.delivery}.` },
-    { label: 'Light Industrial / Flex',    icon: '🏭', recommended: false,
-      buildText: (p) => `${p.sf} SF light industrial/flex building in ${p.city}, ${p.state}. 24' clear height, grade-level doors, front office build-out (20% of area), surface parking. ${p.labor}. ${p.delivery}.` },
-    { label: 'Cold Storage / Food Grade',  icon: '❄️', recommended: false,
-      buildText: (p) => `${p.sf} SF cold storage facility in ${p.city}, ${p.state}. Blast freeze, cooler and freezer zones, insulated metal panel construction, refrigerated dock doors, ammonia refrigeration. ${p.labor}. ${p.delivery}.` },
-    { label: 'Manufacturing',              icon: '⚙️', recommended: false,
-      buildText: (p) => `${p.sf} SF manufacturing facility in ${p.city}, ${p.state}. Heavy power (4 MW), overhead crane provisions (50-ton), 30' clear height, process piping, hazmat storage, surface parking. ${p.labor}. ${p.delivery}.` },
-  ],
-  'Healthcare': [
-    { label: 'Outpatient Medical Office', icon: '🏥', recommended: true,
-      buildText: (p) => `${p.sf} SF outpatient medical office building in ${p.city}, ${p.state}. Imaging suite (MRI, CT, X-ray), ASC (4 ORs, PACU, sterile processing), general clinic floors. ${p.labor}. ${p.delivery}. OSHPD-3 compliant. N+1 emergency generator.` },
-    { label: 'Ambulatory Surgery Center', icon: '⚕️', recommended: false,
-      buildText: (p) => `${p.sf} SF ambulatory surgery center in ${p.city}, ${p.state}. 6 ORs, PACU, pre-op holding, central sterile, pharmacy, medical gas systems. ${p.labor}. ${p.delivery}. OSHPD-2 compliant. 100% backup generator.` },
-    { label: 'Urgent Care / Clinic',      icon: '🩺', recommended: false,
-      buildText: (p) => `${p.sf} SF urgent care clinic in ${p.city}, ${p.state}. Exam rooms, procedure room, X-ray suite, waiting area, lab draw station. ${p.labor}. ${p.delivery}. OSHPD-3 compliant.` },
-    { label: 'Hospital Wing Addition',    icon: '🏨', recommended: false,
-      buildText: (p) => `${p.sf} SF hospital inpatient wing addition in ${p.city}, ${p.state}. 80 private patient rooms, nursing stations, clean/soiled utility, patient lift system, dock connection to existing. ${p.labor}. ${p.delivery}. OSHPD-1 compliant.` },
-  ],
-  'Education': [
-    { label: 'K-12 School Campus',            icon: '🏫', recommended: true,
-      buildText: (p) => `${p.sf} SF K-12 campus in ${p.city}, ${p.state}. Classroom wings, administration building, gymnasium with bleachers, cafeteria with commercial kitchen, covered walkways. ${p.labor}. ${p.delivery}. DSA-compliant. Phased to keep existing school operational.` },
-    { label: 'Community College Building',    icon: '🎓', recommended: false,
-      buildText: (p) => `${p.sf} SF community college instructional building in ${p.city}, ${p.state}. Flexible classrooms, computer labs, student collaboration areas, faculty offices, campus-connected covered walkways. ${p.labor}. ${p.delivery}. DSA-compliant. LEED Silver target.` },
-    { label: 'University Classroom Building', icon: '🏛️', recommended: false,
-      buildText: (p) => `${p.sf} SF university classroom and office building in ${p.city}, ${p.state}. Lecture halls (150, 300, 500 seats), seminar rooms, faculty offices, student lounge, underground parking. ${p.labor}. ${p.delivery}. LEED Gold target.` },
-    { label: 'Early Childhood Center',        icon: '🧒', recommended: false,
-      buildText: (p) => `${p.sf} SF early childhood education center in ${p.city}, ${p.state}. Classrooms for infant through pre-K, outdoor play areas, kitchen, multipurpose room. ${p.labor}. ${p.delivery}. DSA-compliant.` },
-  ],
-  'Parking Structure': [
-    { label: 'Above-Grade Parking Garage',  icon: '🚗', recommended: true,
-      buildText: (p) => `${p.sf} SF above-grade parking structure in ${p.city}, ${p.state}. 600 stalls, post-tensioned concrete, open-air design, EV charging (20%), ground-floor activated frontage. ${p.labor}. ${p.delivery}.` },
-    { label: 'Underground Parking',         icon: '⬇️', recommended: false,
-      buildText: (p) => `${p.sf} SF underground parking structure in ${p.city}, ${p.state}. 300 stalls, 2 basement levels, waterproofing, sump pumps, mechanical ventilation, EV charging rough-in. ${p.labor}. ${p.delivery}.` },
-    { label: 'Mixed-Use Parking + Retail',  icon: '🏪', recommended: false,
-      buildText: (p) => `${p.sf} SF parking structure with ground-floor retail in ${p.city}, ${p.state}. 500 stalls, activated retail frontage (8,000 SF), EV charging, bicycle parking. ${p.labor}. ${p.delivery}.` },
-  ],
+const EMPTY_GEN_FORM = {
+  scope: '', labor_type: '', gross_sf: '', stories: '',
+  reno_scope: '', occupied: '', existing_structure: '', hazmat: '',
+  total_units: '', unit_mix: '', amenities: [],
+  structure_type: '', foundation_type: '', parking: '', parking_stalls: '',
+  site_conditions: '', soil_conditions: '',
+  exterior_envelope: '', roofing: '', hvac: '', electrical_service: '',
+  fire_protection: '', sustainability: '', elevators: '', num_elevators: '',
+  description: '',
+  contingency: '', gc_fee: '', general_conditions: '', escalation: '',
+  labor_burden: '', sales_tax: '', insurance: '', bond: '', region_factor: '',
 };
 
-function buildTemplates(project) {
-  const params = {
-    sf:       project.gross_sf ? Number(project.gross_sf).toLocaleString() : '97,500',
-    city:     project.city || 'Los Angeles',
-    state:    project.state || 'CA',
-    labor:    project.labor_type || 'Prevailing Wage',
-    delivery: project.delivery_method || 'CM at Risk (GMP)',
-  };
-  const bt = project.building_type || '';
+// ── Build rich text description from form fields ──────────────────────────────
+function buildDescriptionFromForm(form, project) {
+  const parts = [];
 
-  // If we have subtypes for this building type, use them (recommended first)
-  const subtypeDefs = bt && SUBTYPE_DEFS[bt];
-  if (subtypeDefs?.length) {
-    const all = subtypeDefs.map(t => ({ label: t.label, icon: t.icon, text: t.buildText(params), recommended: t.recommended }));
-    return [...all.filter(t => t.recommended), ...all.filter(t => !t.recommended)];
-  }
+  if (form.scope) parts.push(form.scope);
+  if (form.gross_sf) parts.push(`${Number(form.gross_sf).toLocaleString()} SF`);
+  if (form.stories) parts.push(`${form.stories}-story`);
 
-  // Fallback: generic cross-type templates with project values
-  const recLabel = TEMPLATE_DEFS.find(t => t.matchTypes.some(m => bt.includes(m)))?.label ?? null;
-  const all = TEMPLATE_DEFS.map(t => ({ label: t.label, icon: t.icon, text: t.buildText(params), recommended: t.label === recLabel }));
-  return [...all.filter(t => t.recommended), ...all.filter(t => !t.recommended)];
-}
-
-const SEISMIC_STATES   = new Set(['CA','OR','WA','AK','NV','UT','ID','MT','HI']);
-const HURRICANE_STATES = new Set(['FL','TX','LA','MS','AL','SC','NC','GA','VA']);
-const SNOW_STATES      = new Set(['CO','UT','MT','WY','MN','WI','MI','NY','VT','NH','ME','MA','PA']);
-
-function buildChips(project) {
+  const type = project.building_type || '';
+  const city = project.city || '';
   const state = project.state || '';
-  const bt    = project.building_type || '';
-  const chips = [];
+  if (type) parts.push(type);
+  if (city || state) parts.push(`in ${[city, state].filter(Boolean).join(', ')}`);
 
-  if (SEISMIC_STATES.has(state))   chips.push('Seismic Zone D reinforcement');
-  if (HURRICANE_STATES.has(state)) chips.push('Hurricane-resistant construction');
-  if (SNOW_STATES.has(state))      chips.push('Heavy snow load design');
+  if (project.delivery_method) parts.push(`${project.delivery_method} delivery`);
+  if (form.labor_type) parts.push(`${form.labor_type} labor`);
 
-  chips.push('LEED Gold certification', 'Rooftop solar PV array');
+  if (form.structure_type && form.structure_type !== 'Unknown') parts.push(`${form.structure_type} structure`);
+  if (form.foundation_type && form.foundation_type !== 'Unknown') parts.push(`${form.foundation_type} foundation`);
 
-  if (bt.includes('Library') || bt.includes('Civic')) {
-    chips.push('Structured underground parking', "Children's wing & maker space", 'Digital media lab');
-  } else if (bt.includes('Office')) {
-    chips.push('4-level parking podium', 'Open floor plate design', 'Building automation system');
-  } else if (bt.includes('Residential') || bt.includes('Multi-Family')) {
-    chips.push('Amenity deck & rooftop terrace', 'Underground parking structure', 'Ground-floor retail');
-  } else if (bt.includes('Healthcare')) {
-    chips.push('OSHPD-3 compliance', 'N+1 generator redundancy', 'Imaging suite (MRI, CT)');
-  } else if (bt.includes('Education')) {
-    chips.push('DSA compliance', 'Gymnasium with bleachers', 'Covered outdoor walkways');
-  } else if (bt.includes('Mixed-Use')) {
-    chips.push('Ground-floor retail', '2-level underground parking', 'Courtyard amenity space');
-  } else {
-    chips.push('3-level structured parking', 'High-end lobby finishes', 'Full MEP commissioning');
+  if (form.parking && form.parking !== 'None' && form.parking !== 'Unknown') {
+    let p = form.parking;
+    if (form.parking_stalls) p += ` (${form.parking_stalls} stalls)`;
+    parts.push(`${p} parking`);
   }
 
-  if (project.labor_type === 'Prevailing Wage') chips.push('Prevailing wage labor');
-  else if (project.labor_type === 'Union')      chips.push('Union labor rates');
+  if (form.site_conditions && form.site_conditions !== 'Unknown') parts.push(`${form.site_conditions} site`);
+  if (form.soil_conditions && form.soil_conditions !== 'Unknown') parts.push(`${form.soil_conditions} soil`);
+  if (form.exterior_envelope && form.exterior_envelope !== 'Unknown') parts.push(`${form.exterior_envelope} facade`);
+  if (form.roofing && form.roofing !== 'Unknown') parts.push(`${form.roofing} roof`);
+  if (form.hvac && form.hvac !== 'Unknown') parts.push(`${form.hvac} HVAC`);
+  if (form.electrical_service && form.electrical_service !== 'Unknown') parts.push(`${form.electrical_service} electrical`);
+  if (form.fire_protection && form.fire_protection !== 'Unknown' && form.fire_protection !== 'None') {
+    parts.push(`${form.fire_protection} fire protection`);
+  }
+  if (form.sustainability && form.sustainability !== 'Unknown' && form.sustainability !== 'None / Code Minimum') {
+    parts.push(`${form.sustainability} sustainability target`);
+  }
+  if (form.elevators && form.elevators !== 'None' && form.elevators !== 'Unknown') {
+    const e = form.num_elevators
+      ? `${form.num_elevators} ${form.elevators} elevator(s)`
+      : `${form.elevators} elevator(s)`;
+    parts.push(e);
+  }
 
-  chips.push('Phased construction');
-  return [...new Set(chips)].slice(0, 10);
+  if (form.total_units) parts.push(`${form.total_units} residential units`);
+  if (form.unit_mix) parts.push(`Unit mix: ${form.unit_mix}`);
+  if (form.amenities?.length) parts.push(`Amenities: ${form.amenities.join(', ')}`);
+
+  if (['Renovation', 'Addition', 'Tenant Improvement'].includes(form.scope)) {
+    if (form.reno_scope) parts.push(`${form.reno_scope} renovation scope`);
+    if (form.occupied && form.occupied !== 'No — Fully Vacant') {
+      parts.push(`Occupied during construction: ${form.occupied}`);
+    }
+    if (form.existing_structure && form.existing_structure !== 'Unknown') {
+      parts.push(`Existing structure: ${form.existing_structure}`);
+    }
+    if (form.hazmat && form.hazmat !== 'No — Survey Complete') {
+      parts.push(`Hazmat: ${form.hazmat}`);
+    }
+  }
+
+  if (project.target_budget) parts.push(`Target budget: $${Number(project.target_budget).toLocaleString()}`);
+
+  let base = parts.join('. ');
+  if (base && !base.endsWith('.')) base += '.';
+  if (form.description?.trim()) base = base ? `${base} ${form.description.trim()}` : form.description.trim();
+
+  return base;
 }
+
+// ── Review helpers ────────────────────────────────────────────────────────────
 
 const CSI_ORDER = [
   'Substructure', 'Shell', 'Interiors', 'Services', 'Equipment',
@@ -287,10 +155,7 @@ function applyGlobals(raw, g) {
 // ── Main component ────────────────────────────────────────────────────────────
 
 export default function AIGenerator({ project, user, onSave, onSkip, onGoHome, onSignOut }) {
-  const [step, setStep] = useState('describe');
-  const [tab, setTab] = useState('describe');
-  const [description, setDescription] = useState(() => buildStarterText(project));
-  const [phIdx, setPhIdx] = useState(0);
+  const [step, setStep] = useState('form');
   const [generatedData, setGeneratedData] = useState(null);
   const [editedItems, setEditedItems] = useState([]);
   const [collapsed, setCollapsed] = useState({});
@@ -299,22 +164,16 @@ export default function AIGenerator({ project, user, onSave, onSkip, onGoHome, o
   const [saveError, setSaveError] = useState(null);
   const [genError, setGenError] = useState(null);
 
-  const { generate: streamGenerate, progress, isGenerating } = useGenerateEstimate();
+  const { generate: streamGenerate, progress } = useGenerateEstimate();
 
-  useEffect(() => {
-    if (step !== 'describe') return;
-    const t = setInterval(() => setPhIdx(i => (i + 1) % PLACEHOLDERS.length), 4000);
-    return () => clearInterval(t);
-  }, [step]);
-
-  const generate = async () => {
-    const desc = description.trim();
-    if (!desc) return;
+  const generate = async (formData) => {
     setStep('generating');
     setGenError(null);
 
     try {
-      const result = await streamGenerate(desc, project);
+      const desc = buildDescriptionFromForm(formData, project);
+      const enrichedProject = { ...project, ...formData };
+      const result = await streamGenerate(desc, enrichedProject);
       const lineItems = result?.items ?? [];
       if (!lineItems.length) throw new Error('No line items returned from AI');
       setGeneratedData({ lineItems, globals: result.globals });
@@ -379,10 +238,8 @@ export default function AIGenerator({ project, user, onSave, onSkip, onGoHome, o
 
       setSaveProgress({ saved: 0, total: rows.length });
 
-      // Insert in batches of BATCH_SIZE, retry each batch once on failure
       for (let i = 0; i < rows.length; i += BATCH_SIZE) {
         if (Date.now() > deadline) throw new Error('Save timed out after 90s — please try again');
-
         const batch = rows.slice(i, i + BATCH_SIZE);
         const batchMs = Math.min(20_000, deadline - Date.now());
 
@@ -396,8 +253,6 @@ export default function AIGenerator({ project, user, onSave, onSkip, onGoHome, o
         if (lastErr) throw new Error(`Batch ${Math.floor(i / BATCH_SIZE) + 1} failed: ${lastErr.message}`);
 
         setSaveProgress({ saved: Math.min(i + BATCH_SIZE, rows.length), total: rows.length });
-
-        // Brief pause between batches to avoid connection saturation
         if (i + BATCH_SIZE < rows.length) await new Promise(r => setTimeout(r, 150));
       }
 
@@ -425,7 +280,6 @@ export default function AIGenerator({ project, user, onSave, onSkip, onGoHome, o
             background: 'none', border: 'none', padding: 0, cursor: 'pointer',
             color: ACCENT, fontFamily: "'Archivo', sans-serif",
             fontWeight: 800, fontSize: 18, letterSpacing: 2,
-            textDecoration: 'none',
           }}
         >
           COSTDECK
@@ -447,15 +301,8 @@ export default function AIGenerator({ project, user, onSave, onSkip, onGoHome, o
         </div>
       </header>
 
-      {step === 'describe' && (
-        <DescribeStep
-          tab={tab} setTab={setTab}
-          description={description} setDescription={setDescription}
-          phIdx={phIdx} project={project}
-          templates={buildTemplates(project)}
-          chips={buildChips(project)}
-          onGenerate={generate} onSkip={onSkip}
-        />
+      {step === 'form' && (
+        <FormStep project={project} onGenerate={generate} onSkip={onSkip} />
       )}
 
       {step === 'generating' && <GenerationProgress progress={progress} />}
@@ -473,185 +320,489 @@ export default function AIGenerator({ project, user, onSave, onSkip, onGoHome, o
           saveProgress={saveProgress}
           saveError={saveError}
           onSave={saveAll}
-          onRegenerate={() => { setStep('describe'); setGenError(null); }}
+          onRegenerate={() => { setStep('form'); setGenError(null); }}
           onSkip={onSkip}
         />
       )}
 
       {step === 'error' && (
-        <ErrorStep error={genError} onRetry={() => { setStep('describe'); setGenError(null); }} />
+        <ErrorStep error={genError} onRetry={() => { setStep('form'); setGenError(null); }} />
       )}
     </div>
   );
 }
 
-// ── DescribeStep ──────────────────────────────────────────────────────────────
+// ── FormStep ──────────────────────────────────────────────────────────────────
 
-function DescribeStep({ tab, setTab, description, setDescription, phIdx, project, templates, chips, onGenerate, onSkip }) {
+function FormStep({ project, onGenerate, onSkip }) {
+  const { mob } = useWindowSize();
+  const [form, setForm] = useState(EMPTY_GEN_FORM);
+  const [open, setOpen] = useState({
+    basics: true, renovation: true, residential: true,
+    structure: true, systems: true, description: true, markups: false,
+  });
+
+  const set = (field) => (val) => setForm(f => ({ ...f, [field]: val }));
+  const toggle = (section) => setOpen(o => ({ ...o, [section]: !o[section] }));
+
+  const toggleAmenity = (amenity) => {
+    setForm(f => ({
+      ...f,
+      amenities: f.amenities.includes(amenity)
+        ? f.amenities.filter(a => a !== amenity)
+        : [...f.amenities, amenity],
+    }));
+  };
+
+  const showRenovation = ['Renovation', 'Addition', 'Tenant Improvement'].includes(form.scope);
+  const bt = (project.building_type || '').toLowerCase();
+  const showResidential = bt.includes('residential') || bt.includes('hotel') || bt.includes('mixed-use');
+  const showParkingStalls = form.parking && form.parking !== 'None' && form.parking !== 'Unknown';
+  const showNumElevators = form.elevators && form.elevators !== 'None' && form.elevators !== 'Unknown';
+
+  const canGenerate = form.scope && form.labor_type && form.gross_sf && form.stories;
+
+  const cols = mob ? '1fr' : '1fr 1fr';
+
   return (
-    <main style={{ flex: 1, maxWidth: 860, width: '100%', margin: '0 auto', padding: '44px 24px' }}>
-      <div style={{ marginBottom: 32 }}>
-        <h1 style={{
-          fontFamily: "'Archivo', sans-serif", fontWeight: 800,
-          fontSize: 26, color: '#111', marginBottom: 8,
-        }}>
-          Generate Your Estimate
-        </h1>
-        <p style={{ fontFamily: "'Figtree', sans-serif", color: '#888', fontSize: 14 }}>
-          Describe your project and Claude will generate
-          {project.gross_sf ? ` a calibrated ${Number(project.gross_sf).toLocaleString()} SF estimate` : ' a detailed estimate'} for {project.city || 'your location'}.
-        </p>
-      </div>
+    <main style={{ flex: 1, overflowY: 'auto' }}>
+      <div style={{ maxWidth: 860, margin: '0 auto', padding: mob ? '24px 16px 100px' : '36px 28px 100px' }}>
 
-      {/* Tabs */}
-      <div style={{ display: 'flex', borderBottom: '1px solid #e0e0dc', marginBottom: 28 }}>
-        {[['describe', 'Describe Your Project'], ['template', 'Start from Template']].map(([t, label]) => (
+        {/* Page title */}
+        <div style={{ marginBottom: 28 }}>
+          <h1 style={{
+            fontFamily: "'Archivo', sans-serif", fontWeight: 800,
+            fontSize: mob ? 22 : 26, color: '#111', marginBottom: 6,
+          }}>
+            Generate Estimate
+          </h1>
+          <p style={{ fontFamily: "'Figtree', sans-serif", color: '#888', fontSize: 14, margin: 0 }}>
+            Tell us about your project and Claude will generate a calibrated estimate.
+          </p>
+        </div>
+
+        {/* Project context bar */}
+        <div style={{
+          background: '#fff', border: '1px solid #e6e6e2', borderRadius: 10,
+          padding: '14px 18px', marginBottom: 28,
+          display: 'flex', flexWrap: 'wrap', gap: '6px 16px', alignItems: 'center',
+        }}>
+          <span style={{ fontFamily: "'Archivo', sans-serif", fontWeight: 700, fontSize: 15, color: '#111' }}>
+            {project.name}
+          </span>
+          <span style={{ color: '#ddd' }}>|</span>
+          <span style={{ fontFamily: "'Figtree', sans-serif", fontSize: 13, color: '#666' }}>
+            {[project.city, project.state].filter(Boolean).join(', ')}
+          </span>
+          {project.building_type && (
+            <>
+              <span style={{ color: '#ddd' }}>|</span>
+              <span style={{ fontFamily: "'Figtree', sans-serif", fontSize: 13, color: '#666' }}>
+                {project.building_type}
+              </span>
+            </>
+          )}
+          {project.delivery_method && (
+            <>
+              <span style={{ color: '#ddd' }}>|</span>
+              <span style={{ fontFamily: "'Figtree', sans-serif", fontSize: 13, color: '#666' }}>
+                {project.delivery_method}
+              </span>
+            </>
+          )}
+        </div>
+
+        {/* ── Section 1: Project Basics ── */}
+        <FormSection title="Project Basics" open={open.basics} onToggle={() => toggle('basics')}>
+          <div style={{ display: 'grid', gridTemplateColumns: cols, gap: '14px 20px' }}>
+            <GField label="Scope of Work" required>
+              <GSelect value={form.scope} onChange={set('scope')} options={SCOPE_OPTS} />
+            </GField>
+            <GField label="Labor Type" required>
+              <GSelect value={form.labor_type} onChange={set('labor_type')} options={LABOR_OPTS} />
+            </GField>
+            <GField label="Gross SF" required>
+              <GInput
+                value={form.gross_sf} onChange={set('gross_sf')}
+                placeholder="97,500" type="text" inputMode="numeric"
+              />
+            </GField>
+            <GField label="Stories" required>
+              <GInput
+                value={form.stories} onChange={set('stories')}
+                placeholder="e.g. 4" type="number" min="1"
+              />
+            </GField>
+          </div>
+        </FormSection>
+
+        {/* ── Section 2: Renovation Details (conditional) ── */}
+        <div style={{
+          maxHeight: showRenovation ? '600px' : 0,
+          opacity: showRenovation ? 1 : 0,
+          overflow: 'hidden',
+          transition: 'max-height 0.35s ease, opacity 0.25s ease',
+          marginBottom: showRenovation ? 0 : 0,
+        }}>
+          <FormSection title="Renovation Details" open={open.renovation} onToggle={() => toggle('renovation')}>
+            <div style={{ display: 'grid', gridTemplateColumns: cols, gap: '14px 20px' }}>
+              <GField label="Renovation Scope">
+                <GSelect value={form.reno_scope} onChange={set('reno_scope')} options={RENO_SCOPE_OPTS} />
+              </GField>
+              <GField label="Occupied During Construction?">
+                <GSelect value={form.occupied} onChange={set('occupied')} options={OCCUPIED_OPTS} />
+              </GField>
+              <GField label="Existing Structure Type">
+                <GSelect value={form.existing_structure} onChange={set('existing_structure')} options={EXIST_STRUCT_OPTS} />
+              </GField>
+              <GField label="Hazmat Expected?">
+                <GSelect value={form.hazmat} onChange={set('hazmat')} options={HAZMAT_OPTS} />
+              </GField>
+            </div>
+          </FormSection>
+        </div>
+
+        {/* ── Section 3: Residential Details (conditional) ── */}
+        <div style={{
+          maxHeight: showResidential ? '600px' : 0,
+          opacity: showResidential ? 1 : 0,
+          overflow: 'hidden',
+          transition: 'max-height 0.35s ease, opacity 0.25s ease',
+        }}>
+          <FormSection title="Residential Details" open={open.residential} onToggle={() => toggle('residential')}>
+            <div style={{ display: 'grid', gridTemplateColumns: cols, gap: '14px 20px' }}>
+              <GField label="Total Units">
+                <GInput value={form.total_units} onChange={set('total_units')} placeholder="e.g. 240" type="number" min="0" />
+              </GField>
+              <GField label="Unit Mix">
+                <GInput value={form.unit_mix} onChange={set('unit_mix')} placeholder="e.g. 40 Studio, 80 1BR, 100 2BR" />
+              </GField>
+              <GField label="Amenities" span={2}>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 2 }}>
+                  {AMENITY_OPTS.map(a => (
+                    <label
+                      key={a}
+                      style={{
+                        display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer',
+                        background: form.amenities.includes(a) ? '#fdf6e3' : '#f5f5f2',
+                        border: `1px solid ${form.amenities.includes(a) ? ACCENT : '#e0e0dc'}`,
+                        borderRadius: 20, padding: '5px 12px',
+                        fontFamily: "'Figtree', sans-serif", fontSize: 12,
+                        color: form.amenities.includes(a) ? '#8a6a1a' : '#555',
+                        transition: 'all 0.12s', userSelect: 'none',
+                      }}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={form.amenities.includes(a)}
+                        onChange={() => toggleAmenity(a)}
+                        style={{ display: 'none' }}
+                      />
+                      {form.amenities.includes(a) ? '✓ ' : '+ '}{a}
+                    </label>
+                  ))}
+                </div>
+              </GField>
+            </div>
+          </FormSection>
+        </div>
+
+        {/* ── Section 4: Structure and Site ── */}
+        <FormSection title="Structure & Site" open={open.structure} onToggle={() => toggle('structure')}>
+          <div style={{ display: 'grid', gridTemplateColumns: cols, gap: '14px 20px' }}>
+            <GField label="Structure Type">
+              <GSelect value={form.structure_type} onChange={set('structure_type')} options={STRUCTURE_OPTS} />
+            </GField>
+            <GField label="Foundation Type">
+              <GSelect value={form.foundation_type} onChange={set('foundation_type')} options={FOUNDATION_OPTS} />
+            </GField>
+            <GField label="Parking">
+              <GSelect value={form.parking} onChange={set('parking')} options={PARKING_OPTS} />
+            </GField>
+            {showParkingStalls ? (
+              <GField label="Parking Stalls">
+                <GInput value={form.parking_stalls} onChange={set('parking_stalls')} placeholder="e.g. 350" type="number" min="0" />
+              </GField>
+            ) : <div />}
+            <GField label="Site Conditions">
+              <GSelect value={form.site_conditions} onChange={set('site_conditions')} options={SITE_OPTS} />
+            </GField>
+            <GField label="Soil Conditions">
+              <GSelect value={form.soil_conditions} onChange={set('soil_conditions')} options={SOIL_OPTS} />
+            </GField>
+          </div>
+        </FormSection>
+
+        {/* ── Section 5: Building Systems ── */}
+        <FormSection title="Building Systems" open={open.systems} onToggle={() => toggle('systems')}>
+          <div style={{ display: 'grid', gridTemplateColumns: cols, gap: '14px 20px' }}>
+            <GField label="Exterior Envelope">
+              <GSelect value={form.exterior_envelope} onChange={set('exterior_envelope')} options={ENVELOPE_OPTS} />
+            </GField>
+            <GField label="Roofing">
+              <GSelect value={form.roofing} onChange={set('roofing')} options={ROOFING_OPTS} />
+            </GField>
+            <GField label="HVAC System">
+              <GSelect value={form.hvac} onChange={set('hvac')} options={HVAC_OPTS} />
+            </GField>
+            <GField label="Electrical Service">
+              <GSelect value={form.electrical_service} onChange={set('electrical_service')} options={ELECTRICAL_OPTS} />
+            </GField>
+            <GField label="Fire Protection">
+              <GSelect value={form.fire_protection} onChange={set('fire_protection')} options={FIRE_OPTS} />
+            </GField>
+            <GField label="Sustainability Target">
+              <GSelect value={form.sustainability} onChange={set('sustainability')} options={SUSTAIN_OPTS} />
+            </GField>
+            <GField label="Elevator / Vertical Transport">
+              <GSelect value={form.elevators} onChange={set('elevators')} options={ELEVATOR_OPTS} />
+            </GField>
+            {showNumElevators ? (
+              <GField label="Number of Elevators">
+                <GInput value={form.num_elevators} onChange={set('num_elevators')} placeholder="e.g. 3" type="number" min="1" />
+              </GField>
+            ) : <div />}
+          </div>
+        </FormSection>
+
+        {/* ── Section 6: Project Description ── */}
+        <FormSection title="Project Description" open={open.description} onToggle={() => toggle('description')}>
+          <div style={{ position: 'relative' }}>
+            <textarea
+              value={form.description}
+              onChange={e => set('description')(e.target.value)}
+              placeholder="Describe anything else about the project — program spaces, special features, phasing, schedule constraints, unique conditions, LEED certification goals, DSA/OSHPD compliance requirements..."
+              rows={5}
+              maxLength={2000}
+              style={{
+                width: '100%', boxSizing: 'border-box', padding: '12px 14px',
+                fontSize: 14, fontFamily: "'Figtree', sans-serif", lineHeight: 1.6,
+                border: '1.5px solid #e0e0dc', borderRadius: 8,
+                resize: 'vertical', outline: 'none', color: '#111',
+                transition: 'border-color 0.15s',
+              }}
+              onFocus={e => { e.target.style.borderColor = ACCENT; }}
+              onBlur={e => { e.target.style.borderColor = '#e0e0dc'; }}
+            />
+            <span style={{
+              position: 'absolute', bottom: 8, right: 10,
+              fontFamily: "'Figtree', sans-serif", fontSize: 11, color: '#ccc',
+            }}>
+              {form.description.length}/2000
+            </span>
+          </div>
+        </FormSection>
+
+        {/* ── Section 7: Markups & Assumptions (collapsed by default) ── */}
+        <FormSection
+          title="Markups & Assumptions"
+          subtitle="Customize markups (optional)"
+          open={open.markups}
+          onToggle={() => toggle('markups')}
+        >
+          <p style={{
+            fontFamily: "'Figtree', sans-serif", fontSize: 12, color: '#999',
+            marginBottom: 14, marginTop: 0,
+          }}>
+            Leave blank to use defaults. Values are percentages (e.g., enter "5" for 5%).
+          </p>
+          <div style={{ display: 'grid', gridTemplateColumns: cols, gap: '14px 20px' }}>
+            <GField label="Contingency %">
+              <GInput value={form.contingency} onChange={set('contingency')} placeholder="5" type="number" min="0" step="0.1" />
+            </GField>
+            <GField label="GC Fee %">
+              <GInput value={form.gc_fee} onChange={set('gc_fee')} placeholder="4.5" type="number" min="0" step="0.1" />
+            </GField>
+            <GField label="General Conditions %">
+              <GInput value={form.general_conditions} onChange={set('general_conditions')} placeholder="8" type="number" min="0" step="0.1" />
+            </GField>
+            <GField label="Escalation %">
+              <GInput value={form.escalation} onChange={set('escalation')} placeholder="4" type="number" min="0" step="0.1" />
+            </GField>
+            <GField label="Labor Burden %">
+              <GInput value={form.labor_burden} onChange={set('labor_burden')} placeholder="42" type="number" min="0" step="0.1" />
+            </GField>
+            <GField label="Sales Tax %">
+              <GInput value={form.sales_tax} onChange={set('sales_tax')} placeholder="9.75" type="number" min="0" step="0.01" />
+            </GField>
+            <GField label="Insurance %">
+              <GInput value={form.insurance} onChange={set('insurance')} placeholder="1.2" type="number" min="0" step="0.01" />
+            </GField>
+            <GField label="Bond %">
+              <GInput value={form.bond} onChange={set('bond')} placeholder="0.8" type="number" min="0" step="0.01" />
+            </GField>
+            <GField label="Region Factor" span={2}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <GInput value={form.region_factor} onChange={set('region_factor')} placeholder="1.15" type="number" min="0.5" step="0.01" />
+                <span style={{ fontFamily: "'Figtree', sans-serif", fontSize: 12, color: '#999', flexShrink: 0 }}>
+                  1.0 = national average
+                </span>
+              </div>
+            </GField>
+          </div>
+        </FormSection>
+
+        {/* ── Bottom actions ── */}
+        <div style={{
+          display: 'flex', alignItems: 'center',
+          justifyContent: 'space-between', marginTop: 8,
+          flexWrap: 'wrap', gap: 12,
+        }}>
           <button
-            key={t}
-            onClick={() => setTab(t)}
+            onClick={onSkip}
             style={{
-              padding: '10px 20px', background: 'none', border: 'none',
-              borderBottom: tab === t ? `2.5px solid ${ACCENT}` : '2.5px solid transparent',
-              fontFamily: "'Archivo', sans-serif", fontWeight: 600,
-              fontSize: 12, letterSpacing: 0.8, textTransform: 'uppercase',
-              color: tab === t ? '#111' : '#aaa', cursor: 'pointer', whiteSpace: 'nowrap',
+              background: 'none', border: 'none', padding: 0,
+              fontFamily: "'Figtree', sans-serif", fontSize: 13,
+              color: '#aaa', cursor: 'pointer', textDecoration: 'underline',
             }}
           >
-            {label}
+            Skip — use default line items
           </button>
-        ))}
-      </div>
-
-      {tab === 'describe' ? (
-        <>
-          <textarea
-            value={description}
-            onChange={e => setDescription(e.target.value)}
-            placeholder={PLACEHOLDERS[phIdx]}
-            rows={6}
+          <button
+            onClick={() => canGenerate && onGenerate(form)}
+            disabled={!canGenerate}
             style={{
-              width: '100%', boxSizing: 'border-box', padding: '14px 16px',
-              fontSize: 14, fontFamily: "'Figtree', sans-serif", lineHeight: 1.6,
-              border: '1.5px solid #e0e0dc', borderRadius: 10,
-              resize: 'vertical', outline: 'none', color: '#111',
-              transition: 'border-color 0.15s',
+              background: canGenerate ? ACCENT : '#e0e0dc',
+              color: canGenerate ? '#fff' : '#aaa',
+              border: 'none', borderRadius: 8, padding: '13px 32px',
+              fontFamily: "'Archivo', sans-serif", fontWeight: 700, fontSize: 15,
+              cursor: canGenerate ? 'pointer' : 'not-allowed',
+              transition: 'background 0.15s',
+              boxShadow: canGenerate ? '0 2px 12px rgba(184,144,48,0.3)' : 'none',
             }}
-            onFocus={e => { e.target.style.borderColor = ACCENT; }}
-            onBlur={e => { e.target.style.borderColor = '#e0e0dc'; }}
-          />
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 14 }}>
-            <span style={{ fontFamily: "'Figtree', sans-serif", fontSize: 12, color: '#aaa', alignSelf: 'center' }}>
-              Add:
-            </span>
-            {chips.map(chip => (
-              <ChipButton
-                key={chip}
-                label={chip}
-                onClick={() => setDescription(d => d.trim() ? `${d.trim()} ${chip.toLowerCase()}.` : chip)}
-              />
-            ))}
-          </div>
-        </>
-      ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
-          {templates.map(tpl => (
-            <TemplateCard
-              key={tpl.label}
-              tpl={tpl}
-              active={description === tpl.text}
-              onClick={() => { setDescription(tpl.text); setTab('describe'); }}
-            />
-          ))}
+          >
+            Generate Estimate →
+          </button>
         </div>
-      )}
-
-      <div style={{ marginTop: 36, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <button
-          onClick={onSkip}
-          style={{
-            background: 'none', border: 'none', padding: 0,
-            fontFamily: "'Figtree', sans-serif", fontSize: 13,
-            color: '#aaa', cursor: 'pointer', textDecoration: 'underline',
-          }}
-        >
-          Skip — use default line items
-        </button>
-        <button
-          onClick={onGenerate}
-          disabled={!description.trim()}
-          style={{
-            background: description.trim() ? ACCENT : '#e0e0dc',
-            color: description.trim() ? '#fff' : '#aaa',
-            border: 'none', borderRadius: 8, padding: '12px 28px',
-            fontFamily: "'Archivo', sans-serif", fontWeight: 700, fontSize: 14,
-            cursor: description.trim() ? 'pointer' : 'not-allowed',
-            transition: 'background 0.15s',
-          }}
-        >
-          Generate Estimate →
-        </button>
+        {!canGenerate && (
+          <p style={{
+            textAlign: 'right', fontFamily: "'Figtree', sans-serif",
+            fontSize: 12, color: '#bbb', marginTop: 8,
+          }}>
+            Scope of work, labor type, gross SF, and stories are required
+          </p>
+        )}
       </div>
     </main>
   );
 }
 
-function ChipButton({ label, onClick }) {
-  const [hov, setHov] = useState(false);
+// ── FormSection ───────────────────────────────────────────────────────────────
+
+function FormSection({ title, subtitle, open, onToggle, children }) {
   return (
-    <button
-      onClick={onClick}
-      onMouseEnter={() => setHov(true)}
-      onMouseLeave={() => setHov(false)}
-      style={{
-        background: hov ? '#fdf6e3' : '#f5f5f2',
-        border: `1px solid ${hov ? ACCENT : '#e0e0dc'}`,
-        borderRadius: 20, padding: '5px 12px',
-        fontFamily: "'Figtree', sans-serif", fontSize: 12,
-        color: '#555', cursor: 'pointer', transition: 'all 0.12s',
-      }}
-    >
-      + {label}
-    </button>
+    <div style={{ marginBottom: 24 }}>
+      <button
+        onClick={onToggle}
+        style={{
+          width: '100%', background: 'none', border: 'none', padding: 0,
+          cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 10,
+          marginBottom: open ? 18 : 4,
+        }}
+      >
+        <span style={{
+          color: '#B89030', fontFamily: "'Archivo', sans-serif",
+          fontWeight: 700, fontSize: 11, textTransform: 'uppercase',
+          letterSpacing: 1.5, whiteSpace: 'nowrap',
+        }}>
+          {title}
+        </span>
+        {subtitle && !open && (
+          <span style={{ fontFamily: "'Figtree', sans-serif", fontSize: 12, color: '#aaa' }}>
+            — {subtitle}
+          </span>
+        )}
+        <div style={{ flex: 1, height: 1, background: '#e6e6e2' }} />
+        <span style={{
+          color: '#B89030', fontSize: 13, flexShrink: 0,
+          transform: open ? 'rotate(0deg)' : 'rotate(-90deg)',
+          transition: 'transform 0.2s',
+          display: 'inline-block',
+        }}>
+          ▾
+        </span>
+      </button>
+      <div style={{
+        maxHeight: open ? '1200px' : 0,
+        overflow: 'hidden',
+        transition: 'max-height 0.35s ease',
+      }}>
+        <div style={{
+          background: '#fff', border: '1px solid #e6e6e2', borderRadius: 10,
+          padding: '20px 20px',
+        }}>
+          {children}
+        </div>
+      </div>
+    </div>
   );
 }
 
-function TemplateCard({ tpl, active, onClick }) {
-  const [hov, setHov] = useState(false);
+// ── Form primitives ───────────────────────────────────────────────────────────
+
+function GField({ label, required, span, children }) {
   return (
-    <button
-      onClick={onClick}
-      onMouseEnter={() => setHov(true)}
-      onMouseLeave={() => setHov(false)}
-      style={{
-        background: active ? '#fdf6e3' : tpl.recommended ? '#fffdf5' : '#fff',
-        border: `1.5px solid ${active ? ACCENT : tpl.recommended ? ACCENT : hov ? ACCENT : '#e6e6e2'}`,
-        borderRadius: 10, padding: '16px 14px', textAlign: 'left', cursor: 'pointer',
-        transition: 'border-color 0.12s, box-shadow 0.12s', position: 'relative',
-        boxShadow: hov || tpl.recommended ? '0 2px 10px rgba(184,144,48,0.12)' : '0 1px 3px rgba(0,0,0,0.04)',
-      }}
-    >
-      {tpl.recommended && (
-        <div style={{
-          position: 'absolute', top: -1, right: -1,
-          background: ACCENT, color: '#fff', fontSize: 9,
-          fontFamily: "'Archivo', sans-serif", fontWeight: 700,
-          letterSpacing: 0.5, padding: '3px 8px',
-          borderRadius: '0 9px 0 6px', textTransform: 'uppercase',
-        }}>
-          Recommended
-        </div>
-      )}
-      <div style={{ fontSize: 22, marginBottom: 8 }}>{tpl.icon}</div>
-      <div style={{ fontFamily: "'Archivo', sans-serif", fontWeight: 700, fontSize: 13, color: '#111', marginBottom: 4 }}>
-        {tpl.label}
-      </div>
-      <div style={{
-        fontFamily: "'Figtree', sans-serif", fontSize: 11, color: '#999', lineHeight: 1.5,
-        display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden',
+    <div style={span === 2 ? { gridColumn: '1/-1' } : {}}>
+      <label style={{
+        display: 'block', fontFamily: "'Figtree', sans-serif",
+        fontSize: 11, fontWeight: 600, color: '#666',
+        textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 6,
       }}>
-        {tpl.text}
-      </div>
-    </button>
+        {label}
+        {required && <span style={{ color: '#B89030', marginLeft: 3 }}>*</span>}
+      </label>
+      {children}
+    </div>
+  );
+}
+
+function GSelect({ value, onChange, options }) {
+  return (
+    <select
+      value={value}
+      onChange={e => onChange(e.target.value)}
+      style={{
+        width: '100%', padding: '9px 12px',
+        border: '1.5px solid #e0e0dc', borderRadius: 7,
+        fontFamily: "'Figtree', sans-serif", fontSize: 13,
+        outline: 'none', boxSizing: 'border-box',
+        background: '#fff', cursor: 'pointer',
+        color: value ? '#111' : '#999',
+        appearance: 'none',
+        backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%23999'/%3E%3C/svg%3E")`,
+        backgroundRepeat: 'no-repeat',
+        backgroundPosition: 'right 10px center',
+        paddingRight: 30,
+      }}
+      onFocus={e => { e.target.style.borderColor = '#B89030'; }}
+      onBlur={e => { e.target.style.borderColor = '#e0e0dc'; }}
+    >
+      <option value="" style={{ color: '#999' }}>—</option>
+      {options.map(o => <option key={o} value={o} style={{ color: '#111' }}>{o}</option>)}
+    </select>
+  );
+}
+
+function GInput({ value, onChange, placeholder, type = 'text', min, step, inputMode }) {
+  return (
+    <input
+      type={type}
+      inputMode={inputMode}
+      value={value}
+      onChange={e => onChange(e.target.value)}
+      placeholder={placeholder}
+      min={min}
+      step={step}
+      style={{
+        width: '100%', padding: '9px 12px',
+        border: '1.5px solid #e0e0dc', borderRadius: 7,
+        fontFamily: "'Figtree', sans-serif", fontSize: 13,
+        outline: 'none', boxSizing: 'border-box', color: '#111',
+        background: '#fff',
+      }}
+      onFocus={e => { e.target.style.borderColor = '#B89030'; }}
+      onBlur={e => { e.target.style.borderColor = '#e0e0dc'; }}
+    />
   );
 }
 
@@ -685,7 +836,6 @@ function ReviewStep({ project, items, globals, collapsed, setCollapsed, updateIt
 
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
-      {/* Top bar */}
       <div style={{
         background: '#fff', borderBottom: '1px solid #e6e6e2',
         padding: '12px 24px', flexShrink: 0,
@@ -736,9 +886,7 @@ function ReviewStep({ project, items, globals, collapsed, setCollapsed, updateIt
         </div>
       )}
 
-      {/* Two-column layout */}
       <div style={{ flex: 1, display: 'flex', overflow: 'hidden', minHeight: 0 }}>
-        {/* Items column */}
         <div style={{ flex: 1, overflowY: 'auto', padding: '20px 24px' }}>
           {categoryGroups.map(({ cat, items: catItems }) => (
             <CategorySection
@@ -754,7 +902,6 @@ function ReviewStep({ project, items, globals, collapsed, setCollapsed, updateIt
           ))}
         </div>
 
-        {/* Summary sidebar */}
         <div style={{
           width: 288, flexShrink: 0, borderLeft: '1px solid #e6e6e2',
           overflowY: 'auto', padding: '20px', background: '#fff',
@@ -977,8 +1124,7 @@ function SummarySidebar({ project, globals, totalRaw, totalFull, psf, itemCount,
           }}>
             <span style={{
               fontFamily: "'Figtree', sans-serif",
-              fontSize: bold ? 13 : 11,
-              fontWeight: bold ? 700 : 400,
+              fontSize: bold ? 13 : 11, fontWeight: bold ? 700 : 400,
               color: indent ? '#888' : (bold ? '#111' : '#555'),
               paddingLeft: indent ? 6 : 0,
             }}>
@@ -986,8 +1132,7 @@ function SummarySidebar({ project, globals, totalRaw, totalFull, psf, itemCount,
             </span>
             <span style={{
               fontFamily: "'Figtree', sans-serif",
-              fontSize: bold ? 14 : 11,
-              fontWeight: bold ? 700 : 400,
+              fontSize: bold ? 14 : 11, fontWeight: bold ? 700 : 400,
               color: bold ? ACCENT : '#666',
             }}>
               {fmtM(value)}

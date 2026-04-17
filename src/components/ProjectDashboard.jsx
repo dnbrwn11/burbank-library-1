@@ -11,15 +11,20 @@ const HEADER = '#222222';
 const BG = '#F9F9F8';
 
 const BUILDING_TYPES = [
-  'Library / Civic Center', 'Office', 'Multi-Family Residential',
-  'Mixed-Use', 'Retail', 'Hospitality', 'Industrial',
-  'Healthcare', 'Education', 'Parking Structure', 'Other',
+  'Civic/Library', 'K-12 Education', 'Higher Education', 'Healthcare/Hospital',
+  'Office', 'High-Rise Residential', 'Mid-Rise Residential', 'Low-Rise Residential',
+  'Hotel/Hospitality', 'Mixed-Use', 'Retail', 'Industrial/Warehouse',
+  'Data Center', 'Arena/Stadium', 'Parking Structure', 'Religious/Worship',
+  'Restaurant', 'Laboratory/Research', 'Courthouse', 'Fire/Police Station',
+  'Community Center', 'Museum', 'Performing Arts', 'Convention Center',
+  'Airport Terminal', 'Transit Station', 'Water/Wastewater', 'Other',
 ];
+
 const DELIVERY_METHODS = [
   'CM at Risk (GMP)', 'Design-Bid-Build', 'Design-Build',
-  'Lump Sum', 'IDIQ / Task Order',
+  'CM Multi-Prime', 'IPD', 'Construction Management Agency',
 ];
-const LABOR_TYPES = ['Prevailing Wage', 'Union', 'Open Shop', 'Mixed'];
+
 const US_STATES = [
   'AL','AK','AZ','AR','CA','CO','CT','DE','FL','GA','HI','ID','IL','IN',
   'IA','KS','KY','LA','ME','MD','MA','MI','MN','MS','MO','MT','NE','NV',
@@ -29,7 +34,7 @@ const US_STATES = [
 
 const EMPTY_FORM = {
   name: '', city: '', state: '', building_type: '',
-  delivery_method: '', labor_type: '', gross_sf: '', target_budget: '',
+  delivery_method: '', target_budget: '', target_budget_tbd: false,
 };
 
 export default function ProjectDashboard({ user, onSignOut, onSelectProject, onProjectCreated }) {
@@ -53,7 +58,7 @@ export default function ProjectDashboard({ user, onSignOut, onSelectProject, onP
 
   const handleCreate = async (e) => {
     e.preventDefault();
-    if (saving) return; // guard against double-submit
+    if (saving) return;
     setSaving(true);
     setFormError(null);
     try {
@@ -64,18 +69,15 @@ export default function ProjectDashboard({ user, onSignOut, onSelectProject, onP
           state: form.state,
           building_type: form.building_type,
           delivery_method: form.delivery_method,
-          labor_type: form.labor_type,
-          gross_sf: form.gross_sf ? parseInt(form.gross_sf, 10) : null,
-          target_budget: form.target_budget ? parseFloat(form.target_budget) : null,
+          labor_type: null,
+          gross_sf: null,
+          target_budget: (!form.target_budget_tbd && form.target_budget) ? parseFloat(form.target_budget) : null,
         },
-        user.id, // pass userId so createProject skips supabase.auth.getUser()
+        user.id,
       );
       if (error) {
-        console.error('[handleCreate] createProject error — full object:', error);
-        console.error('[handleCreate] code:', error?.code, '| message:', error?.message, '| details:', error?.details, '| hint:', error?.hint);
+        console.error('[handleCreate] createProject error:', error);
         if (isLockError(error)) {
-          // Lock errors are auth race conditions — project may still have been created.
-          // Query for a matching project before surfacing an error.
           const { data: existing } = await getProjects();
           const created = existing?.find(p => p.name === form.name.trim());
           if (created) {
@@ -86,7 +88,6 @@ export default function ProjectDashboard({ user, onSignOut, onSelectProject, onP
           }
           setFormError('Project creation failed due to a temporary issue. Please try again.');
         } else {
-          // Show the real Supabase error — code + message together when available
           const detail = [error.code, error.message].filter(Boolean).join(': ');
           setFormError(detail || 'Project creation failed. Check the browser console for details.');
         }
@@ -109,7 +110,6 @@ export default function ProjectDashboard({ user, onSignOut, onSelectProject, onP
 
   return (
     <div style={{ minHeight: '100vh', background: BG, display: 'flex', flexDirection: 'column' }}>
-      {/* Header */}
       <header style={{
         background: HEADER, height: 56, padding: '0 28px',
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
@@ -122,9 +122,7 @@ export default function ProjectDashboard({ user, onSignOut, onSelectProject, onP
           COSTDECK
         </span>
         <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-          <span style={{
-            color: '#888', fontFamily: "'Figtree', sans-serif", fontSize: 13,
-          }}>
+          <span style={{ color: '#888', fontFamily: "'Figtree', sans-serif", fontSize: 13 }}>
             {user.email}
           </span>
           <button
@@ -142,7 +140,6 @@ export default function ProjectDashboard({ user, onSignOut, onSelectProject, onP
       </header>
 
       <main style={{ flex: 1, maxWidth: 880, width: '100%', margin: '0 auto', padding: '44px 24px' }}>
-        {/* Page title + New Project button */}
         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 32 }}>
           <div>
             <h1 style={{
@@ -171,7 +168,6 @@ export default function ProjectDashboard({ user, onSignOut, onSelectProject, onP
           </button>
         </div>
 
-        {/* New project form */}
         {showForm && (
           <div style={{
             background: '#fff', border: '1px solid #e6e6e2',
@@ -181,45 +177,68 @@ export default function ProjectDashboard({ user, onSignOut, onSelectProject, onP
           }}>
             <h2 style={{
               fontFamily: "'Archivo', sans-serif", fontWeight: 700,
-              fontSize: 17, color: '#111', marginBottom: 22,
+              fontSize: 17, color: '#111', marginBottom: 6,
             }}>
               New Project
             </h2>
+            <p style={{
+              fontFamily: "'Figtree', sans-serif", fontSize: 13, color: '#999', marginBottom: 22,
+            }}>
+              Enter the basics — you'll add size, scope, and technical details on the next screen.
+            </p>
             <form onSubmit={handleCreate}>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px 20px' }}>
+
                 <FormField label="Project Name" required span={2}>
                   <FormInput
                     value={form.name} onChange={set('name')}
                     placeholder="e.g. Downtown Civic Center" required
                   />
                 </FormField>
+
                 <FormField label="City" required>
                   <FormInput value={form.city} onChange={set('city')} placeholder="e.g. Los Angeles" required />
                 </FormField>
+
                 <FormField label="State" required>
                   <FormSelect value={form.state} onChange={set('state')} options={US_STATES} required />
                 </FormField>
+
                 <FormField label="Building Type" required>
                   <FormSelect value={form.building_type} onChange={set('building_type')} options={BUILDING_TYPES} required />
                 </FormField>
+
                 <FormField label="Delivery Method" required>
                   <FormSelect value={form.delivery_method} onChange={set('delivery_method')} options={DELIVERY_METHODS} required />
                 </FormField>
-                <FormField label="Labor Type" required>
-                  <FormSelect value={form.labor_type} onChange={set('labor_type')} options={LABOR_TYPES} required />
-                </FormField>
-                <FormField label="Gross SF">
-                  <FormInput
-                    type="number" value={form.gross_sf} onChange={set('gross_sf')}
-                    placeholder="97,500" min="0"
-                  />
-                </FormField>
+
                 <FormField label="Target Budget ($)">
                   <FormInput
-                    type="number" value={form.target_budget} onChange={set('target_budget')}
-                    placeholder="45,000,000" min="0"
+                    type="number"
+                    value={form.target_budget_tbd ? '' : form.target_budget}
+                    onChange={set('target_budget')}
+                    placeholder="45,000,000"
+                    min="0"
+                    disabled={form.target_budget_tbd}
                   />
+                  <label style={{
+                    display: 'flex', alignItems: 'center', gap: 7, marginTop: 8,
+                    cursor: 'pointer', fontFamily: "'Figtree', sans-serif",
+                    fontSize: 12, color: '#666', userSelect: 'none',
+                  }}>
+                    <input
+                      type="checkbox"
+                      checked={form.target_budget_tbd}
+                      onChange={e => {
+                        set('target_budget_tbd')(e.target.checked);
+                        if (e.target.checked) set('target_budget')('');
+                      }}
+                      style={{ width: 14, height: 14, accentColor: ACCENT, cursor: 'pointer' }}
+                    />
+                    TBD / Unknown
+                  </label>
                 </FormField>
+
               </div>
 
               {formError && (
@@ -231,7 +250,7 @@ export default function ProjectDashboard({ user, onSignOut, onSelectProject, onP
                 </p>
               )}
 
-              <div style={{ marginTop: 22, display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
+              <div style={{ marginTop: 24, display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
                 <button
                   type="button"
                   onClick={() => { setShowForm(false); setForm(EMPTY_FORM); setFormError(null); }}
@@ -254,14 +273,13 @@ export default function ProjectDashboard({ user, onSignOut, onSelectProject, onP
                     cursor: saving ? 'not-allowed' : 'pointer',
                   }}
                 >
-                  {saving ? 'Creating…' : 'Create Project'}
+                  {saving ? 'Creating…' : 'Continue →'}
                 </button>
               </div>
             </form>
           </div>
         )}
 
-        {/* Project list */}
         {loadingProjects ? (
           <div style={{
             textAlign: 'center', padding: 64,
@@ -316,9 +334,7 @@ function ProjectCard({ project: p, onSelect, fmtBudget }) {
           {p.name}
         </div>
         <div style={{ fontFamily: "'Figtree', sans-serif", fontSize: 13, color: '#999', display: 'flex', flexWrap: 'wrap', gap: '4px 10px' }}>
-          {(p.city || p.state) && (
-            <span>{[p.city, p.state].filter(Boolean).join(', ')}</span>
-          )}
+          {(p.city || p.state) && <span>{[p.city, p.state].filter(Boolean).join(', ')}</span>}
           {p.building_type && <span>· {p.building_type}</span>}
           {p.gross_sf && <span>· {p.gross_sf.toLocaleString()} SF</span>}
           {p.target_budget && <span>· {fmtBudget(p.target_budget)} budget</span>}
@@ -365,7 +381,7 @@ function FormField({ label, required, span, children }) {
   );
 }
 
-function FormInput({ value, onChange, placeholder, type = 'text', required, min }) {
+function FormInput({ value, onChange, placeholder, type = 'text', required, min, disabled }) {
   return (
     <input
       type={type}
@@ -374,14 +390,18 @@ function FormInput({ value, onChange, placeholder, type = 'text', required, min 
       placeholder={placeholder}
       required={required}
       min={min}
+      disabled={disabled}
       style={{
         width: '100%', padding: '9px 12px',
         border: '1.5px solid #e0e0dc', borderRadius: 7,
         fontFamily: "'Figtree', sans-serif", fontSize: 14,
         outline: 'none', boxSizing: 'border-box',
         transition: 'border-color 0.15s',
+        background: disabled ? '#f5f5f3' : '#fff',
+        color: disabled ? '#aaa' : '#111',
+        cursor: disabled ? 'not-allowed' : 'text',
       }}
-      onFocus={e => { e.target.style.borderColor = ACCENT; }}
+      onFocus={e => { if (!disabled) e.target.style.borderColor = ACCENT; }}
       onBlur={e => { e.target.style.borderColor = '#e0e0dc'; }}
     />
   );
@@ -400,6 +420,8 @@ function FormSelect({ value, onChange, options, required }) {
         outline: 'none', boxSizing: 'border-box',
         background: '#fff', cursor: 'pointer',
       }}
+      onFocus={e => { e.target.style.borderColor = ACCENT; }}
+      onBlur={e => { e.target.style.borderColor = '#e0e0dc'; }}
     >
       <option value="">Select…</option>
       {options.map(o => <option key={o} value={o}>{o}</option>)}
