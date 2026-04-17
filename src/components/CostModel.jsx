@@ -160,12 +160,11 @@ export function CostModel({ items, globals, activeItems, totals, updateItem, bsf
                       <th key={i} style={{
                         position: 'sticky', top: 0, zIndex: 2,
                         background: '#F5F5F0',
-                        padding: '9px 8px',
+                        padding: h === 'Description' ? '9px 16px 9px 8px' : '9px 8px',
                         textAlign: ['Description', 'Sub'].includes(h) ? 'left' : 'right',
                         fontSize: 9, fontFamily: FONTS.heading, fontWeight: 600,
                         color: COLORS.mg, textTransform: 'uppercase', letterSpacing: 1,
                         borderBottom: `2px solid ${COLORS.gn}22`,
-                        whiteSpace: 'nowrap',
                       }}>{h}</th>
                     ))}
                 </tr>
@@ -192,7 +191,7 @@ export function CostModel({ items, globals, activeItems, totals, updateItem, bsf
                           <td style={{ padding: '0 8px', cursor: 'pointer' }} onClick={() => setExpR(ex ? null : item.id)}>
                             <span style={{ color: hasAI ? COLORS.gn : COLORS.mg, fontSize: 8 }}>{ex ? '▼' : '▸'}</span>
                           </td>
-                          <td style={{ padding: '4px 8px', overflow: 'hidden' }}><EditField value={item.description} onCommit={uI(item.id, 'description')} type="text" /></td>
+                          <td style={{ padding: '4px 16px 4px 8px' }}><EditField value={item.description} onCommit={uI(item.id, 'description')} type="text" /></td>
                           <td style={{ padding: '4px 8px', fontSize: 10, color: COLORS.mg, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.subcategory}</td>
                           {!tab && <td style={{ padding: '4px 8px' }}><EditField value={item.qtyMin} onCommit={uI(item.id, 'qtyMin')} /></td>}
                           <td style={{ padding: '4px 8px' }}><EditField value={item[tab ? 'qtyMin' : 'qtyMax']} onCommit={uI(item.id, tab ? 'qtyMin' : 'qtyMax')} /></td>
