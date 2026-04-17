@@ -350,8 +350,32 @@ function MembersTab({ org, user, orgRole }) {
   useEffect(() => { load(); }, [org?.id]);
 
   const load = async () => {
+    setLoading(true);
     const { data } = await getOrgMembers(org.id);
-    setMembers(data || []);
+    let list = data || [];
+
+    // The org owner must always appear. If they're missing from organization_members
+    // (e.g. legacy row, RLS gap, or alternate creation path), fetch their profile
+    // and prepend a synthetic entry so the list is never empty.
+    if (!list.find(m => m.user_id === user.id)) {
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('full_name, email, avatar_url')
+        .eq('id', user.id)
+        .single();
+      list = [
+        {
+          user_id: user.id,
+          role: orgRole || 'owner',
+          joined_at: null,
+          invited_at: null,
+          profiles: profile || { full_name: null, email: user.email, avatar_url: null },
+        },
+        ...list,
+      ];
+    }
+
+    setMembers(list);
     setLoading(false);
   };
 
@@ -364,7 +388,13 @@ function MembersTab({ org, user, orgRole }) {
       const res = await fetch('/api/send-invite', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session?.access_token}` },
-        body: JSON.stringify({ type: 'org', orgId: org.id, inviteeEmail: inviteEmail.trim(), role: inviteRole, origin: window.location.origin }),
+        body: JSON.stringify({
+          type: 'org',
+          orgId: org.id,
+          inviteeEmail: inviteEmail.trim(),
+          role: inviteRole,
+          origin: window.location.origin,
+        }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to send invite');
@@ -384,57 +414,18 @@ function MembersTab({ org, user, orgRole }) {
     setRemoving(null);
   };
 
+  const memberCount = loading ? '…' : members.length;
+
   return (
     <div style={{ maxWidth: 600, padding: '36px 28px' }}>
-      {/* Invite form */}
-      {isAdmin && (
-        <div style={{ background: '#fff', border: '1px solid #e6e6e2', borderRadius: 12, padding: '20px 22px', marginBottom: 24 }}>
-          <div style={{ ...LBL, marginBottom: 14 }}>Invite Team Member</div>
-          <form onSubmit={sendInvite} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            <input
-              type="email" value={inviteEmail} onChange={e => setInviteEmail(e.target.value)}
-              placeholder="colleague@company.com" required
-              style={INP}
-              onFocus={e => { e.target.style.borderColor = ACCENT; }}
-              onBlur={e => { e.target.style.borderColor = '#e0e0dc'; }}
-            />
-            <div style={{ display: 'flex', gap: 8 }}>
-              <select
-                value={inviteRole} onChange={e => setInviteRole(e.target.value)}
-                style={{ ...INP, flex: 1, cursor: 'pointer' }}
-              >
-                <option value="member">Member</option>
-                <option value="admin">Admin</option>
-              </select>
-              <button
-                type="submit"
-                disabled={sending || !inviteEmail.trim()}
-                style={{ background: (sending || !inviteEmail.trim()) ? '#ddd' : ACCENT, color: '#fff', border: 'none', borderRadius: 7, padding: '9px 20px', fontFamily: "'Archivo', sans-serif", fontWeight: 700, fontSize: 13, cursor: 'pointer', whiteSpace: 'nowrap' }}
-              >
-                {sending ? 'Sending…' : 'Send Invite'}
-              </button>
-            </div>
-            {msg && (
-              <div style={{ fontSize: 12, color: msg.ok ? '#16a34a' : '#dc2626', padding: '6px 10px', borderRadius: 5, background: msg.ok ? '#f0fdf4' : '#fef2f2' }}>
-                {msg.text}
-              </div>
-            )}
-            <p style={{ fontSize: 11, color: '#aaa', fontFamily: "'Figtree', sans-serif", margin: 0 }}>
-              Admins can manage team and settings. Members can view and edit projects.
-            </p>
-          </form>
-        </div>
-      )}
 
       {/* Member list */}
-      <div style={{ background: '#fff', border: '1px solid #e6e6e2', borderRadius: 12, overflow: 'hidden' }}>
+      <div style={{ background: '#fff', border: '1px solid #e6e6e2', borderRadius: 12, overflow: 'hidden', marginBottom: 24 }}>
         <div style={{ padding: '14px 20px', borderBottom: '1px solid #f0f0ee', fontFamily: "'Archivo', sans-serif", fontWeight: 700, fontSize: 11, color: '#888', letterSpacing: 1, textTransform: 'uppercase' }}>
-          Members ({loading ? '…' : members.length})
+          Members ({memberCount})
         </div>
         {loading ? (
           <div style={{ padding: '20px', fontFamily: "'Figtree', sans-serif", fontSize: 13, color: '#aaa' }}>Loading…</div>
-        ) : members.length === 0 ? (
-          <div style={{ padding: '20px', fontFamily: "'Figtree', sans-serif", fontSize: 13, color: '#aaa' }}>No members yet.</div>
         ) : (
           members.map(m => {
             const displayName = m.profiles?.full_name || m.profiles?.email || '(no profile)';
@@ -444,11 +435,9 @@ function MembersTab({ org, user, orgRole }) {
 
             return (
               <div key={m.user_id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 20px', borderBottom: '1px solid #f5f5f5' }}>
-                {/* Avatar */}
                 <div style={{ width: 34, height: 34, borderRadius: '50%', background: ACCENT, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 700, color: '#fff', fontFamily: "'Archivo', sans-serif", flexShrink: 0 }}>
-                  {(m.profiles?.full_name || m.profiles?.email || '?').split(/\s+/).slice(0, 2).map(w => w[0]).join('').toUpperCase().slice(0, 2)}
+                  {(m.profiles?.full_name || m.profiles?.email || '?').split(/\s+/).slice(0, 2).map(w => w[0]).join('').toUpperCase().slice(0, 2) || '?'}
                 </div>
-                {/* Name + email */}
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontSize: 13, fontWeight: 600, color: '#222', fontFamily: "'Figtree', sans-serif", whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                     {displayName}
@@ -474,6 +463,57 @@ function MembersTab({ org, user, orgRole }) {
           })
         )}
       </div>
+
+      {/* Invite form — below the list, owners/admins only */}
+      {isAdmin && (
+        <div style={{ background: '#fff', border: '1px solid #e6e6e2', borderRadius: 12, padding: '22px 22px' }}>
+          <div style={{ ...LBL, marginBottom: 14 }}>Invite Member</div>
+          <form onSubmit={sendInvite} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <input
+              type="email"
+              value={inviteEmail}
+              onChange={e => setInviteEmail(e.target.value)}
+              placeholder="colleague@company.com"
+              required
+              style={INP}
+              onFocus={e => { e.target.style.borderColor = ACCENT; }}
+              onBlur={e => { e.target.style.borderColor = '#e0e0dc'; }}
+            />
+            <div style={{ display: 'flex', gap: 8 }}>
+              <select
+                value={inviteRole}
+                onChange={e => setInviteRole(e.target.value)}
+                style={{ ...INP, flex: 1, cursor: 'pointer' }}
+              >
+                <option value="member">Member</option>
+                <option value="admin">Admin</option>
+              </select>
+              <button
+                type="submit"
+                disabled={sending || !inviteEmail.trim()}
+                style={{
+                  background: (sending || !inviteEmail.trim()) ? '#ddd' : ACCENT,
+                  color: '#fff', border: 'none', borderRadius: 7,
+                  padding: '9px 20px', fontFamily: "'Archivo', sans-serif",
+                  fontWeight: 700, fontSize: 13,
+                  cursor: (sending || !inviteEmail.trim()) ? 'default' : 'pointer',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {sending ? 'Sending…' : 'Send Invite'}
+              </button>
+            </div>
+            {msg && (
+              <div style={{ fontSize: 12, color: msg.ok ? '#16a34a' : '#dc2626', padding: '6px 10px', borderRadius: 5, background: msg.ok ? '#f0fdf4' : '#fef2f2', fontFamily: "'Figtree', sans-serif" }}>
+                {msg.text}
+              </div>
+            )}
+            <p style={{ fontSize: 11, color: '#aaa', fontFamily: "'Figtree', sans-serif", margin: 0 }}>
+              Admins can manage team members and org settings. Members can view and edit projects.
+            </p>
+          </form>
+        </div>
+      )}
     </div>
   );
 }
