@@ -9,4 +9,15 @@ if (!supabaseUrl || !supabaseAnonKey) {
   );
 }
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+  auth: {
+    flowType: 'pkce',
+    autoRefreshToken: true,
+    persistSession: true,
+    detectSessionInUrl: true,
+    // Disable the internal mutex so parallel requests don't steal each
+    // other's lock during token refresh. All auth operations in this app
+    // are already serialized at the call-site.
+    lock: async (_name, _acquireTimeout, fn) => fn(),
+  },
+});

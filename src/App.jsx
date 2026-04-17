@@ -1,7 +1,7 @@
 import { useState, useMemo, useCallback } from 'react';
 import { useAuth } from './supabase/useAuth';
 import { useWindowSize } from './hooks/useWindowSize';
-import { useScenarios } from './hooks/useScenarios';
+import { useProjectData } from './hooks/useProjectData';
 import * as CE from './engine/CostEngine';
 import { fetchAIAdvice } from './engine/AIAdvisor';
 import { CATEGORIES } from './data/seedData';
@@ -78,8 +78,9 @@ function CostModelApp({ user, project, onBack, onSignOut }) {
   const { mob } = useWindowSize();
   const {
     scenarios, active, activeId, setActiveId,
-    audit, updateItem, updateGlobal, addScenario, deleteScenario,
-  } = useScenarios();
+    audit, loading, error, saveError, setSaveError,
+    updateItem, updateGlobal, addScenario, deleteScenario,
+  } = useProjectData(project.id);
 
   const [view, setView] = useState('dashboard');
   const [showNewScen, setShowNewScen] = useState(false);
@@ -136,8 +137,58 @@ function CostModelApp({ user, project, onBack, onSignOut }) {
     ['audit', 'AUDIT'],
   ];
 
+  // Loading screen while scenarios + line items fetch
+  if (loading) {
+    return (
+      <div style={{ minHeight: '100vh', background: COLORS.bg, display: 'flex', flexDirection: 'column' }}>
+        <div style={{ background: HEADER, height: 52, padding: '0 20px', display: 'flex', alignItems: 'center' }}>
+          <span style={{ color: ACCENT, fontFamily: "'Archivo', sans-serif", fontWeight: 800, fontSize: 16, letterSpacing: 2 }}>COSTDECK</span>
+          <span style={{ color: '#555', fontSize: 11, marginLeft: 12 }}>{project.name}</span>
+        </div>
+        <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 12 }}>
+          <div style={{ fontFamily: "'Figtree', sans-serif", color: '#aaa', fontSize: 14 }}>Loading project data…</div>
+          <div style={{ width: 200, height: 3, background: '#eee', borderRadius: 2, overflow: 'hidden' }}>
+            <div style={{ height: '100%', width: '60%', background: ACCENT, borderRadius: 2, animation: 'pulse 1.4s ease-in-out infinite' }} />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Hard error (e.g. network failure on load)
+  if (error) {
+    return (
+      <div style={{ minHeight: '100vh', background: COLORS.bg, display: 'flex', flexDirection: 'column' }}>
+        <div style={{ background: HEADER, height: 52, padding: '0 20px', display: 'flex', alignItems: 'center' }}>
+          <span style={{ color: ACCENT, fontFamily: "'Archivo', sans-serif", fontWeight: 800, fontSize: 16, letterSpacing: 2 }}>COSTDECK</span>
+        </div>
+        <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+          <div style={{ background: '#fff', border: '1px solid #fdd', borderRadius: 12, padding: 32, maxWidth: 420, textAlign: 'center' }}>
+            <div style={{ fontSize: 28, marginBottom: 12 }}>⚠️</div>
+            <div style={{ fontFamily: "'Archivo', sans-serif", fontWeight: 700, fontSize: 16, color: '#333', marginBottom: 8 }}>Failed to load project</div>
+            <div style={{ fontFamily: "'Figtree', sans-serif", color: '#888', fontSize: 14, marginBottom: 20 }}>{error}</div>
+            <button onClick={onBack} style={{ background: ACCENT, color: '#fff', border: 'none', borderRadius: 8, padding: '10px 24px', fontFamily: "'Archivo', sans-serif", fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>← Back to Projects</button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div style={{ fontFamily: FONTS.body, background: COLORS.bg, color: COLORS.dg, minHeight: '100vh' }}>
+      {/* Save error banner */}
+      {saveError && (
+        <div style={{
+          background: '#fef2f2', borderBottom: '1px solid #fca5a5',
+          padding: '8px 20px', display: 'flex', alignItems: 'center',
+          justifyContent: 'space-between', gap: 12,
+        }}>
+          <span style={{ fontFamily: "'Figtree', sans-serif", fontSize: 13, color: '#991b1b' }}>
+            ⚠ {saveError}
+          </span>
+          <button onClick={() => setSaveError(null)} style={{ background: 'none', border: 'none', color: '#991b1b', fontSize: 16, cursor: 'pointer', lineHeight: 1 }}>×</button>
+        </div>
+      )}
       {/* Header */}
       <div style={{
         background: HEADER, padding: mob ? '8px 12px' : '0 20px',

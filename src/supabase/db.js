@@ -24,42 +24,56 @@ export async function getProject(projectId) {
   return { data, error };
 }
 
-export async function createProject(project) {
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return { data: null, error: { message: 'Not authenticated' } };
+export async function createProject(project, userId) {
+  // Accept userId as a parameter so this function never has to call
+  // supabase.auth.getUser() — that call acquires the GoTrue lock and can
+  // race with onAuthStateChange during page load.
+  if (!userId) {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return { data: null, error: { message: 'Not authenticated' } };
+    userId = user.id;
+  }
 
+  // Step 1: insert the project row
   const { data, error } = await supabase
     .from('projects')
-    .insert({ ...project, owner_id: user.id })
+    .insert({ ...project, owner_id: userId })
     .select()
     .single();
 
-  // Auto-create a Baseline scenario for the new project
-  if (data && !error) {
-    await supabase
-      .from('scenarios')
-      .insert({
-        project_id: data.id,
-        name: 'Baseline',
-        is_baseline: true,
-        globals: {
-          escalation: 0.04,
-          laborBurden: 0.42,
-          tax: 0.0975,
-          insurance: 0.012,
-          contingency: 0.05,
-          fee: 0.045,
-          regionFactor: 1.15,
-          bond: 0.008,
-          generalConditions: 0.08,
-          buildingSF: project.gross_sf || 0,
-          parkingStalls: project.parking_stalls || 0,
-          openSpaceSF: 0,
-        },
-      });
+  if (error || !data) return { data, error };
+
+  // Step 2: create the Baseline scenario — must complete before the caller
+  // navigates into the project so useProjectData finds at least one scenario.
+  const { error: scError } = await supabase
+    .from('scenarios')
+    .insert({
+      project_id: data.id,
+      name: 'Baseline',
+      is_baseline: true,
+      globals: {
+        escalation: 0.04,
+        laborBurden: 0.42,
+        tax: 0.0975,
+        insurance: 0.012,
+        contingency: 0.05,
+        fee: 0.045,
+        regionFactor: 1.15,
+        bond: 0.008,
+        generalConditions: 0.08,
+        buildingSF: project.gross_sf || 0,
+        parkingStalls: project.parking_stalls || 0,
+        openSpaceSF: 0,
+      },
+    })
+    .select()
+    .single();
+
+  if (scError) {
+    console.error('Failed to create Baseline scenario:', scError.message);
   }
 
-  return { data, error };
+  return { data, error: null };
 }
 
 export async function updateProject(projectId, updates) {

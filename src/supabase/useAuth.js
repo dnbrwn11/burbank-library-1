@@ -32,23 +32,10 @@ export function useAuth() {
   }, []);
 
   useEffect(() => {
-    // Check active session on mount
-    const getSession = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      const currentUser = session?.user ?? null;
-      setUser(currentUser);
-
-      if (currentUser) {
-        const p = await fetchProfile(currentUser.id);
-        setProfile(p);
-      }
-
-      setLoading(false);
-    };
-
-    getSession();
-
-    // Listen for auth changes (magic link callback, sign out, etc.)
+    // onAuthStateChange fires INITIAL_SESSION immediately on subscribe with
+    // the current session (or null). We intentionally do NOT call getSession()
+    // separately — doing both in parallel is what causes the GoTrue lock
+    // contention error ("Lock was released because another request stole it").
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (_event, session) => {
         const currentUser = session?.user ?? null;

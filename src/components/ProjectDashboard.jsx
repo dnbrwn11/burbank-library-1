@@ -48,26 +48,33 @@ export default function ProjectDashboard({ user, onSignOut, onSelectProject }) {
 
   const handleCreate = async (e) => {
     e.preventDefault();
+    if (saving) return; // guard against double-submit
     setSaving(true);
     setFormError(null);
-    const { data, error } = await createProject({
-      name: form.name.trim(),
-      city: form.city.trim(),
-      state: form.state,
-      building_type: form.building_type,
-      delivery_method: form.delivery_method,
-      labor_type: form.labor_type,
-      gross_sf: form.gross_sf ? parseInt(form.gross_sf, 10) : null,
-      target_budget: form.target_budget ? parseFloat(form.target_budget) : null,
-    });
-    if (error) {
-      setFormError(error.message);
+    try {
+      const { data, error } = await createProject(
+        {
+          name: form.name.trim(),
+          city: form.city.trim(),
+          state: form.state,
+          building_type: form.building_type,
+          delivery_method: form.delivery_method,
+          labor_type: form.labor_type,
+          gross_sf: form.gross_sf ? parseInt(form.gross_sf, 10) : null,
+          target_budget: form.target_budget ? parseFloat(form.target_budget) : null,
+        },
+        user.id, // pass userId so createProject skips supabase.auth.getUser()
+      );
+      if (error) {
+        setFormError(error.message);
+      } else {
+        setForm(EMPTY_FORM);
+        setShowForm(false);
+        await loadProjects();
+        if (data) onSelectProject(data);
+      }
+    } finally {
       setSaving(false);
-    } else {
-      setForm(EMPTY_FORM);
-      setShowForm(false);
-      await loadProjects();
-      if (data) onSelectProject(data);
     }
   };
 
