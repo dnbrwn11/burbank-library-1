@@ -252,6 +252,12 @@ function Nav({ onShowLogin, scrollTo }) {
 
       {/* Right actions */}
       <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 14 }}>
+        <button className="lp-link lp-nav-si"
+          onClick={() => { window.location.href = '/demo'; }}
+          style={{ color: GOLD, fontFamily: "'Figtree', sans-serif", fontSize: 14, fontWeight: 600 }}
+        >
+          Try Live Demo
+        </button>
         <button className="lp-link lp-nav-si" onClick={onShowLogin}
           style={{ color: 'rgba(255,255,255,0.6)', fontFamily: "'Figtree', sans-serif", fontSize: 14, fontWeight: 500 }}
         >
@@ -435,10 +441,10 @@ export default function LandingPage({ onShowLogin }) {
                 </button>
                 <button
                   className="lp-btn-outline"
-                  onClick={() => scrollTo('how-it-works')}
+                  onClick={() => { window.location.href = '/demo'; }}
                   style={{ background: 'transparent', color: 'rgba(255,255,255,0.75)', border: '1.5px solid rgba(255,255,255,0.3)', borderRadius: 10, padding: '14px 28px', fontFamily: "'Archivo', sans-serif", fontWeight: 600, fontSize: 15 }}
                 >
-                  See How It Works
+                  Try Live Demo
                 </button>
               </div>
             </FadeIn>
