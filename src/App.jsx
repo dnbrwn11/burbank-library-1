@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback, useEffect } from 'react';
+import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { useAuth } from './supabase/useAuth';
 import { useWindowSize } from './hooks/useWindowSize';
 import { useProjectData } from './hooks/useProjectData';
@@ -168,6 +168,12 @@ export default function App() {
   }
 
   if (generatingProject && !activeProject) {
+    // Skip AI Generator for sample projects — go directly to cost model
+    if (generatingProject.name?.startsWith('Sample:')) {
+      setActiveProject(generatingProject);
+      setGeneratingProject(null);
+      return null;
+    }
     return (
       <AIGenerator
         project={generatingProject}
@@ -201,6 +207,43 @@ export default function App() {
       onBack={() => setActiveProject(null)}
       onSignOut={handleSignOut}
     />
+  );
+}
+
+// ─── Save indicator ──────────────────────────────────────────────────────────
+
+function SaveIndicator({ savePending, lastSaved }) {
+  const [visible, setVisible] = useState(false);
+  const [isSaved, setIsSaved] = useState(false);
+  const fadeTimer = useRef(null);
+  const prevLastSaved = useRef(null);
+
+  useEffect(() => {
+    if (savePending > 0) {
+      setVisible(true);
+      setIsSaved(false);
+      if (fadeTimer.current) clearTimeout(fadeTimer.current);
+    } else if (lastSaved && lastSaved !== prevLastSaved.current) {
+      prevLastSaved.current = lastSaved;
+      setIsSaved(true);
+      setVisible(true);
+      if (fadeTimer.current) clearTimeout(fadeTimer.current);
+      fadeTimer.current = setTimeout(() => setVisible(false), 3000);
+    }
+    return () => { if (fadeTimer.current) clearTimeout(fadeTimer.current); };
+  }, [savePending, lastSaved]);
+
+  if (!visible) return null;
+
+  return (
+    <span style={{
+      fontSize: 10, fontFamily: "'Figtree', sans-serif",
+      color: isSaved ? '#4ade80' : '#888',
+      marginLeft: 10, whiteSpace: 'nowrap',
+      transition: 'opacity 0.3s',
+    }}>
+      {isSaved ? 'Saved \u2713' : 'Saving\u2026'}
+    </span>
   );
 }
 
@@ -388,8 +431,26 @@ function CostModelApp({ user, project, onBack, onSignOut }) {
   const {
     scenarios, active, activeId, setActiveId,
     audit, loading, error, saveError, setSaveError,
+    savePending, lastSaved,
     updateItem, createItem, reorderItems, updateGlobal, addScenario, deleteScenario,
   } = useProjectData(project.id);
+
+  // Undo ref — CostModel registers its undo handler here
+  const undoFnRef = useRef(null);
+
+  // Global Ctrl+Z / Cmd+Z → delegate to registered undo handler
+  useEffect(() => {
+    const handler = (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
+        if (undoFnRef.current) {
+          e.preventDefault();
+          undoFnRef.current();
+        }
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, []);
 
   const [view, setView] = useState('dashboard');
   const [showNewScen, setShowNewScen] = useState(false);
@@ -559,6 +620,20 @@ function CostModelApp({ user, project, onBack, onSignOut }) {
         </div>
       )}
 
+      {project.name?.startsWith('Sample:') && (
+        <div style={{ background: '#f0f9ff', borderBottom: '1px solid #bae6fd', padding: '8px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+          <span style={{ fontFamily: "'Figtree', sans-serif", fontSize: 12, color: '#0369a1' }}>
+            This is a sample project — explore freely, then create your own estimate.
+          </span>
+          <button
+            onClick={onBack}
+            style={{ background: '#0369a1', color: '#fff', border: 'none', borderRadius: 6, padding: '5px 14px', fontFamily: "'Archivo', sans-serif", fontWeight: 700, fontSize: 11, cursor: 'pointer', whiteSpace: 'nowrap' }}
+          >
+            Create My Project →
+          </button>
+        </div>
+      )}
+
       {/* Header */}
       <div style={{
         background: HEADER, padding: mob ? '8px 12px' : '0 20px',
@@ -585,6 +660,7 @@ function CostModelApp({ user, project, onBack, onSignOut }) {
               {project.name}
             </span>
           )}
+          {!mob && <SaveIndicator savePending={savePending} lastSaved={lastSaved} />}
         </div>
 
         {/* Right: scenario picker + total + team + user */}
@@ -723,7 +799,7 @@ function CostModelApp({ user, project, onBack, onSignOut }) {
       {/* Content */}
       <div style={{ padding: mob ? 12 : 18 }}>
         {view === 'dashboard' && <Dashboard {...viewProps} />}
-        {view === 'estimate' && <CostModel {...viewProps} />}
+        {view === 'estimate' && <CostModel {...viewProps} registerUndo={(fn) => { undoFnRef.current = fn; }} />}
         {view === 'compare' && <Compare {...viewProps} addScenario={addScenario} />}
         {view === 'assumptions' && <Assumptions {...viewProps} scenarioName={active.name} />}
         {view === 'audit' && <AuditLog audit={audit} items={items} updateItem={updateItem} updateGlobal={updateGlobal} />}

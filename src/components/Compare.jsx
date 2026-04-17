@@ -9,12 +9,15 @@ export function Compare({ scenarios, addScenario }) {
 
   if (scenarios.length < 2) {
     return (
-      <div style={{ background: COLORS.wh, border: `1px solid ${COLORS.bd}`, borderRadius: 10, padding: mob ? 24 : 48, textAlign: 'center', fontFamily: FONTS.body }}>
-        <div style={{ fontSize: 16, fontFamily: FONTS.heading, fontWeight: 600, color: COLORS.dg, marginBottom: 12 }}>CREATE A SECOND SCENARIO TO COMPARE</div>
-        <div style={{ fontSize: 13, color: COLORS.mg, marginBottom: 16 }}>Scenarios are independent copies. Change quantities, costs, or assumptions to test options.</div>
-        <div style={{ display: 'flex', gap: 8, justifyContent: 'center', flexWrap: 'wrap' }}>
+      <div style={{ background: COLORS.wh, border: '1.5px dashed #d8d8d4', borderRadius: 12, padding: mob ? 28 : 56, textAlign: 'center', fontFamily: FONTS.body }}>
+        <div style={{ fontSize: 32, marginBottom: 14 }}>⚖</div>
+        <div style={{ fontSize: 18, fontFamily: FONTS.heading, fontWeight: 800, color: COLORS.dg, marginBottom: 10 }}>Create a scenario to compare alternatives</div>
+        <div style={{ fontSize: 13, color: COLORS.mg, marginBottom: 24, maxWidth: 380, margin: '0 auto 24px' }}>
+          Scenarios are independent copies of your estimate. Adjust quantities, costs, or assumptions to model different options side by side.
+        </div>
+        <div style={{ display: 'flex', gap: 10, justifyContent: 'center', flexWrap: 'wrap' }}>
           {SCENARIO_TYPES.filter(t => !scenarios.find(s => s.name === t)).slice(0, 3).map(t => (
-            <button key={t} onClick={() => addScenario(t)} style={{ background: COLORS.yl, color: COLORS.dg, border: 'none', borderRadius: 8, padding: '10px 20px', fontSize: 12, fontFamily: FONTS.heading, fontWeight: 700, cursor: 'pointer' }}>+ {t.toUpperCase()}</button>
+            <button key={t} onClick={() => addScenario(t)} style={{ background: COLORS.gn, color: '#fff', border: 'none', borderRadius: 8, padding: '10px 22px', fontSize: 12, fontFamily: FONTS.heading, fontWeight: 700, cursor: 'pointer' }}>+ {t}</button>
           ))}
         </div>
       </div>

@@ -192,11 +192,14 @@ export default function TeamPanel({ project, user, onClose }) {
               ))}
 
               {nonOwnerMembers.length === 0 && (
-                <div style={{
-                  padding: '16px 20px',
-                  fontFamily: "'Figtree', sans-serif", fontSize: 12, color: '#bbb',
-                }}>
-                  No additional members yet.
+                <div style={{ padding: '24px 20px', textAlign: 'center' }}>
+                  <div style={{ fontSize: 24, marginBottom: 8 }}>👥</div>
+                  <div style={{ fontFamily: "'Archivo', sans-serif", fontWeight: 700, fontSize: 13, color: '#444', marginBottom: 6 }}>
+                    Invite your team to collaborate
+                  </div>
+                  <div style={{ fontFamily: "'Figtree', sans-serif", fontSize: 12, color: '#aaa', lineHeight: 1.5 }}>
+                    Share this project with editors who can update estimates, or viewers who can review and export.
+                  </div>
                 </div>
               )}
             </>

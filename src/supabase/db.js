@@ -95,17 +95,17 @@ export async function archiveProject(projectId) {
   return updateProject(projectId, { status: 'archived' });
 }
 
-export async function duplicateProject(projectId) {
+export async function duplicateProject(projectId, userId) {
   // 1. Get original project
   const { data: original, error: fetchErr } = await getProject(projectId);
   if (fetchErr) return { data: null, error: fetchErr };
 
   // 2. Create new project (strip id, timestamps)
-  const { id, created_at, updated_at, owner_id, ...projectData } = original;
+  const { id, created_at, updated_at, owner_id, org_id, ...projectData } = original;
   const { data: newProject, error: createErr } = await createProject({
     ...projectData,
     name: `${original.name} (Copy)`,
-  });
+  }, userId || owner_id, org_id || null);
   if (createErr) return { data: null, error: createErr };
 
   // 3. Copy scenarios + line items

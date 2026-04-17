@@ -77,6 +77,8 @@ export function useProjectData(projectId) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [saveError, setSaveError] = useState(null);
+  const [savePending, setSavePending] = useState(0);
+  const [lastSaved, setLastSaved] = useState(null);
 
   // Mutable ref kept in sync — lets async callbacks read the latest state
   // without becoming stale closures.
@@ -176,8 +178,11 @@ export function useProjectData(projectId) {
     }));
 
     // Persist — maps camelCase field to snake_case DB column
+    setSavePending(p => p + 1);
     const { error: saveErr } = await updateLineItem(id, { [toDb(field)]: value });
+    setSavePending(p => Math.max(0, p - 1));
     if (saveErr && !isLockError(saveErr)) setSaveError(`Save failed: ${saveErr.message}`);
+    else setLastSaved(new Date());
   }, [activeId, log]);
 
   // ── reorderItems ────────────────────────────────────────────────────────
@@ -225,12 +230,15 @@ export function useProjectData(projectId) {
       inSummary: true,
     }, sortOrder);
 
+    setSavePending(p => p + 1);
     const { data, error: saveErr } = await createLineItem(activeId, row);
+    setSavePending(p => Math.max(0, p - 1));
     if (saveErr) {
       if (!isLockError(saveErr)) setSaveError(`Could not create item: ${saveErr.message}`);
       return { error: saveErr.message };
     }
 
+    setLastSaved(new Date());
     const created = rowToItem(data);
     setScenarios(prev => prev.map(s =>
       s.id === activeId ? { ...s, items: [...s.items, created] } : s
@@ -255,9 +263,14 @@ export function useProjectData(projectId) {
     // The timer reads from the ref at fire time, so it always saves the
     // fully-accumulated state even if multiple fields changed quickly.
     clearTimeout(globalsTimer.current[sid]);
-    globalsTimer.current[sid] = setTimeout(() => {
+    globalsTimer.current[sid] = setTimeout(async () => {
       const latest = scenariosRef.current.find(s => s.id === sid);
-      if (latest) updateGlobals(sid, latest.globals);
+      if (latest) {
+        setSavePending(p => p + 1);
+        await updateGlobals(sid, latest.globals);
+        setSavePending(p => Math.max(0, p - 1));
+        setLastSaved(new Date());
+      }
     }, 800);
   }, [activeId, log]);
 
@@ -323,6 +336,8 @@ export function useProjectData(projectId) {
     error,
     saveError,
     setSaveError,
+    savePending,
+    lastSaved,
     updateItem,
     createItem,
     reorderItems,

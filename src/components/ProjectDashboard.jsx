@@ -1,7 +1,48 @@
 import { useState, useEffect } from 'react';
-import { getProjects, getOrgProjects, createProject } from '../supabase/db';
+import { getProjects, getOrgProjects, createProject, getScenarios, createLineItems, duplicateProject } from '../supabase/db';
 import { analytics } from '../analytics';
 import { OrgAvatar, OrgMenu } from './OrgSettings';
+
+// ── Sample project seed data (25 items, 5 categories) ───────────────────────
+const _si = (cat, sub, desc, qmin, qmax, unit, low, mid, high, sens, order) => ({
+  category: cat, subcategory: sub, description: desc,
+  qty_min: qmin, qty_max: qmax, unit,
+  unit_cost_low: low, unit_cost_mid: mid, unit_cost_high: high,
+  sensitivity: sens, in_summary: true, is_archived: false,
+  sort_order: order, basis: null, notes: null,
+});
+
+const SAMPLE_LINE_ITEMS = [
+  _si('Shell','Structure','Concrete structure & foundations',85000,85000,'SF',45,55,68,'High',0),
+  _si('Shell','Envelope','Building envelope & curtain wall',14000,18000,'SF',95,120,148,'High',1),
+  _si('Shell','Roofing','Roofing system (TPO/PVC)',21000,21000,'SF',20,27,36,'Medium',2),
+  _si('Shell','Glazing','Exterior glazing & storefront entries',2500,4000,'SF',70,90,120,'Medium',3),
+  _si('Shell','Structure','Structural steel — long-span library',120,180,'TON',7000,8500,10500,'Medium',4),
+
+  _si('Interiors','Partitions','Interior partitions & framing',85000,110000,'SF',13,17,24,'Medium',5),
+  _si('Interiors','Flooring','Floor finishes (carpet, VCT, concrete)',85000,85000,'SF',11,16,22,'Medium',6),
+  _si('Interiors','Ceilings','Ceiling finishes (ACT, GWB, open)',72000,72000,'SF',8,12,18,'Low',7),
+  _si('Interiors','Doors','Interior doors & hardware',160,220,'each',1800,2700,3900,'Medium',8),
+  _si('Interiors','Specialties','Signage & wayfinding system',1,1,'LS',140000,270000,440000,'Medium',9),
+  _si('Interiors','Glazing','Interior glazed partitions & sidelights',4000,7000,'SF',58,82,115,'Medium',10),
+
+  _si('Services','Mechanical','HVAC & mechanical systems',85000,85000,'SF',32,43,56,'High',11),
+  _si('Services','Plumbing','Plumbing & fixtures',85000,85000,'SF',13,18,24,'Medium',12),
+  _si('Services','Fire Protection','Fire protection sprinkler system',85000,85000,'SF',6,8,12,'Low',13),
+  _si('Services','Electrical','Electrical & lighting',85000,85000,'SF',22,30,42,'Medium',14),
+  _si('Services','Technology','Data, AV & security systems',85000,85000,'SF',10,15,22,'Medium',15),
+  _si('Services','Vertical Transport','Elevators',3,3,'each',95000,125000,168000,'Medium',16),
+  _si('Services','Controls','Building automation system (BAS)',1,1,'LS',420000,640000,880000,'High',17),
+
+  _si('Sitework','Earthwork','Site preparation, grading & utilities',2,2,'acres',88000,130000,175000,'High',18),
+  _si('Sitework','Hardscape','Hardscape, paving & walks',18000,24000,'SF',12,18,28,'Medium',19),
+  _si('Sitework','Landscape','Landscaping & irrigation',12000,18000,'SF',8,14,22,'Low',20),
+  _si('Sitework','Utilities','Site utility connections',1,1,'LS',175000,280000,420000,'High',21),
+
+  _si('General Conditions','Supervision','General conditions & project supervision',85000,85000,'SF',14,18,24,'Medium',22),
+  _si('General Conditions','Temporary','Temporary facilities & protection',1,1,'LS',110000,180000,270000,'Medium',23),
+  _si('General Conditions','Insurance','Insurance, bonds & permits allowance',1,1,'LS',175000,275000,370000,'Medium',24),
+];
 
 const isLockError = (err) => {
   const msg = (err?.message || '').toLowerCase();
@@ -55,6 +96,41 @@ export default function ProjectDashboard({ user, org, orgRole, onSignOut, onSele
       : await getProjects();
     setProjects(data || []);
     setLoadingProjects(false);
+  };
+
+  const handleCreateSample = async () => {
+    if (saving) return;
+    setSaving(true);
+    setFormError(null);
+    try {
+      const { data, error } = await createProject(
+        {
+          name: 'Sample: 85,000 SF Civic Library',
+          city: 'Burbank',
+          state: 'CA',
+          building_type: 'Civic/Library',
+          delivery_method: 'CM at Risk (GMP)',
+          gross_sf: 85000,
+          target_budget: 45000000,
+        },
+        user.id,
+        org?.id || null,
+      );
+      if (error || !data) {
+        setFormError('Could not create sample project. Please try again.');
+        return;
+      }
+      // Pre-seed sample items so auto-seed (180 items) doesn't run
+      const { data: scenarios } = await getScenarios(data.id);
+      const baseline = scenarios?.[0];
+      if (baseline) {
+        await createLineItems(baseline.id, SAMPLE_LINE_ITEMS);
+      }
+      analytics.projectCreated(data);
+      onProjectCreated ? onProjectCreated(data) : onSelectProject(data);
+    } finally {
+      setSaving(false);
+    }
   };
 
   useEffect(() => { loadProjects(); }, [org?.id]);
@@ -324,14 +400,41 @@ export default function ProjectDashboard({ user, org, orgRole, onSignOut, onSele
             background: '#fff', border: '1.5px dashed #d8d8d4',
             borderRadius: 12,
           }}>
-            <p style={{ fontFamily: "'Figtree', sans-serif", color: '#aaa', fontSize: 15 }}>
-              No projects yet. Create your first one to get started.
+            <div style={{ fontSize: 36, marginBottom: 16 }}>🏛</div>
+            <h2 style={{ fontFamily: "'Archivo', sans-serif", fontWeight: 800, fontSize: 20, color: '#111', marginBottom: 8 }}>
+              Create your first estimate in 60 seconds
+            </h2>
+            <p style={{ fontFamily: "'Figtree', sans-serif", color: '#888', fontSize: 14, marginBottom: 28, maxWidth: 380, margin: '0 auto 28px' }}>
+              Build a detailed construction cost model with AI-powered line items, scenario comparisons, and PDF exports.
             </p>
+            <div style={{ display: 'flex', gap: 12, justifyContent: 'center', flexWrap: 'wrap' }}>
+              <button
+                onClick={() => { setShowForm(true); setFormError(null); }}
+                style={{ background: ACCENT, color: '#fff', border: 'none', borderRadius: 8, padding: '12px 24px', fontFamily: "'Archivo', sans-serif", fontWeight: 700, fontSize: 13, cursor: 'pointer' }}
+              >
+                + New Project
+              </button>
+              <button
+                onClick={handleCreateSample}
+                disabled={saving}
+                style={{ background: '#fff', color: '#555', border: '1.5px solid #ddd', borderRadius: 8, padding: '12px 24px', fontFamily: "'Archivo', sans-serif", fontWeight: 700, fontSize: 13, cursor: saving ? 'default' : 'pointer' }}
+              >
+                {saving ? 'Creating sample…' : 'Try a Sample Project →'}
+              </button>
+            </div>
+            {formError && <p style={{ color: '#c0392b', fontFamily: "'Figtree', sans-serif", fontSize: 13, marginTop: 16 }}>{formError}</p>}
           </div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             {projects.map(p => (
-              <ProjectCard key={p.id} project={p} onSelect={onSelectProject} fmtBudget={fmtBudget} />
+              <ProjectCard
+                key={p.id}
+                project={p}
+                onSelect={onSelectProject}
+                fmtBudget={fmtBudget}
+                userId={user.id}
+                onDuplicated={loadProjects}
+              />
             ))}
           </div>
         )}
@@ -340,59 +443,92 @@ export default function ProjectDashboard({ user, org, orgRole, onSignOut, onSele
   );
 }
 
-function ProjectCard({ project: p, onSelect, fmtBudget }) {
+function ProjectCard({ project: p, onSelect, fmtBudget, userId, onDuplicated }) {
   const [hovered, setHovered] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [duplicating, setDuplicating] = useState(false);
+  const menuRef = useState(null)[0];
+
+  const handleDuplicate = async (e) => {
+    e.stopPropagation();
+    setMenuOpen(false);
+    setDuplicating(true);
+    await duplicateProject(p.id, userId);
+    setDuplicating(false);
+    if (onDuplicated) onDuplicated();
+  };
+
   return (
-    <button
-      onClick={() => onSelect(p)}
+    <div
       onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
-      style={{
-        background: '#fff',
-        border: `1px solid ${hovered ? ACCENT : '#e6e6e2'}`,
-        borderRadius: 10, padding: '18px 22px',
-        textAlign: 'left', cursor: 'pointer',
-        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-        width: '100%', transition: 'border-color 0.15s, box-shadow 0.15s',
-        boxShadow: hovered ? '0 2px 12px rgba(184,144,48,0.1)' : '0 1px 4px rgba(0,0,0,0.04)',
-      }}
+      onMouseLeave={() => { setHovered(false); setMenuOpen(false); }}
+      style={{ position: 'relative' }}
     >
-      <div>
-        <div style={{
-          fontFamily: "'Archivo', sans-serif", fontWeight: 700,
-          fontSize: 16, color: '#111', marginBottom: 5,
-        }}>
-          {p.name}
+      <button
+        onClick={() => onSelect(p)}
+        style={{
+          background: '#fff',
+          border: `1px solid ${hovered ? ACCENT : '#e6e6e2'}`,
+          borderRadius: 10, padding: '18px 22px',
+          textAlign: 'left', cursor: 'pointer',
+          display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+          width: '100%', transition: 'border-color 0.15s, box-shadow 0.15s',
+          boxShadow: hovered ? '0 2px 12px rgba(184,144,48,0.1)' : '0 1px 4px rgba(0,0,0,0.04)',
+        }}
+      >
+        <div>
+          <div style={{ fontFamily: "'Archivo', sans-serif", fontWeight: 700, fontSize: 16, color: '#111', marginBottom: 5 }}>
+            {p.name}
+          </div>
+          <div style={{ fontFamily: "'Figtree', sans-serif", fontSize: 13, color: '#999', display: 'flex', flexWrap: 'wrap', gap: '4px 10px' }}>
+            {(p.city || p.state) && <span>{[p.city, p.state].filter(Boolean).join(', ')}</span>}
+            {p.building_type && <span>· {p.building_type}</span>}
+            {p.gross_sf && <span>· {p.gross_sf.toLocaleString()} SF</span>}
+            {p.target_budget && <span>· {fmtBudget(p.target_budget)} budget</span>}
+          </div>
         </div>
-        <div style={{ fontFamily: "'Figtree', sans-serif", fontSize: 13, color: '#999', display: 'flex', flexWrap: 'wrap', gap: '4px 10px' }}>
-          {(p.city || p.state) && <span>{[p.city, p.state].filter(Boolean).join(', ')}</span>}
-          {p.building_type && <span>· {p.building_type}</span>}
-          {p.gross_sf && <span>· {p.gross_sf.toLocaleString()} SF</span>}
-          {p.target_budget && <span>· {fmtBudget(p.target_budget)} budget</span>}
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexShrink: 0, marginLeft: 16 }}>
+          {p.delivery_method && (
+            <span style={{ background: '#f2f2ef', borderRadius: 5, padding: '3px 9px', fontFamily: "'Figtree', sans-serif", fontSize: 11, color: '#666', whiteSpace: 'nowrap' }}>
+              {p.delivery_method}
+            </span>
+          )}
+          {p.labor_type && (
+            <span style={{ background: '#fdf6e3', borderRadius: 5, padding: '3px 9px', fontFamily: "'Figtree', sans-serif", fontSize: 11, color: '#8a6a1a', whiteSpace: 'nowrap' }}>
+              {p.labor_type}
+            </span>
+          )}
+          <span style={{ color: ACCENT, fontSize: 20, fontWeight: 300, marginLeft: 4 }}>›</span>
         </div>
-      </div>
-      <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexShrink: 0, marginLeft: 16 }}>
-        {p.delivery_method && (
-          <span style={{
-            background: '#f2f2ef', borderRadius: 5, padding: '3px 9px',
-            fontFamily: "'Figtree', sans-serif", fontSize: 11,
-            color: '#666', whiteSpace: 'nowrap',
-          }}>
-            {p.delivery_method}
-          </span>
-        )}
-        {p.labor_type && (
-          <span style={{
-            background: '#fdf6e3', borderRadius: 5, padding: '3px 9px',
-            fontFamily: "'Figtree', sans-serif", fontSize: 11,
-            color: '#8a6a1a', whiteSpace: 'nowrap',
-          }}>
-            {p.labor_type}
-          </span>
-        )}
-        <span style={{ color: ACCENT, fontSize: 20, fontWeight: 300, marginLeft: 4 }}>›</span>
-      </div>
-    </button>
+      </button>
+
+      {/* Three-dot menu button */}
+      {hovered && (
+        <div style={{ position: 'absolute', top: '50%', right: 52, transform: 'translateY(-50%)', zIndex: 10 }}>
+          <button
+            onClick={(e) => { e.stopPropagation(); setMenuOpen(v => !v); }}
+            style={{ background: menuOpen ? '#f0f0ee' : '#fff', border: '1px solid #e0e0dc', borderRadius: 6, padding: '4px 8px', cursor: 'pointer', fontSize: 16, color: '#888', lineHeight: 1 }}
+            title="More options"
+          >
+            ⋯
+          </button>
+          {menuOpen && (
+            <div
+              onClick={e => e.stopPropagation()}
+              style={{ position: 'absolute', right: 0, top: 34, background: '#fff', border: '1px solid #e6e6e2', borderRadius: 8, padding: 4, zIndex: 100, minWidth: 150, boxShadow: '0 4px 16px rgba(0,0,0,.12)' }}
+            >
+              <button
+                onClick={handleDuplicate}
+                disabled={duplicating}
+                style={{ display: 'block', width: '100%', textAlign: 'left', background: 'transparent', border: 'none', padding: '8px 14px', fontSize: 13, fontFamily: "'Figtree', sans-serif", cursor: duplicating ? 'default' : 'pointer', color: duplicating ? '#aaa' : '#333', borderRadius: 4 }}
+              >
+                {duplicating ? 'Duplicating…' : '⧉ Duplicate'}
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
   );
 }
 

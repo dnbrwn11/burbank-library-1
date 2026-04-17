@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useCallback } from 'react';
+import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { useWindowSize } from '../hooks/useWindowSize';
 import * as CE from '../engine/CostEngine';
 const CSI_ORDER = [
@@ -85,7 +85,7 @@ function DragOverlayCard({ item, cv, bsf }) {
 function SortableItemRow({
   item, cv, bsf, mob,
   hoverRow, setHoverRow, expR, setExpR, flashId,
-  updateItem, aiAdvice, aiLoading, askAI, applyAI,
+  updateItem, onDelete, aiAdvice, aiLoading, askAI, applyAI,
   openMoveMenu, overId, isDraggingAny,
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: item.id });
@@ -157,7 +157,7 @@ function SortableItemRow({
       <td style={{ padding: '4px 8px', textAlign: 'right', fontSize: 10, color: COLORS.mg, fontVariantNumeric: 'tabular-nums' }}>{psf(sh, bsf)}</td>
       <td style={{ padding: '4px 8px' }}><Badge sensitivity={item.sensitivity} /></td>
       <td style={{ padding: '4px 4px' }}>
-        <button onClick={() => updateItem(item.id, 'isArchived', true)} style={{ background: 'transparent', border: 'none', color: COLORS.ltg, cursor: 'pointer', fontSize: 10 }}>✕</button>
+        <button onClick={() => onDelete(item)} style={{ background: 'transparent', border: 'none', color: COLORS.ltg, cursor: 'pointer', fontSize: 10 }}>✕</button>
       </td>
     </tr>
   );
@@ -165,7 +165,7 @@ function SortableItemRow({
 
 // ── Main component ────────────────────────────────────────────────────────────
 
-export function CostModel({ items, globals, activeItems, totals, updateItem, createItem, reorderItems, bsf, aiAdvice, aiLoading, askAI, applyAI }) {
+export function CostModel({ items, globals, activeItems, totals, updateItem, createItem, reorderItems, bsf, aiAdvice, aiLoading, askAI, applyAI, registerUndo }) {
   const { mob } = useWindowSize();
   const [search, setSearch] = useState('');
   const [fCat, setFCat] = useState('All');
@@ -183,6 +183,9 @@ export function CostModel({ items, globals, activeItems, totals, updateItem, cre
   const [moveMenu, setMoveMenu] = useState(null);
   const [dragId, setDragId] = useState(null);
   const [overId, setOverId] = useState(null);
+  const [undoToast, setUndoToast] = useState(null); // { id, description }
+  const undoTimerRef = useRef(null);
+  const undoItemRef = useRef(null);
 
   // Close context menu on any outside click
   useEffect(() => {
@@ -191,6 +194,41 @@ export function CostModel({ items, globals, activeItems, totals, updateItem, cre
     window.addEventListener('click', close);
     return () => window.removeEventListener('click', close);
   }, [moveMenu]);
+
+  // ── Undo delete ────────────────────────────────────────────────────────────
+  const handleDeleteItem = useCallback((item) => {
+    // Archive item immediately (optimistic update via updateItem)
+    updateItem(item.id, 'isArchived', true);
+
+    // Clear any previous pending undo
+    if (undoTimerRef.current) clearTimeout(undoTimerRef.current);
+
+    undoItemRef.current = item;
+    setUndoToast({ id: item.id, description: item.description });
+
+    undoTimerRef.current = setTimeout(() => {
+      setUndoToast(null);
+      undoItemRef.current = null;
+      undoTimerRef.current = null;
+    }, 5000);
+  }, [updateItem]);
+
+  const handleUndo = useCallback(() => {
+    if (!undoItemRef.current) return;
+    clearTimeout(undoTimerRef.current);
+    updateItem(undoItemRef.current.id, 'isArchived', false);
+    setUndoToast(null);
+    undoItemRef.current = null;
+    undoTimerRef.current = null;
+  }, [updateItem]);
+
+  // Register undo with parent (for global Ctrl+Z)
+  useEffect(() => {
+    if (registerUndo) registerUndo(handleUndo);
+  }, [registerUndo, handleUndo]);
+
+  // Cleanup undo timer on unmount
+  useEffect(() => () => { if (undoTimerRef.current) clearTimeout(undoTimerRef.current); }, []);
 
   // ── dnd-kit sensors ────────────────────────────────────────────────────────
   // distance:5 prevents accidental drags when clicking EditField cells
@@ -368,6 +406,21 @@ export function CostModel({ items, globals, activeItems, totals, updateItem, cre
         </div>
       </div>
 
+      {/* Empty state — no line items */}
+      {orderedGroups.length === 0 && !search && fCat === 'All' && (
+        <div style={{ background: '#fff', border: '1.5px dashed #d8d8d4', borderRadius: 12, padding: '48px 24px', textAlign: 'center', marginBottom: 12 }}>
+          <div style={{ fontSize: 28, marginBottom: 12 }}>📋</div>
+          <div style={{ fontFamily: FONTS.heading, fontWeight: 700, fontSize: 16, color: '#333', marginBottom: 8 }}>No line items yet</div>
+          <div style={{ fontFamily: FONTS.body, fontSize: 13, color: '#999', marginBottom: 20 }}>Generate line items with AI or add them manually.</div>
+          <button
+            onClick={() => setAddingCat(true)}
+            style={{ background: COLORS.gn, color: '#fff', border: 'none', borderRadius: 8, padding: '10px 22px', fontFamily: FONTS.heading, fontWeight: 700, fontSize: 12, cursor: 'pointer' }}
+          >
+            + Add First Item
+          </button>
+        </div>
+      )}
+
       {/* Mobile: Card layout (no drag on mobile) */}
       {mob ? (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -479,6 +532,7 @@ export function CostModel({ items, globals, activeItems, totals, updateItem, cre
                             setExpR={setExpR}
                             flashId={flashId}
                             updateItem={updateItem}
+                            onDelete={handleDeleteItem}
                             aiAdvice={aiAdvice}
                             aiLoading={aiLoading}
                             askAI={askAI}
@@ -595,6 +649,25 @@ export function CostModel({ items, globals, activeItems, totals, updateItem, cre
           </div>
         </div>
       </div>
+
+      {/* Undo toast */}
+      {undoToast && (
+        <div style={{
+          position: 'fixed', bottom: 72, left: '50%', transform: 'translateX(-50%)',
+          background: '#222', color: '#fff', borderRadius: 10,
+          padding: '12px 18px', display: 'flex', alignItems: 'center', gap: 14,
+          boxShadow: '0 4px 20px rgba(0,0,0,0.3)', zIndex: 2000,
+          fontFamily: FONTS.body, fontSize: 13, whiteSpace: 'nowrap',
+        }}>
+          <span>Line item deleted</span>
+          <button
+            onClick={handleUndo}
+            style={{ background: COLORS.gn, color: '#fff', border: 'none', borderRadius: 6, padding: '5px 14px', fontFamily: FONTS.heading, fontWeight: 700, fontSize: 12, cursor: 'pointer' }}
+          >
+            Undo
+          </button>
+        </div>
+      )}
 
       {/* Move-to-category context menu */}
       {moveMenu && (
