@@ -11,7 +11,7 @@ const INDIRECT_CATEGORIES = new Set([
 
 // ── Dashboard ─────────────────────────────────────────────────────────────────
 
-export function Dashboard({ totals, catGroups, activeItems, bsf, globals }) {
+export function Dashboard({ totals, catGroups, activeItems, bsf, globals, teamMembers = [] }) {
   const { mob, tab } = useWindowSize();
   const [costView, setCostView] = useState('total'); // 'total' | 'direct'
 
@@ -50,6 +50,46 @@ export function Dashboard({ totals, catGroups, activeItems, bsf, globals }) {
       ];
 
   const gc = mob ? '1fr' : tab ? '1fr 1fr' : '1fr 1fr 1fr';
+
+  // ── Contextual warnings ──────────────────────────────────────────────────────
+  const warnings = useMemo(() => {
+    const w = [];
+    const psfVal = bsf > 0 ? totals.raw.m / bsf : 0;
+    if (psfVal > 0 && (psfVal < 80 || psfVal > 1200)) {
+      w.push(`Direct cost of $${psfVal.toFixed(0)}/SF is outside typical range ($80–$1,200/SF) — verify quantities and unit costs.`);
+    }
+    if ((globals.contingency ?? 0) === 0) {
+      w.push('Contingency is set to 0% — consider adding a reserve for design and construction risk.');
+    }
+    const topItem = activeItems.reduce((max, i) => {
+      const m = CE.midTotal(i) || 0;
+      return m > (CE.midTotal(max) || 0) ? i : max;
+    }, activeItems[0]);
+    if (topItem && totals.raw.m > 0) {
+      const topMid = CE.midTotal(topItem) || 0;
+      if (topMid / totals.raw.m > 0.2) {
+        w.push(`"${topItem.description}" is ${(topMid / totals.raw.m * 100).toFixed(0)}% of total cost — review for reasonableness.`);
+      }
+    }
+    return w;
+  }, [activeItems, totals, globals, bsf]);
+
+  // ── Assignment progress ──────────────────────────────────────────────────────
+  const assignmentProgress = useMemo(() => {
+    if (!teamMembers.length) return null;
+    const total = activeItems.length;
+    if (!total) return null;
+    const byMember = {};
+    activeItems.forEach(i => {
+      if (i.assignedTo) byMember[i.assignedTo] = (byMember[i.assignedTo] || 0) + 1;
+    });
+    const unassigned = activeItems.filter(i => !i.assignedTo).length;
+    const rows = teamMembers
+      .map(m => ({ member: m, count: byMember[m.user_id] || 0 }))
+      .filter(r => r.count > 0)
+      .sort((a, b) => b.count - a.count);
+    return { rows, unassigned, total };
+  }, [activeItems, teamMembers]);
 
   return (
     <div style={{ display: 'grid', gridTemplateColumns: gc, gap: mob ? 10 : 14, fontFamily: FONTS.body }}>
@@ -115,6 +155,45 @@ export function Dashboard({ totals, catGroups, activeItems, bsf, globals }) {
                 <div style={{ fontSize: 11, color, fontFamily: FONTS.heading, fontWeight: 600, marginTop: 2 }}>{psf(val, bsf)}</div>
               </div>
             ))}
+          </div>
+        </div>
+      )}
+
+      {/* Contextual warnings */}
+      {warnings.length > 0 && (
+        <div style={{ gridColumn: '1/-1', background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 10, padding: mob ? 10 : 14 }}>
+          <div style={{ fontSize: 11, fontFamily: FONTS.heading, fontWeight: 700, color: '#92400E', textTransform: 'uppercase', letterSpacing: 1.5, marginBottom: 8 }}>⚠ Estimate Alerts</div>
+          {warnings.map((w, i) => (
+            <div key={i} style={{ fontSize: 12, color: '#78350F', padding: '3px 0', lineHeight: 1.5, fontFamily: FONTS.body }}>• {w}</div>
+          ))}
+        </div>
+      )}
+
+      {/* Assignment progress */}
+      {assignmentProgress && assignmentProgress.rows.length > 0 && (
+        <div style={{ gridColumn: '1/-1', background: COLORS.sf, border: `1px solid ${COLORS.bd}`, borderRadius: 10, padding: mob ? 12 : 16 }}>
+          <div style={{ fontSize: 11, fontFamily: FONTS.heading, fontWeight: 600, color: COLORS.dg, textTransform: 'uppercase', letterSpacing: 2, marginBottom: 12 }}>
+            Assignment Progress — {assignmentProgress.total - assignmentProgress.unassigned}/{assignmentProgress.total} assigned
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {assignmentProgress.rows.map(({ member, count }) => {
+              const pct = count / assignmentProgress.total * 100;
+              const name = member.profiles?.full_name || member.profiles?.email || 'Member';
+              const initials = name.split(/\s+/).map(p => p[0]).filter(Boolean).slice(0, 2).join('').toUpperCase();
+              return (
+                <div key={member.user_id} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <div style={{ width: 26, height: 26, borderRadius: '50%', background: COLORS.gn, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700, fontFamily: FONTS.heading, flexShrink: 0 }}>{initials}</div>
+                  <span style={{ fontSize: 12, width: mob ? 80 : 120, flexShrink: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{name}</span>
+                  <div style={{ flex: 1, background: COLORS.bl, borderRadius: 3, height: 14, position: 'relative', overflow: 'hidden', minWidth: 40 }}>
+                    <div style={{ background: `linear-gradient(90deg,${COLORS.gn}88,${COLORS.gn})`, width: `${pct}%`, height: '100%', borderRadius: 3 }} />
+                  </div>
+                  <span style={{ fontSize: 10, color: COLORS.mg, width: 40, textAlign: 'right', flexShrink: 0 }}>{count} items</span>
+                </div>
+              );
+            })}
+            {assignmentProgress.unassigned > 0 && (
+              <div style={{ fontSize: 11, color: COLORS.mg, fontFamily: FONTS.body, marginTop: 2 }}>{assignmentProgress.unassigned} items unassigned</div>
+            )}
           </div>
         </div>
       )}

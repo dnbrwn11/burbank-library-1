@@ -447,3 +447,29 @@ export async function getBidSubmissions(packageId) {
     .order('submitted_at', { ascending: false });
   return { data, error };
 }
+
+// ════════════════════════════════════════════
+// TRADE SCOPES
+// ════════════════════════════════════════════
+
+export async function getTradeScope(scenarioId, trade) {
+  const { data, error } = await supabase
+    .from('trade_scopes')
+    .select('*')
+    .eq('scenario_id', scenarioId)
+    .eq('trade', trade)
+    .maybeSingle();
+  return { data, error };
+}
+
+export async function saveTradeScope(scenarioId, trade, scopeJson) {
+  const { data, error } = await supabase
+    .from('trade_scopes')
+    .upsert(
+      { scenario_id: scenarioId, trade, scope_json: scopeJson, updated_at: new Date().toISOString() },
+      { onConflict: 'scenario_id,trade' },
+    )
+    .select()
+    .single();
+  return { data, error };
+}

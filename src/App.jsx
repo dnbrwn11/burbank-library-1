@@ -24,6 +24,7 @@ import AIGenerator from './components/AIGenerator';
 import TeamPanel, { Avatar, initials } from './components/TeamPanel';
 import BiddingPanel from './components/BiddingPanel';
 import BidSubmitScreen from './components/BidSubmitScreen';
+import { TradesPanel } from './components/TradesPanel';
 import { supabase } from './supabase/supabaseClient';
 import { getProjectMembers, getProjectMemberRole } from './supabase/db';
 import { analytics, initCrisp, identifyUser, identifyCrispUser, resetAnalyticsUser } from './analytics';
@@ -698,6 +699,7 @@ function CostModelApp({ user, project, onBack, onSignOut }) {
     updateItem, createItem, reorderItems, updateGlobal, scenarios, active,
     aiAdvice, aiLoading, askAI, applyAI, canEdit,
     project, scenarioName: active.name,
+    teamMembers, user,
   };
 
   const tabs = [
@@ -706,6 +708,7 @@ function CostModelApp({ user, project, onBack, onSignOut }) {
     ['compare', 'COMPARE'],
     ['assumptions', 'ASSUMPTIONS'],
     ['audit', 'AUDIT'],
+    ['trades', 'TRADES'],
     ['bidding', 'BIDDING'],
   ];
 
@@ -951,6 +954,7 @@ function CostModelApp({ user, project, onBack, onSignOut }) {
             <ScopeGapAnalysis items={items} project={project} scenario={active} />
           </>
         )}
+        {view === 'trades' && <TradesPanel items={items} globals={globals} bsf={bsf} updateItem={updateItem} project={project} canEdit={canEdit} active={active} />}
         {view === 'bidding' && <BiddingPanel {...viewProps} project={project} user={user} mob={mob} />}
       </div>
 

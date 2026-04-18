@@ -1,6 +1,8 @@
 import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { useWindowSize } from '../hooks/useWindowSize';
 import * as CE from '../engine/CostEngine';
+import { AuditReportCard } from './AuditReportCard';
+import { supabase } from '../supabase/supabaseClient';
 const CSI_ORDER = [
   'Substructure', 'Shell', 'Interiors', 'Services', 'Equipment',
   'Special Construction', 'Sitework', 'General Conditions', 'Overhead & Fee', 'Contingency',
@@ -90,14 +92,44 @@ function DragOverlayCard({ item, cv, bsf }) {
   );
 }
 
+const AUDIT_DOT_COLOR = { ok: '#22C55E', caution: '#F59E0B', flagged: '#EF4444' };
+
+function memberInitials(m) {
+  const name = m?.profiles?.full_name || m?.profiles?.email || '';
+  const parts = name.trim().split(/\s+/);
+  if (parts.length >= 2) return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+  return name.slice(0, 2).toUpperCase() || '?';
+}
+
+function AvatarCircle({ member, size = 22 }) {
+  const initials = memberInitials(member);
+  const colors = ['#3B82F6','#8B5CF6','#EC4899','#F59E0B','#10B981','#EF4444'];
+  const bg = colors[(initials.charCodeAt(0) || 0) % colors.length];
+  return (
+    <div style={{ width: size, height: size, borderRadius: '50%', background: bg, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: size * 0.42, fontWeight: 700, fontFamily: FONTS.heading, flexShrink: 0, lineHeight: 1, border: '1.5px solid #fff' }}>
+      {initials}
+    </div>
+  );
+}
+
 function SortableItemRow({
   item, cv, bsf, mob,
   hoverRow, setHoverRow, expR, setExpR, flashId,
   updateItem, onDelete, aiAdvice, aiLoading, askAI, applyAI,
   openMoveMenu, overId, isDraggingAny, canEdit,
   tableEdit, activeCell, onActivateCell, onCellChange, onNavCell, cellValues,
+  auditStatus, teamMembers, onAssignItem, selected, onToggleSelect, bulkMode,
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: item.id });
+  const [assignOpen, setAssignOpen] = useState(false);
+  const assignRef = useRef(null);
+
+  useEffect(() => {
+    if (!assignOpen) return;
+    const close = (e) => { if (assignRef.current && !assignRef.current.contains(e.target)) setAssignOpen(false); };
+    document.addEventListener('mousedown', close);
+    return () => document.removeEventListener('mousedown', close);
+  }, [assignOpen]);
 
   const sh     = CE.itemTotal(item, cv);
   const ex     = expR === item.id;
@@ -106,7 +138,14 @@ function SortableItemRow({
   const isFlash  = flashId === item.id;
   const isOver   = overId === item.id && isDraggingAny && !isDragging;
 
-  const rowBg = isFlash ? '#FFF3B0' : isHover ? '#FCFCF9' : hasAI ? `${COLORS.gn}06` : COLORS.wh;
+  // Audit status: live results take priority, then persisted item.aiAdvice
+  const effectiveAudit = auditStatus ?? (item.aiAdvice?.status ? item.aiAdvice : null);
+
+  const rowBg = isFlash ? '#FFF3B0'
+    : selected ? `${COLORS.gn}0A`
+    : isHover ? '#FCFCF9'
+    : hasAI ? `${COLORS.gn}06`
+    : COLORS.wh;
   const combinedTransition = [transition, 'background 0.15s'].filter(Boolean).join(', ');
   const rowStyle = {
     transform: CSS.Transform.toString(transform),
@@ -159,6 +198,10 @@ function SortableItemRow({
     );
   };
 
+  const assignedMember = item.assignedTo
+    ? teamMembers?.find(m => m.user_id === item.assignedTo)
+    : null;
+
   return (
     <tr
       ref={setNodeRef}
@@ -169,8 +212,15 @@ function SortableItemRow({
       {...attributes}
     >
       <td style={{ padding: '0 2px', verticalAlign: 'middle' }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 3 }}>
-          <span {...listeners} title="Drag to reorder" style={{ cursor: isDraggingAny ? 'grabbing' : 'grab', color: isHover ? COLORS.mg : COLORS.ltg, fontSize: 13, lineHeight: 1, padding: '3px 2px', userSelect: 'none', touchAction: 'none', display: 'flex' }}>⠿</span>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 2 }}>
+          {bulkMode
+            ? <input type="checkbox" checked={!!selected} onChange={() => onToggleSelect(item.id)} style={{ cursor: 'pointer', margin: 0, width: 13, height: 13 }} onClick={e => e.stopPropagation()} />
+            : <span {...listeners} title="Drag to reorder" style={{ cursor: isDraggingAny ? 'grabbing' : 'grab', color: isHover ? COLORS.mg : COLORS.ltg, fontSize: 13, lineHeight: 1, padding: '3px 2px', userSelect: 'none', touchAction: 'none', display: 'flex' }}>⠿</span>
+          }
+          {effectiveAudit && (
+            <span title={effectiveAudit.message || effectiveAudit.status}
+              style={{ width: 7, height: 7, borderRadius: '50%', background: AUDIT_DOT_COLOR[effectiveAudit.status] || COLORS.mg, flexShrink: 0 }} />
+          )}
           <span style={{ color: hasAI ? COLORS.gn : COLORS.mg, fontSize: 8, cursor: 'pointer' }} onClick={() => setExpR(ex ? null : item.id)}>{ex ? '▼' : '▸'}</span>
         </div>
       </td>
@@ -198,7 +248,40 @@ function SortableItemRow({
       <td style={{ padding: '4px 8px' }}>{tableEdit ? cellInput('unitCostHigh') : <EditField value={item.unitCostHigh} onCommit={uI('unitCostHigh')} />}</td>
       <td style={{ padding: '4px 8px', textAlign: 'right', fontWeight: 600, color: COLORS.gn, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>{fmt(sh)}</td>
       <td style={{ padding: '4px 8px', textAlign: 'right', fontSize: 10, color: COLORS.mg, fontVariantNumeric: 'tabular-nums' }}>{psf(sh, bsf)}</td>
+      {/* Trade column */}
+      <td style={{ padding: '4px 8px', fontSize: 10, color: item.trade ? COLORS.dg : COLORS.ltg, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+        {tableEdit ? cellInput('trade') : (item.trade || '')}
+      </td>
       <td style={{ padding: '4px 8px' }}><Badge sensitivity={item.sensitivity} /></td>
+      {/* Avatar column */}
+      <td style={{ padding: '4px 4px' }}>
+        <div ref={assignRef} style={{ position: 'relative' }}>
+          <div onClick={() => canEdit && setAssignOpen(v => !v)} style={{ cursor: canEdit ? 'pointer' : 'default', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            {assignedMember
+              ? <AvatarCircle member={assignedMember} size={22} />
+              : <div style={{ width: 22, height: 22, borderRadius: '50%', border: `1.5px dashed ${COLORS.ltg}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, color: COLORS.ltg }}>+</div>
+            }
+          </div>
+          {assignOpen && canEdit && (
+            <div style={{ position: 'absolute', right: 0, top: 26, background: COLORS.wh, border: `1px solid ${COLORS.bd}`, borderRadius: 8, padding: 4, zIndex: 500, minWidth: 160, boxShadow: '0 4px 16px rgba(0,0,0,.12)' }}>
+              <div style={{ padding: '4px 10px 3px', fontSize: 9, fontFamily: FONTS.heading, color: COLORS.mg, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 1 }}>Assign to</div>
+              {(teamMembers || []).map(m => (
+                <button key={m.user_id} onClick={() => { onAssignItem(item.id, m.user_id); setAssignOpen(false); }}
+                  style={{ display: 'flex', alignItems: 'center', gap: 7, width: '100%', textAlign: 'left', background: m.user_id === item.assignedTo ? `${COLORS.gn}10` : 'transparent', border: 'none', padding: '5px 10px', fontSize: 12, fontFamily: FONTS.body, cursor: 'pointer', color: COLORS.dg, borderRadius: 4 }}>
+                  <AvatarCircle member={m} size={18} />
+                  <span>{m.profiles?.full_name || m.profiles?.email || 'Member'}</span>
+                </button>
+              ))}
+              {item.assignedTo && (
+                <button onClick={() => { onAssignItem(item.id, null); setAssignOpen(false); }}
+                  style={{ display: 'block', width: '100%', textAlign: 'left', background: 'transparent', border: 'none', padding: '5px 10px', fontSize: 11, fontFamily: FONTS.body, cursor: 'pointer', color: COLORS.mg, borderRadius: 4, borderTop: `1px solid ${COLORS.bl}`, marginTop: 3 }}>
+                  Unassign
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+      </td>
       <td style={{ padding: '4px 4px' }}>
         <div style={{ display: 'flex', gap: 3, alignItems: 'center', justifyContent: 'flex-end' }}>
           {canEdit && (isHover || item.isAllowance) && (
@@ -424,7 +507,7 @@ function ImportModal({ onClose, createItem }) {
 
 // ── Main component ────────────────────────────────────────────────────────────
 
-export function CostModel({ items, globals, activeItems, totals, updateItem, createItem, reorderItems, bsf, aiAdvice, aiLoading, askAI, applyAI, registerUndo, canEdit, project, scenarioName }) {
+export function CostModel({ items, globals, activeItems, totals, updateItem, createItem, reorderItems, bsf, aiAdvice, aiLoading, askAI, applyAI, registerUndo, canEdit, project, scenarioName, teamMembers = [], user }) {
   const { mob } = useWindowSize();
   const [search, setSearch] = useState('');
   const [fCat, setFCat] = useState('All');
@@ -456,6 +539,26 @@ export function CostModel({ items, globals, activeItems, totals, updateItem, cre
   const [exportMenuOpen, setExportMenuOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const exportMenuRef = useRef(null);
+
+  // Audit
+  const [auditResults, setAuditResults] = useState({}); // { itemId: { status, message } }
+  const [auditLoading, setAuditLoading] = useState(false);
+  const [auditModalOpen, setAuditModalOpen] = useState(false);
+  const [auditReport, setAuditReport] = useState(null);
+
+  // Bulk selection
+  const [selectedItems, setSelectedItems] = useState(new Set());
+  const [bulkMode, setBulkMode] = useState(false);
+  const [assignFilter, setAssignFilter] = useState('all'); // 'all' | 'me' | 'unassigned'
+  const [bulkAssignMenuOpen, setBulkAssignMenuOpen] = useState(false);
+  const bulkAssignRef = useRef(null);
+
+  useEffect(() => {
+    if (!bulkAssignMenuOpen) return;
+    const close = (e) => { if (bulkAssignRef.current && !bulkAssignRef.current.contains(e.target)) setBulkAssignMenuOpen(false); };
+    document.addEventListener('mousedown', close);
+    return () => document.removeEventListener('mousedown', close);
+  }, [bulkAssignMenuOpen]);
 
   // Close context menus on outside click
   useEffect(() => {
@@ -611,6 +714,65 @@ export function CostModel({ items, globals, activeItems, totals, updateItem, cre
     downloadText(rows.map(r => r.map(csvEsc).join(',')).join('\n'), `${(project?.name || 'Estimate').replace(/[^a-zA-Z0-9]/g, '_')}_Procore.csv`);
   }
 
+  // ── AI Audit ─────────────────────────────────────────────────────────────────
+  async function handleRunAudit() {
+    setAuditLoading(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
+      const res = await fetch('/api/ai-audit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          items: activeItems.map(i => ({
+            id: i.id, category: i.category, subcategory: i.subcategory,
+            description: i.description, qtyMin: i.qtyMin, qtyMax: i.qtyMax,
+            unit: i.unit, unitCostLow: i.unitCostLow, unitCostMid: i.unitCostMid,
+            unitCostHigh: i.unitCostHigh, isArchived: i.isArchived, inSummary: i.inSummary,
+          })),
+          globals,
+          bsf,
+          projectName: project?.name || 'Estimate',
+          scenarioName: scenarioName || 'Baseline',
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) { console.error('[audit]', data.error); return; }
+      // Build auditResults map
+      const resultMap = {};
+      (data.itemAudits || []).forEach(a => { resultMap[a.id] = { status: a.status, message: a.message || '' }; });
+      setAuditResults(resultMap);
+      setAuditReport(data);
+      setAuditModalOpen(true);
+      // Persist to DB (fire-and-forget)
+      Object.entries(resultMap).forEach(([id, result]) => updateItem(id, 'aiAdvice', result));
+    } catch (err) {
+      console.error('[audit] Error:', err);
+    } finally {
+      setAuditLoading(false);
+    }
+  }
+
+  // ── Assignment ───────────────────────────────────────────────────────────────
+  function handleAssignItem(itemId, userId) {
+    updateItem(itemId, 'assignedTo', userId);
+  }
+
+  function handleBulkAssign(userId) {
+    selectedItems.forEach(id => updateItem(id, 'assignedTo', userId));
+    setSelectedItems(new Set());
+    setBulkMode(false);
+    setBulkAssignMenuOpen(false);
+  }
+
+  function toggleSelectItem(itemId) {
+    setSelectedItems(prev => {
+      const n = new Set(prev);
+      n.has(itemId) ? n.delete(itemId) : n.add(itemId);
+      return n;
+    });
+  }
+
   // ── dnd-kit sensors ──────────────────────────────────────────────────────────
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -667,10 +829,12 @@ export function CostModel({ items, globals, activeItems, totals, updateItem, cre
   };
 
   const filtered = useMemo(() => activeItems.filter(i => {
+    if (assignFilter === 'me' && i.assignedTo !== user?.id) return false;
+    if (assignFilter === 'unassigned' && i.assignedTo) return false;
     if (fCat !== 'All' && i.category !== fCat) return false;
     if (search) return `${i.description} ${i.category} ${i.subcategory}`.toLowerCase().includes(search.toLowerCase());
     return true;
-  }), [activeItems, fCat, search]);
+  }), [activeItems, fCat, search, assignFilter, user]);
 
   const groups = useMemo(() => {
     const g = {};
@@ -783,9 +947,44 @@ export function CostModel({ items, globals, activeItems, totals, updateItem, cre
               style={{ background: COLORS.wh, border: `1px solid ${COLORS.bd}`, borderRadius: 8, padding: '10px 14px', fontSize: 11, fontFamily: FONTS.heading, fontWeight: 600, cursor: 'pointer', minHeight: 42 }}>
               Import
             </button>
+
+            {/* Audit button */}
+            <button onClick={handleRunAudit} disabled={auditLoading}
+              style={{ background: auditLoading ? COLORS.sf : '#1E3A5F', color: auditLoading ? COLORS.mg : '#fff', border: `1px solid ${auditLoading ? COLORS.bd : '#1E3A5F'}`, borderRadius: 8, padding: '10px 14px', fontSize: 11, fontFamily: FONTS.heading, fontWeight: 600, cursor: auditLoading ? 'wait' : 'pointer', minHeight: 42, whiteSpace: 'nowrap' }}>
+              {auditLoading ? '⟳ Auditing…' : '✦ Audit'}
+            </button>
+
+            {/* Bulk select toggle */}
+            {tbBtn(() => { setBulkMode(t => !t); if (bulkMode) setSelectedItems(new Set()); }, bulkMode ? '⊠ Bulk' : '⊡ Bulk', bulkMode)}
           </>
         )}
       </div>
+
+      {/* Filter pills */}
+      <div style={{ display: 'flex', gap: 6, marginBottom: 10, flexWrap: 'wrap', alignItems: 'center' }}>
+        {[['all', 'All'], ['me', 'Assigned to Me'], ['unassigned', 'Unassigned']].map(([v, label]) => (
+          <button key={v} onClick={() => setAssignFilter(v)}
+            style={{ background: assignFilter === v ? COLORS.gn : COLORS.wh, color: assignFilter === v ? COLORS.wh : COLORS.mg, border: `1px solid ${assignFilter === v ? COLORS.gn : COLORS.bd}`, borderRadius: 20, padding: '4px 12px', fontSize: 11, fontFamily: FONTS.heading, fontWeight: 600, cursor: 'pointer' }}>
+            {label}
+          </button>
+        ))}
+        {auditReport && (
+          <button onClick={() => setAuditModalOpen(true)}
+            style={{ background: '#EFF6FF', color: '#1E40AF', border: '1px solid #BFDBFE', borderRadius: 20, padding: '4px 12px', fontSize: 11, fontFamily: FONTS.heading, fontWeight: 600, cursor: 'pointer', marginLeft: 'auto' }}>
+            View Audit Report
+          </button>
+        )}
+      </div>
+
+      {/* Audit summary bar */}
+      {auditReport && (
+        <div style={{ background: '#F8FAFF', border: '1px solid #DBEAFE', borderRadius: 8, padding: '7px 14px', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 14, fontSize: 12, fontFamily: FONTS.body, flexWrap: 'wrap' }}>
+          <span style={{ color: COLORS.mg }}>{auditReport.summary.total} items audited:</span>
+          <span style={{ color: '#166534', fontWeight: 600 }}>● {auditReport.summary.inRange} in range</span>
+          <span style={{ color: '#92400E', fontWeight: 600 }}>● {auditReport.summary.caution} caution</span>
+          <span style={{ color: '#991B1B', fontWeight: 600 }}>● {auditReport.summary.flagged} flagged</span>
+        </div>
+      )}
 
       {/* Table Edit banner */}
       {tableEdit && (
@@ -861,10 +1060,10 @@ export function CostModel({ items, globals, activeItems, totals, updateItem, cre
         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragStart={handleDragStart} onDragOver={handleDragOver} onDragEnd={handleDragEnd}>
           <div style={{ borderRadius: 10, border: `1px solid ${COLORS.bd}`, overflow: 'clip', background: COLORS.wh }}>
             <div style={{ overflowX: 'auto' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, fontFamily: FONTS.body, minWidth: 1000 }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, fontFamily: FONTS.body, minWidth: 1160 }}>
                 <thead>
                   <tr style={{ background: '#F5F5F0' }}>
-                    {[['', '3%'], ['Description', '25%'], ['Sub', '12%'], ['Qty Min', '7%', true], ['Qty Max', '7%', true], ['Unit', '4%', true], ['$/Low', '7%', true], ['$/Mid', '7%', true], ['$/High', '7%', true], [cv.toUpperCase() + ' Total', '9%', true], ['$/SF', '5%', true], ['Sens', '5%', true], ['', '2%']].map(([l, w, r], i) => (
+                    {[['', '3%'], ['Description', '21%'], ['Sub', '9%'], ['Qty Min', '6%', true], ['Qty Max', '6%', true], ['Unit', '4%', true], ['$/Low', '6%', true], ['$/Mid', '6%', true], ['$/High', '6%', true], [cv.toUpperCase() + ' Total', '8%', true], ['$/SF', '5%', true], ['Trade', '6%'], ['Sens', '4%'], ['Asn', '3%', true], ['', '2%']].map(([l, w, r], i) => (
                       <th key={i} style={{ width: w, padding: '9px 8px', textAlign: r ? 'right' : 'left', fontSize: 9, fontFamily: FONTS.heading, fontWeight: 600, color: COLORS.mg, textTransform: 'uppercase', letterSpacing: 1, borderBottom: `2px solid #22222222` }}>{l}</th>
                     ))}
                   </tr>
@@ -881,7 +1080,7 @@ export function CostModel({ items, globals, activeItems, totals, updateItem, cre
                           <td colSpan={8} style={{ padding: '8px 8px', fontWeight: 700, fontSize: 12, fontFamily: FONTS.heading, color: COLORS.gn }}>{g.c.toUpperCase()} <span style={{ color: COLORS.mg, fontWeight: 400, fontSize: 10, fontFamily: FONTS.body }}>({g.items.length})</span></td>
                           <td style={{ padding: '8px 8px', textAlign: 'right', fontWeight: 700, fontFamily: FONTS.heading, color: COLORS.gn, fontVariantNumeric: 'tabular-nums' }}>{fmt(g.t[cvk])}</td>
                           <td style={{ padding: '8px 8px', textAlign: 'right', fontSize: 10, color: COLORS.mg, fontVariantNumeric: 'tabular-nums' }}>{psf(g.t[cvk], bsf)}</td>
-                          <td colSpan={2} style={{ padding: '4px 6px', textAlign: 'right', whiteSpace: 'nowrap' }} onClick={e => e.stopPropagation()}>
+                          <td colSpan={4} style={{ padding: '4px 6px', textAlign: 'right', whiteSpace: 'nowrap' }} onClick={e => e.stopPropagation()}>
                             {arrowBtn((e) => { e.stopPropagation(); moveCatUp(g.c); }, isFirst, '▲')}
                             {arrowBtn((e) => { e.stopPropagation(); moveCatDown(g.c); }, isLast, '▼')}
                           </td>
@@ -896,10 +1095,13 @@ export function CostModel({ items, globals, activeItems, totals, updateItem, cre
                             openMoveMenu={openMoveMenu} overId={overId} isDraggingAny={isDraggingAny} canEdit={canEdit}
                             tableEdit={tableEdit} activeCell={activeCell} onActivateCell={onActivateCell}
                             onCellChange={handleCellChange} onNavCell={navigateCell} cellValues={cellValues}
+                            auditStatus={auditResults[item.id]}
+                            teamMembers={teamMembers} onAssignItem={handleAssignItem}
+                            selected={selectedItems.has(item.id)} onToggleSelect={toggleSelectItem} bulkMode={bulkMode}
                           />,
                           expR === item.id && !isDraggingAny && (
                             <tr key={`${item.id}_x`} style={{ background: '#F8F8F3', borderBottom: `1px solid ${COLORS.bd}` }}>
-                              <td colSpan={13}><ItemDetailPanel item={item} updateItem={updateItem} aiAdvice={aiAdvice} aiLoading={aiLoading} askAI={askAI} applyAI={applyAI} mob={mob} /></td>
+                              <td colSpan={15}><ItemDetailPanel item={item} updateItem={updateItem} aiAdvice={aiAdvice} aiLoading={aiLoading} askAI={askAI} applyAI={applyAI} mob={mob} /></td>
                             </tr>
                           ),
                         ]) : []),
@@ -916,18 +1118,20 @@ export function CostModel({ items, globals, activeItems, totals, updateItem, cre
                               <td style={{ padding: '4px 8px' }}><input type="number" placeholder="0" value={draft.unitCostHigh ?? ''} onChange={e => setDraft(p => ({ ...p, unitCostHigh: e.target.value }))} style={{ ...inpStyle, textAlign: 'right' }} /></td>
                               <td style={{ padding: '4px 8px', textAlign: 'right', fontSize: 10, color: COLORS.mg }}>—</td>
                               <td style={{ padding: '4px 8px', textAlign: 'right', fontSize: 10, color: COLORS.mg }}>—</td>
+                              <td style={{ padding: '4px 8px' }} />{/* Trade */}
                               <td style={{ padding: '4px 8px' }}>
                                 <select value={draft.sensitivity || 'Medium'} onChange={e => setDraft(p => ({ ...p, sensitivity: e.target.value }))} style={{ ...inpStyle, fontSize: 10 }}>
                                   {SENSITIVITIES.map(s => <option key={s}>{s}</option>)}
                                 </select>
                               </td>
+                              <td style={{ padding: '4px 4px' }} />{/* Avatar */}
                               <td style={{ padding: '4px 4px', whiteSpace: 'nowrap' }}>
                                 <button onClick={handleSaveNewItem} disabled={!draft.description?.trim() || addSaving} style={{ background: 'none', border: 'none', cursor: 'pointer', color: COLORS.gn, fontWeight: 700, fontSize: 13, padding: '0 2px' }}>{addSaving ? '…' : '✓'}</button>
                                 <button onClick={cancelAddItem} style={{ background: 'none', border: 'none', cursor: 'pointer', color: COLORS.mg, fontSize: 13, padding: '0 2px' }}>✕</button>
                               </td>
                             </tr>
                           : <tr key={`${g.c}_addtrig`} onClick={() => openAddItem(g.c)} style={{ cursor: 'pointer', borderBottom: `1px solid ${COLORS.bl}` }}>
-                              <td colSpan={13} style={{ padding: '5px 8px 5px 28px', fontSize: 11, color: COLORS.mg, fontFamily: FONTS.body, userSelect: 'none' }}>+ Add item</td>
+                              <td colSpan={15} style={{ padding: '5px 8px 5px 28px', fontSize: 11, color: COLORS.mg, fontFamily: FONTS.body, userSelect: 'none' }}>+ Add item</td>
                             </tr>,
                       ];
                     }).flat()}
@@ -936,7 +1140,7 @@ export function CostModel({ items, globals, activeItems, totals, updateItem, cre
                   {addingItemCat && !groups.some(g => g.c === addingItemCat) && [
                     <tr key="newcat_hdr" style={{ background: '#FAFAF6', borderBottom: `1px solid ${COLORS.bd}` }}>
                       <td style={{ padding: '8px 4px' }}><span style={{ color: COLORS.gn, fontSize: 9 }}>▼</span></td>
-                      <td colSpan={12} style={{ padding: '8px 8px', fontWeight: 700, fontSize: 12, fontFamily: FONTS.heading, color: COLORS.gn }}>{addingItemCat.toUpperCase()} <span style={{ color: COLORS.mg, fontWeight: 400, fontSize: 10, fontFamily: FONTS.body }}>(new)</span></td>
+                      <td colSpan={14} style={{ padding: '8px 8px', fontWeight: 700, fontSize: 12, fontFamily: FONTS.heading, color: COLORS.gn }}>{addingItemCat.toUpperCase()} <span style={{ color: COLORS.mg, fontWeight: 400, fontSize: 10, fontFamily: FONTS.body }}>(new)</span></td>
                     </tr>,
                     <tr key="newcat_newr" style={{ background: `${COLORS.gn}06`, borderBottom: `1px solid ${COLORS.bd}` }}>
                       <td style={{ padding: '4px 4px' }} />
@@ -950,11 +1154,13 @@ export function CostModel({ items, globals, activeItems, totals, updateItem, cre
                       <td style={{ padding: '4px 8px' }}><input type="number" placeholder="0" value={draft.unitCostHigh ?? ''} onChange={e => setDraft(p => ({ ...p, unitCostHigh: e.target.value }))} style={{ ...inpStyle, textAlign: 'right' }} /></td>
                       <td style={{ padding: '4px 8px', textAlign: 'right', fontSize: 10, color: COLORS.mg }}>—</td>
                       <td style={{ padding: '4px 8px', textAlign: 'right', fontSize: 10, color: COLORS.mg }}>—</td>
+                      <td style={{ padding: '4px 8px' }} />{/* Trade */}
                       <td style={{ padding: '4px 8px' }}>
                         <select value={draft.sensitivity || 'Medium'} onChange={e => setDraft(p => ({ ...p, sensitivity: e.target.value }))} style={{ ...inpStyle, fontSize: 10 }}>
                           {SENSITIVITIES.map(s => <option key={s}>{s}</option>)}
                         </select>
                       </td>
+                      <td style={{ padding: '4px 4px' }} />{/* Avatar */}
                       <td style={{ padding: '4px 4px', whiteSpace: 'nowrap' }}>
                         <button onClick={handleSaveNewItem} disabled={!draft.description?.trim() || addSaving} style={{ background: 'none', border: 'none', cursor: 'pointer', color: COLORS.gn, fontWeight: 700, fontSize: 13, padding: '0 2px' }}>{addSaving ? '…' : '✓'}</button>
                         <button onClick={cancelAddItem} style={{ background: 'none', border: 'none', cursor: 'pointer', color: COLORS.mg, fontSize: 13, padding: '0 2px' }}>✕</button>
@@ -963,7 +1169,7 @@ export function CostModel({ items, globals, activeItems, totals, updateItem, cre
                   ]}
 
                   <tr>
-                    <td colSpan={13} style={{ padding: '10px 16px', borderTop: `1px solid ${COLORS.bd}` }}>
+                    <td colSpan={15} style={{ padding: '10px 16px', borderTop: `1px solid ${COLORS.bd}` }}>
                       {addingCat
                         ? <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                             <input autoFocus placeholder="Category name…" value={newCatName} onChange={e => setNewCatName(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') handleAddCategory(); if (e.key === 'Escape') { setAddingCat(false); setNewCatName(''); } }} style={{ border: `1px solid ${COLORS.bd}`, borderRadius: 6, padding: '5px 10px', fontSize: 12, fontFamily: FONTS.body, outline: 'none', color: COLORS.dg, width: 220 }} />
@@ -1006,6 +1212,38 @@ export function CostModel({ items, globals, activeItems, totals, updateItem, cre
         </div>
       )}
 
+      {/* Bulk action floating bar */}
+      {selectedItems.size > 0 && (
+        <div style={{ position: 'fixed', bottom: 80, left: '50%', transform: 'translateX(-50%)', background: '#1a1a2e', color: '#fff', borderRadius: 12, padding: '10px 18px', display: 'flex', alignItems: 'center', gap: 14, boxShadow: '0 8px 32px rgba(0,0,0,0.4)', zIndex: 2100, fontFamily: FONTS.body, fontSize: 13, whiteSpace: 'nowrap' }}>
+          <span style={{ color: '#aaa' }}>{selectedItems.size} selected</span>
+          <div ref={bulkAssignRef} style={{ position: 'relative' }}>
+            <button onClick={() => setBulkAssignMenuOpen(v => !v)}
+              style={{ background: COLORS.gn, color: '#fff', border: 'none', borderRadius: 8, padding: '6px 14px', fontFamily: FONTS.heading, fontWeight: 600, fontSize: 12, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}>
+              Assign to <span style={{ fontSize: 9 }}>▾</span>
+            </button>
+            {bulkAssignMenuOpen && (
+              <div style={{ position: 'absolute', bottom: 40, left: 0, background: COLORS.wh, border: `1px solid ${COLORS.bd}`, borderRadius: 8, padding: 4, zIndex: 300, minWidth: 170, boxShadow: '0 4px 16px rgba(0,0,0,.15)' }}>
+                {(teamMembers || []).map(m => (
+                  <button key={m.user_id} onClick={() => handleBulkAssign(m.user_id)}
+                    style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', textAlign: 'left', background: 'transparent', border: 'none', padding: '6px 10px', fontSize: 12, fontFamily: FONTS.body, cursor: 'pointer', color: COLORS.dg, borderRadius: 4 }}>
+                    <AvatarCircle member={m} size={20} />
+                    <span>{m.profiles?.full_name || m.profiles?.email || 'Member'}</span>
+                  </button>
+                ))}
+                <button onClick={() => handleBulkAssign(null)}
+                  style={{ display: 'block', width: '100%', textAlign: 'left', background: 'transparent', border: 'none', padding: '6px 10px', fontSize: 11, fontFamily: FONTS.body, cursor: 'pointer', color: COLORS.mg, borderRadius: 4, borderTop: `1px solid ${COLORS.bl}`, marginTop: 3 }}>
+                  Unassign
+                </button>
+              </div>
+            )}
+          </div>
+          <button onClick={() => { setSelectedItems(new Set()); setBulkMode(false); }}
+            style={{ background: 'rgba(255,255,255,0.1)', border: 'none', color: '#aaa', borderRadius: 6, padding: '5px 10px', fontSize: 12, cursor: 'pointer', fontFamily: FONTS.body }}>
+            Clear
+          </button>
+        </div>
+      )}
+
       {/* Context menu */}
       {moveMenu && (
         <div onClick={e => e.stopPropagation()} style={{
@@ -1037,6 +1275,11 @@ export function CostModel({ items, globals, activeItems, totals, updateItem, cre
 
       {/* Import modal */}
       {importOpen && <ImportModal onClose={() => setImportOpen(false)} createItem={createItem} />}
+
+      {/* Audit report card */}
+      {auditModalOpen && auditReport && (
+        <AuditReportCard report={auditReport} onClose={() => setAuditModalOpen(false)} bsf={bsf} />
+      )}
     </div>
   );
 }

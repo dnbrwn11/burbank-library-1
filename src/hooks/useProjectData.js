@@ -24,6 +24,9 @@ const TO_DB = {
   inSummary: 'in_summary',
   sortOrder: 'sort_order',
   isAllowance: 'is_allowance',
+  aiAdvice: 'ai_advice',
+  assignedTo: 'assigned_to',
+  trade: 'trade',
 };
 const toDb = (f) => TO_DB[f] ?? f;
 
@@ -46,6 +49,9 @@ function rowToItem(row) {
     isArchived: row.is_archived ?? false,
     sortOrder: row.sort_order ?? 0,
     isAllowance: row.is_allowance ?? false,
+    aiAdvice: row.ai_advice ?? null,
+    assignedTo: row.assigned_to ?? null,
+    trade: row.trade ?? null,
   };
 }
 
@@ -66,6 +72,9 @@ function itemToInsertRow(item, sortOrder) {
     in_summary: item.inSummary ?? true,
     is_archived: false,
     sort_order: sortOrder,
+    ai_advice: item.aiAdvice ?? null,
+    assigned_to: item.assignedTo ?? null,
+    trade: item.trade ?? null,
   };
 }
 
