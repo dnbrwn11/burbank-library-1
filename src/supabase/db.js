@@ -348,14 +348,33 @@ export async function removeOrgMember(orgId, userId) {
   return { error };
 }
 
+export async function getAllProjects() {
+  const { data, error } = await supabase
+    .from('projects')
+    .select('*')
+    .order('updated_at', { ascending: false });
+  return { data, error };
+}
+
 export async function getOrgProjects(orgId) {
   const { data, error } = await supabase
     .from('projects')
     .select('*')
     .eq('org_id', orgId)
-    .eq('status', 'active')
     .order('updated_at', { ascending: false });
   return { data, error };
+}
+
+export async function getAllOrgProjects(orgId) {
+  return getOrgProjects(orgId);
+}
+
+export async function deleteProject(projectId) {
+  const { error } = await supabase
+    .from('projects')
+    .delete()
+    .eq('id', projectId);
+  return { error };
 }
 
 // ════════════════════════════════════════════

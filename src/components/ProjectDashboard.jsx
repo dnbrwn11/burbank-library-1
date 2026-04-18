@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { getProjects, getOrgProjects, createProject, getScenarios, createLineItems, duplicateProject } from '../supabase/db';
+import { useState, useEffect, useMemo, useRef } from 'react';
+import { getAllProjects, getOrgProjects, createProject, updateProject, deleteProject, getScenarios, createLineItems, duplicateProject } from '../supabase/db';
 import { analytics } from '../analytics';
 import { OrgAvatar, OrgMenu } from './OrgSettings';
 
@@ -75,6 +75,31 @@ const US_STATES = [
   'TX','UT','VT','VA','WA','WV','WI','WY',
 ];
 
+const STATUS_OPTIONS = ['active', 'on_hold', 'won', 'lost', 'archived'];
+const STATUS_LABELS = { active: 'Active', on_hold: 'On Hold', won: 'Won', lost: 'Lost', archived: 'Archived' };
+const STATUS_COLORS = {
+  active:   { bg: '#f0fdf4', color: '#166534', border: '#bbf7d0' },
+  on_hold:  { bg: '#fefce8', color: '#854d0e', border: '#fde68a' },
+  won:      { bg: '#eff6ff', color: '#1e40af', border: '#bfdbfe' },
+  lost:     { bg: '#fef2f2', color: '#991b1b', border: '#fecaca' },
+  archived: { bg: '#f5f5f4', color: '#78716c', border: '#d6d3d1' },
+};
+
+const SORT_OPTIONS = [
+  { value: 'updated', label: 'Last Updated' },
+  { value: 'name', label: 'Name' },
+  { value: 'budget', label: 'Budget' },
+];
+
+const FILTER_OPTIONS = [
+  { value: 'all', label: 'All' },
+  { value: 'active', label: 'Active' },
+  { value: 'on_hold', label: 'On Hold' },
+  { value: 'won', label: 'Won' },
+  { value: 'lost', label: 'Lost' },
+  { value: 'archived', label: 'Archived' },
+];
+
 const EMPTY_FORM = {
   name: '', city: '', state: '', building_type: '',
   delivery_method: '', target_budget: '', target_budget_tbd: false,
@@ -88,12 +113,16 @@ export default function ProjectDashboard({ user, org, orgRole, onSignOut, onSele
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState(null);
   const [showMenu, setShowMenu] = useState(false);
+  const [filterStatus, setFilterStatus] = useState('all');
+  const [sortBy, setSortBy] = useState('updated');
+  const [search, setSearch] = useState('');
+  const [editingProject, setEditingProject] = useState(null);
 
   const loadProjects = async () => {
     setLoadingProjects(true);
     const { data } = org?.id
       ? await getOrgProjects(org.id)
-      : await getProjects();
+      : await getAllProjects();
     setProjects(data || []);
     setLoadingProjects(false);
   };
@@ -120,7 +149,6 @@ export default function ProjectDashboard({ user, org, orgRole, onSignOut, onSele
         setFormError('Could not create sample project. Please try again.');
         return;
       }
-      // Pre-seed sample items so auto-seed (180 items) doesn't run
       const { data: scenarios } = await getScenarios(data.id);
       const baseline = scenarios?.[0];
       if (baseline) {
@@ -160,7 +188,7 @@ export default function ProjectDashboard({ user, org, orgRole, onSignOut, onSele
       if (error) {
         console.error('[handleCreate] createProject error:', error);
         if (isLockError(error)) {
-          const { data: existing } = org?.id ? await getOrgProjects(org.id) : await getProjects();
+          const { data: existing } = org?.id ? await getOrgProjects(org.id) : await getAllProjects();
           const created = existing?.find(p => p.name === form.name.trim());
           if (created) {
             setForm(EMPTY_FORM);
@@ -187,12 +215,58 @@ export default function ProjectDashboard({ user, org, orgRole, onSignOut, onSele
     }
   };
 
+  const handleStatusChange = async (projectId, newStatus) => {
+    await updateProject(projectId, { status: newStatus });
+    setProjects(prev => prev.map(p => p.id === projectId ? { ...p, status: newStatus } : p));
+  };
+
+  const handleDelete = async (projectId) => {
+    await deleteProject(projectId);
+    setProjects(prev => prev.filter(p => p.id !== projectId));
+  };
+
+  const handleRename = async (projectId, newName) => {
+    if (!newName.trim()) return;
+    await updateProject(projectId, { name: newName.trim() });
+    setProjects(prev => prev.map(p => p.id === projectId ? { ...p, name: newName.trim() } : p));
+    setEditingProject(null);
+  };
+
   const fmtBudget = (n) => {
     if (!n) return null;
     if (n >= 1_000_000) return `$${(n / 1_000_000).toFixed(1)}M`;
     if (n >= 1_000) return `$${(n / 1_000).toFixed(0)}K`;
     return `$${n.toLocaleString()}`;
   };
+
+  const filteredProjects = useMemo(() => {
+    let list = [...projects];
+
+    if (filterStatus !== 'all') {
+      list = list.filter(p => (p.status || 'active') === filterStatus);
+    }
+
+    if (search.trim()) {
+      const q = search.trim().toLowerCase();
+      list = list.filter(p =>
+        (p.name || '').toLowerCase().includes(q) ||
+        (p.city || '').toLowerCase().includes(q) ||
+        (p.building_type || '').toLowerCase().includes(q)
+      );
+    }
+
+    if (sortBy === 'name') {
+      list.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+    } else if (sortBy === 'budget') {
+      list.sort((a, b) => (b.target_budget || 0) - (a.target_budget || 0));
+    } else {
+      list.sort((a, b) => new Date(b.updated_at || 0) - new Date(a.updated_at || 0));
+    }
+
+    return list;
+  }, [projects, filterStatus, sortBy, search]);
+
+  const hasProjects = projects.length > 0;
 
   return (
     <div style={{ minHeight: '100vh', background: BG, display: 'flex', flexDirection: 'column' }}>
@@ -255,7 +329,7 @@ export default function ProjectDashboard({ user, org, orgRole, onSignOut, onSele
             </h1>
             <p style={{ fontFamily: "'Figtree', sans-serif", color: '#888', fontSize: 14 }}>
               {org
-                ? `All active projects for ${org.name}.`
+                ? `All projects for ${org.name}.`
                 : 'Select a project to open it, or create a new one.'}
             </p>
           </div>
@@ -394,7 +468,7 @@ export default function ProjectDashboard({ user, org, orgRole, onSignOut, onSele
           }}>
             Loading projects…
           </div>
-        ) : projects.length === 0 ? (
+        ) : !hasProjects ? (
           <div style={{
             textAlign: 'center', padding: '56px 24px',
             background: '#fff', border: '1.5px dashed #d8d8d4',
@@ -425,29 +499,105 @@ export default function ProjectDashboard({ user, org, orgRole, onSignOut, onSele
             {formError && <p style={{ color: '#c0392b', fontFamily: "'Figtree', sans-serif", fontSize: 13, marginTop: 16 }}>{formError}</p>}
           </div>
         ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            {projects.map(p => (
-              <ProjectCard
-                key={p.id}
-                project={p}
-                onSelect={onSelectProject}
-                fmtBudget={fmtBudget}
-                userId={user.id}
-                onDuplicated={loadProjects}
-              />
-            ))}
-          </div>
+          <>
+            {/* Toolbar: search + filter + sort */}
+            <div style={{ display: 'flex', gap: 10, marginBottom: 16, flexWrap: 'wrap', alignItems: 'center' }}>
+              <div style={{ position: 'relative', flex: '1 1 200px', minWidth: 0 }}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#aaa" strokeWidth="2" style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }}>
+                  <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
+                </svg>
+                <input
+                  type="text"
+                  placeholder="Search by name, city, or type…"
+                  value={search}
+                  onChange={e => setSearch(e.target.value)}
+                  style={{
+                    width: '100%', paddingLeft: 32, paddingRight: 12, paddingTop: 8, paddingBottom: 8,
+                    border: '1.5px solid #e0e0dc', borderRadius: 8,
+                    fontFamily: "'Figtree', sans-serif", fontSize: 13,
+                    outline: 'none', boxSizing: 'border-box', background: '#fff',
+                  }}
+                />
+              </div>
+              <select
+                value={filterStatus}
+                onChange={e => setFilterStatus(e.target.value)}
+                style={{
+                  padding: '8px 12px', border: '1.5px solid #e0e0dc', borderRadius: 8,
+                  fontFamily: "'Figtree', sans-serif", fontSize: 13,
+                  background: '#fff', cursor: 'pointer', outline: 'none',
+                }}
+              >
+                {FILTER_OPTIONS.map(o => (
+                  <option key={o.value} value={o.value}>{o.label}</option>
+                ))}
+              </select>
+              <select
+                value={sortBy}
+                onChange={e => setSortBy(e.target.value)}
+                style={{
+                  padding: '8px 12px', border: '1.5px solid #e0e0dc', borderRadius: 8,
+                  fontFamily: "'Figtree', sans-serif", fontSize: 13,
+                  background: '#fff', cursor: 'pointer', outline: 'none',
+                }}
+              >
+                {SORT_OPTIONS.map(o => (
+                  <option key={o.value} value={o.value}>{o.label}</option>
+                ))}
+              </select>
+            </div>
+
+            {filteredProjects.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '40px 24px', fontFamily: "'Figtree', sans-serif", color: '#aaa', fontSize: 14 }}>
+                No projects match your filter.
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                {filteredProjects.map(p => (
+                  <ProjectCard
+                    key={p.id}
+                    project={p}
+                    onSelect={onSelectProject}
+                    fmtBudget={fmtBudget}
+                    userId={user.id}
+                    onDuplicated={loadProjects}
+                    onStatusChange={handleStatusChange}
+                    onDelete={handleDelete}
+                    editingProject={editingProject}
+                    setEditingProject={setEditingProject}
+                    onRename={handleRename}
+                  />
+                ))}
+              </div>
+            )}
+          </>
         )}
       </main>
     </div>
   );
 }
 
-function ProjectCard({ project: p, onSelect, fmtBudget, userId, onDuplicated }) {
+function ProjectCard({ project: p, onSelect, fmtBudget, userId, onDuplicated, onStatusChange, onDelete, editingProject, setEditingProject, onRename }) {
   const [hovered, setHovered] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [duplicating, setDuplicating] = useState(false);
-  const menuRef = useState(null)[0];
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [editName, setEditName] = useState('');
+  const menuRef = useRef(null);
+  const isEditing = editingProject === p.id;
+  const status = p.status || 'active';
+  const statusStyle = STATUS_COLORS[status] || STATUS_COLORS.active;
+
+  useEffect(() => {
+    const handler = (e) => {
+      if (menuRef.current && !menuRef.current.contains(e.target)) {
+        setMenuOpen(false);
+        setConfirmDelete(false);
+      }
+    };
+    if (menuOpen) document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [menuOpen]);
 
   const handleDuplicate = async (e) => {
     e.stopPropagation();
@@ -458,55 +608,108 @@ function ProjectCard({ project: p, onSelect, fmtBudget, userId, onDuplicated }) 
     if (onDuplicated) onDuplicated();
   };
 
+  const handleArchive = (e) => {
+    e.stopPropagation();
+    setMenuOpen(false);
+    onStatusChange(p.id, status === 'archived' ? 'active' : 'archived');
+  };
+
+  const handleDelete = (e) => {
+    e.stopPropagation();
+    if (!confirmDelete) { setConfirmDelete(true); return; }
+    setMenuOpen(false);
+    setConfirmDelete(false);
+    onDelete(p.id);
+  };
+
+  const handleEdit = (e) => {
+    e.stopPropagation();
+    setMenuOpen(false);
+    setEditName(p.name);
+    setEditingProject(p.id);
+  };
+
+  const handleStatusChange = (e, newStatus) => {
+    e.stopPropagation();
+    setMenuOpen(false);
+    onStatusChange(p.id, newStatus);
+  };
+
   return (
     <div
       onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => { setHovered(false); setMenuOpen(false); }}
+      onMouseLeave={() => { setHovered(false); setMenuOpen(false); setConfirmDelete(false); }}
       style={{ position: 'relative' }}
     >
-      <button
-        onClick={() => onSelect(p)}
-        style={{
-          background: '#fff',
-          border: `1px solid ${hovered ? ACCENT : '#e6e6e2'}`,
-          borderRadius: 10, padding: '18px 22px',
-          textAlign: 'left', cursor: 'pointer',
-          display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-          width: '100%', transition: 'border-color 0.15s, box-shadow 0.15s',
-          boxShadow: hovered ? '0 2px 12px rgba(184,144,48,0.1)' : '0 1px 4px rgba(0,0,0,0.04)',
-        }}
-      >
-        <div>
-          <div style={{ fontFamily: "'Archivo', sans-serif", fontWeight: 700, fontSize: 16, color: '#111', marginBottom: 5 }}>
-            {p.name}
-          </div>
-          <div style={{ fontFamily: "'Figtree', sans-serif", fontSize: 13, color: '#999', display: 'flex', flexWrap: 'wrap', gap: '4px 10px' }}>
-            {(p.city || p.state) && <span>{[p.city, p.state].filter(Boolean).join(', ')}</span>}
-            {p.building_type && <span>· {p.building_type}</span>}
-            {p.gross_sf && <span>· {p.gross_sf.toLocaleString()} SF</span>}
-            {p.target_budget && <span>· {fmtBudget(p.target_budget)} budget</span>}
-          </div>
+      {isEditing ? (
+        <div style={{ background: '#fff', border: `1.5px solid ${ACCENT}`, borderRadius: 10, padding: '14px 18px', display: 'flex', gap: 10, alignItems: 'center' }}>
+          <input
+            autoFocus
+            value={editName}
+            onChange={e => setEditName(e.target.value)}
+            onKeyDown={e => {
+              if (e.key === 'Enter') onRename(p.id, editName);
+              if (e.key === 'Escape') setEditingProject(null);
+            }}
+            style={{ flex: 1, padding: '8px 12px', border: '1.5px solid #e0e0dc', borderRadius: 7, fontFamily: "'Figtree', sans-serif", fontSize: 14, outline: 'none' }}
+          />
+          <button onClick={() => onRename(p.id, editName)} style={{ background: ACCENT, color: '#fff', border: 'none', borderRadius: 7, padding: '8px 16px', fontFamily: "'Archivo', sans-serif", fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>Save</button>
+          <button onClick={() => setEditingProject(null)} style={{ background: 'none', border: '1px solid #ddd', borderRadius: 7, padding: '8px 14px', fontFamily: "'Figtree', sans-serif", fontSize: 13, color: '#555', cursor: 'pointer' }}>Cancel</button>
         </div>
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexShrink: 0, marginLeft: 16 }}>
-          {p.delivery_method && (
-            <span style={{ background: '#f2f2ef', borderRadius: 5, padding: '3px 9px', fontFamily: "'Figtree', sans-serif", fontSize: 11, color: '#666', whiteSpace: 'nowrap' }}>
-              {p.delivery_method}
-            </span>
-          )}
-          {p.labor_type && (
-            <span style={{ background: '#fdf6e3', borderRadius: 5, padding: '3px 9px', fontFamily: "'Figtree', sans-serif", fontSize: 11, color: '#8a6a1a', whiteSpace: 'nowrap' }}>
-              {p.labor_type}
-            </span>
-          )}
-          <span style={{ color: ACCENT, fontSize: 20, fontWeight: 300, marginLeft: 4 }}>›</span>
-        </div>
-      </button>
+      ) : (
+        <button
+          onClick={() => onSelect(p)}
+          style={{
+            background: '#fff',
+            border: `1px solid ${hovered ? ACCENT : '#e6e6e2'}`,
+            borderRadius: 10, padding: '18px 22px',
+            textAlign: 'left', cursor: 'pointer',
+            display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+            width: '100%', transition: 'border-color 0.15s, box-shadow 0.15s',
+            boxShadow: hovered ? '0 2px 12px rgba(184,144,48,0.1)' : '0 1px 4px rgba(0,0,0,0.04)',
+          }}
+        >
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginBottom: 5 }}>
+              <span style={{ fontFamily: "'Archivo', sans-serif", fontWeight: 700, fontSize: 16, color: '#111' }}>
+                {p.name}
+              </span>
+              <span style={{
+                fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 4,
+                background: statusStyle.bg, color: statusStyle.color, border: `1px solid ${statusStyle.border}`,
+                flexShrink: 0, fontFamily: "'Figtree', sans-serif",
+              }}>
+                {STATUS_LABELS[status] || status}
+              </span>
+            </div>
+            <div style={{ fontFamily: "'Figtree', sans-serif", fontSize: 13, color: '#999', display: 'flex', flexWrap: 'wrap', gap: '4px 10px' }}>
+              {(p.city || p.state) && <span>{[p.city, p.state].filter(Boolean).join(', ')}</span>}
+              {p.building_type && <span>· {p.building_type}</span>}
+              {p.gross_sf && <span>· {p.gross_sf.toLocaleString()} SF</span>}
+              {p.target_budget && <span>· {fmtBudget(p.target_budget)} budget</span>}
+            </div>
+          </div>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexShrink: 0, marginLeft: 16 }}>
+            {p.delivery_method && (
+              <span style={{ background: '#f2f2ef', borderRadius: 5, padding: '3px 9px', fontFamily: "'Figtree', sans-serif", fontSize: 11, color: '#666', whiteSpace: 'nowrap' }}>
+                {p.delivery_method}
+              </span>
+            )}
+            {p.labor_type && (
+              <span style={{ background: '#fdf6e3', borderRadius: 5, padding: '3px 9px', fontFamily: "'Figtree', sans-serif", fontSize: 11, color: '#8a6a1a', whiteSpace: 'nowrap' }}>
+                {p.labor_type}
+              </span>
+            )}
+            <span style={{ color: ACCENT, fontSize: 20, fontWeight: 300, marginLeft: 4 }}>›</span>
+          </div>
+        </button>
+      )}
 
-      {/* Three-dot menu button */}
-      {hovered && (
-        <div style={{ position: 'absolute', top: '50%', right: 52, transform: 'translateY(-50%)', zIndex: 10 }}>
+      {/* Three-dot menu */}
+      {hovered && !isEditing && (
+        <div ref={menuRef} style={{ position: 'absolute', top: '50%', right: 52, transform: 'translateY(-50%)', zIndex: 10 }}>
           <button
-            onClick={(e) => { e.stopPropagation(); setMenuOpen(v => !v); }}
+            onClick={(e) => { e.stopPropagation(); setMenuOpen(v => !v); setConfirmDelete(false); }}
             style={{ background: menuOpen ? '#f0f0ee' : '#fff', border: '1px solid #e0e0dc', borderRadius: 6, padding: '4px 8px', cursor: 'pointer', fontSize: 16, color: '#888', lineHeight: 1 }}
             title="More options"
           >
@@ -515,20 +718,62 @@ function ProjectCard({ project: p, onSelect, fmtBudget, userId, onDuplicated }) 
           {menuOpen && (
             <div
               onClick={e => e.stopPropagation()}
-              style={{ position: 'absolute', right: 0, top: 34, background: '#fff', border: '1px solid #e6e6e2', borderRadius: 8, padding: 4, zIndex: 100, minWidth: 150, boxShadow: '0 4px 16px rgba(0,0,0,.12)' }}
+              style={{ position: 'absolute', right: 0, top: 34, background: '#fff', border: '1px solid #e6e6e2', borderRadius: 8, padding: 4, zIndex: 100, minWidth: 190, boxShadow: '0 4px 16px rgba(0,0,0,.12)' }}
             >
-              <button
-                onClick={handleDuplicate}
-                disabled={duplicating}
-                style={{ display: 'block', width: '100%', textAlign: 'left', background: 'transparent', border: 'none', padding: '8px 14px', fontSize: 13, fontFamily: "'Figtree', sans-serif", cursor: duplicating ? 'default' : 'pointer', color: duplicating ? '#aaa' : '#333', borderRadius: 4 }}
-              >
-                {duplicating ? 'Duplicating…' : '⧉ Duplicate'}
-              </button>
+              <MenuItem onClick={handleEdit}>✏ Edit Name</MenuItem>
+
+              <div style={{ borderTop: '1px solid #f0f0ee', margin: '4px 0', padding: '4px 0' }}>
+                <div style={{ padding: '4px 14px 2px', fontSize: 10, color: '#aaa', fontFamily: "'Figtree', sans-serif", textTransform: 'uppercase', letterSpacing: 0.5 }}>Set Status</div>
+                {STATUS_OPTIONS.filter(s => s !== (p.status || 'active')).map(s => (
+                  <MenuItem key={s} onClick={(e) => handleStatusChange(e, s)}>
+                    <span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', background: STATUS_COLORS[s]?.color || '#888', marginRight: 8 }} />
+                    {STATUS_LABELS[s]}
+                  </MenuItem>
+                ))}
+              </div>
+
+              <div style={{ borderTop: '1px solid #f0f0ee', margin: '4px 0' }}>
+                <MenuItem onClick={handleDuplicate} disabled={duplicating}>
+                  {duplicating ? '⧉ Duplicating…' : '⧉ Duplicate'}
+                </MenuItem>
+                <MenuItem onClick={handleArchive}>
+                  {status === 'archived' ? '↩ Unarchive' : '📁 Archive'}
+                </MenuItem>
+              </div>
+
+              <div style={{ borderTop: '1px solid #f0f0ee', margin: '4px 0' }}>
+                <MenuItem onClick={handleDelete} danger>
+                  {confirmDelete ? 'Click again to confirm delete' : '🗑 Delete'}
+                </MenuItem>
+              </div>
             </div>
           )}
         </div>
       )}
     </div>
+  );
+}
+
+function MenuItem({ onClick, children, disabled, danger }) {
+  const [hov, setHov] = useState(false);
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      onMouseEnter={() => setHov(true)}
+      onMouseLeave={() => setHov(false)}
+      style={{
+        display: 'block', width: '100%', textAlign: 'left',
+        background: hov ? (danger ? '#fef2f2' : '#f9f9f8') : 'transparent',
+        border: 'none', padding: '8px 14px', fontSize: 13,
+        fontFamily: "'Figtree', sans-serif",
+        cursor: disabled ? 'default' : 'pointer',
+        color: disabled ? '#aaa' : danger ? '#dc2626' : '#333',
+        borderRadius: 4,
+      }}
+    >
+      {children}
+    </button>
   );
 }
 

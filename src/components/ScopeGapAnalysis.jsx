@@ -217,7 +217,7 @@ export default function ScopeGapAnalysis({ items, project, scenario }) {
           <>
             <div style={{ fontSize: 28, marginBottom: 10, lineHeight: 1 }}>📂</div>
             <div style={{ fontFamily: "'Figtree', sans-serif", fontSize: 13, color: '#555', marginBottom: 6, fontWeight: 500 }}>
-              Upload a budget, estimate, or bid tab (Excel or CSV) to check for missing scope
+              Upload a budget or estimate to check for missing scope.
             </div>
             <div style={{ fontFamily: "'Figtree', sans-serif", fontSize: 11, color: '#bbb' }}>
               Drag &amp; drop here, or click to browse · .xlsx, .xls, .csv
