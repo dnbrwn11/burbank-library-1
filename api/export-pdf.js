@@ -527,6 +527,61 @@ function buildAssumptions(doc, items, project, globals) {
   }
 }
 
+function buildAllowanceSummary(doc, allowanceItems, drawsMap) {
+  let y = sectionTitle(doc, CT, 'Allowance Tracking Summary');
+  y += 4;
+
+  const cols = [
+    { key: 'desc',      label: 'Allowance Item',  width: 210, align: 'left' },
+    { key: 'cat',       label: 'Category',         width: 110, align: 'left' },
+    { key: 'original',  label: 'Original Budget',  width: 80,  align: 'right' },
+    { key: 'drawn',     label: 'Total Drawn',      width: 72,  align: 'right' },
+    { key: 'remaining', label: 'Remaining',        width: 60,  align: 'right' },
+  ];
+
+  let totalOriginal = 0, totalDrawn = 0;
+  const rows = [];
+
+  for (const it of allowanceItems) {
+    const original = itemMid(it);
+    const itemDraws = drawsMap[it.id] || [];
+    const drawn = itemDraws.reduce((s, d) => s + Number(d.amount), 0);
+    const remaining = original - drawn;
+    totalOriginal += original;
+    totalDrawn += drawn;
+
+    rows.push({
+      desc:      short(it.description || it.subcategory || '—', 36),
+      cat:       short(it.category, 18),
+      original:  $c(original),
+      drawn:     $c(drawn),
+      remaining: $c(remaining),
+    });
+
+    // Draw detail rows (indented)
+    for (const d of itemDraws) {
+      rows.push({
+        desc:      `  ${d.drawn_date}  ${short(d.description, 30)}`,
+        cat:       '',
+        original:  '',
+        drawn:     $c(Number(d.amount)),
+        remaining: '',
+      });
+    }
+    if (itemDraws.length) rows.push({ _type: 'spacer' });
+  }
+
+  rows.push({ _type: 'total',
+    desc: 'TOTAL ALLOWANCES',
+    cat: '',
+    original:  $c(totalOriginal),
+    drawn:     $c(totalDrawn),
+    remaining: $c(totalOriginal - totalDrawn),
+  });
+
+  y = drawTable(doc, ML, y, cols, rows);
+}
+
 // ── Main handler ──────────────────────────────────────────────────────────────
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -571,6 +626,23 @@ export default async function handler(req, res) {
     const items    = itemsRes.data || [];
     const globals  = scenario.globals || {};
     const activeItems = items.filter(it => !it.is_archived && it.in_summary !== false);
+
+    const allowanceItems = activeItems.filter(it => it.is_allowance);
+    let drawsMap = {};
+    if (allowanceItems.length) {
+      const allowanceIds = allowanceItems.map(it => it.id);
+      const { data: drawRows } = await supabase
+        .from('allowance_draws')
+        .select('*')
+        .in('line_item_id', allowanceIds)
+        .order('drawn_date', { ascending: false });
+      if (drawRows) {
+        allowanceIds.forEach(id => { drawsMap[id] = []; });
+        drawRows.forEach(d => {
+          if (drawsMap[d.line_item_id]) drawsMap[d.line_item_id].push(d);
+        });
+      }
+    }
 
     console.log('[export-pdf] Building PDF:', items.length, 'items');
 
@@ -617,9 +689,15 @@ export default async function handler(req, res) {
     addPage(doc);
     buildDetailedLineItems(doc, activeItems, globals);
 
-    // Last page: Assumptions
+    // Last pages: Assumptions
     addPage(doc);
     buildAssumptions(doc, items, project, globals);
+
+    // Allowance summary — only when allowances exist
+    if (allowanceItems.length) {
+      addPage(doc);
+      buildAllowanceSummary(doc, allowanceItems, drawsMap);
+    }
 
     doc.end();
 

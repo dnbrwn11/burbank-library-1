@@ -934,7 +934,7 @@ function CostModelApp({ user, project, onBack, onSignOut }) {
 
       {/* Content */}
       <div style={{ padding: mob ? 12 : 18 }}>
-        {view === 'dashboard' && <Dashboard {...viewProps} />}
+        {view === 'dashboard' && <Dashboard {...viewProps} project={project} user={user} />}
         {view === 'estimate' && <CostModel {...viewProps} registerUndo={(fn) => { undoFnRef.current = fn; }} />}
         {view === 'compare' && <Compare {...viewProps} addScenario={addScenario} />}
         {view === 'assumptions' && <Assumptions {...viewProps} scenarioName={active.name} />}
