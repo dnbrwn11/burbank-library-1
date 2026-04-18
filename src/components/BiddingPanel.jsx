@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../supabase/supabaseClient';
 import { getBidPackages, getBidInvitations, getBidSubmissions } from '../supabase/db';
+import { analytics } from '../analytics';
 
 const ACCENT = '#B89030';
 const HEADER_BG = '#222222';
@@ -99,6 +100,7 @@ export default function BiddingPanel({ project, user, totals, createItem, canEdi
       });
       const body = await res.json();
       if (!res.ok) throw new Error(body.error || 'Failed to create package');
+      analytics.bidPackageCreated(pkgForm.name);
       setPackages(prev => [body.data, ...prev]);
       setPkgForm(EMPTY_PKG_FORM);
       setShowNewPkgForm(false);

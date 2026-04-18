@@ -3,6 +3,7 @@ import { createClient } from '@supabase/supabase-js';
 import { resend, FROM_ADDRESS } from '../lib/resend.js';
 import { bidInvite } from '../lib/email-templates.js';
 import { SUPABASE_URL, SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY } from '../lib/supabaseServer.js';
+import { Sentry } from '../lib/sentry-server.js';
 
 function authClient(token) {
   return createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
@@ -126,6 +127,7 @@ export default async function handler(req, res) {
       try {
         await resend.emails.send({ from: FROM_ADDRESS, to: email, subject, html });
       } catch (emailErr) {
+        Sentry.captureException(emailErr);
         console.error('[bid-packages] email send error:', emailErr?.message);
       }
 

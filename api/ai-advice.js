@@ -1,6 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { createClient } from '@supabase/supabase-js';
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from '../lib/supabaseServer.js';
+import { Sentry } from '../lib/sentry-server.js';
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -93,6 +94,7 @@ Provide your independent cost opinion based on current US market conditions. Res
     return res.status(200).json(advice);
 
   } catch (err) {
+    Sentry.captureException(err);
     console.error('[ai-advice] Unexpected error:', err?.message);
     return res.status(500).json({ error: err?.message || 'Internal server error' });
   }

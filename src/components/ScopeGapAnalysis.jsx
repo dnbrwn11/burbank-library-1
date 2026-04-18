@@ -1,4 +1,5 @@
 import { useState, useRef } from 'react';
+import { analytics } from '../analytics';
 
 const ACCENT = '#B89030';
 const BORDER = '#E5E5E0';
@@ -134,6 +135,7 @@ export default function ScopeGapAnalysis({ items, project, scenario }) {
       }
       const analysis = analyzeGaps(descs, items || []);
       setResults({ ...analysis, uploadCount: descs.length });
+      analytics.auditRun(ext);
     } catch (err) {
       setParseError(err.message || 'Failed to parse file.');
     } finally {

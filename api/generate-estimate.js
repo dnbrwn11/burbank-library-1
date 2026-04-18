@@ -1,4 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk';
+import { Sentry } from '../lib/sentry-server.js';
 
 export const config = { maxDuration: 300 };
 
@@ -266,6 +267,7 @@ export default async function handler(req, res) {
       console.log(`[generate-estimate] Batch ${batch.index + 1} done: ${items.length} items`);
       send({ type: 'batch', batchIndex: batch.index, batchName: batch.name, items: withOrder, itemCount: withOrder.length });
     } catch (err) {
+      Sentry.captureException(err);
       console.error(`[generate-estimate] Batch ${batch.index + 1} error:`, err.message);
       send({ type: 'batch_error', batchIndex: batch.index, batchName: batch.name, error: err.message });
     }

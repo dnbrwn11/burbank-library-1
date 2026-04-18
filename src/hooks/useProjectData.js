@@ -23,6 +23,7 @@ const TO_DB = {
   isArchived: 'is_archived',
   inSummary: 'in_summary',
   sortOrder: 'sort_order',
+  isAllowance: 'is_allowance',
 };
 const toDb = (f) => TO_DB[f] ?? f;
 
@@ -44,6 +45,7 @@ function rowToItem(row) {
     inSummary: row.in_summary ?? true,
     isArchived: row.is_archived ?? false,
     sortOrder: row.sort_order ?? 0,
+    isAllowance: row.is_allowance ?? false,
   };
 }
 

@@ -3,6 +3,7 @@ import { createClient } from '@supabase/supabase-js';
 import { resend, FROM_ADDRESS } from '../lib/resend.js';
 import { teamInvite, orgInvite } from '../lib/email-templates.js';
 import { SUPABASE_URL, SUPABASE_ANON_KEY, INVITE_SECRET } from '../lib/supabaseServer.js';
+import { Sentry } from '../lib/sentry-server.js';
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -171,6 +172,7 @@ export default async function handler(req, res) {
     return res.status(200).json({ ok: true });
 
   } catch (err) {
+    Sentry.captureException(err);
     console.error('[send-invite] Unexpected error:', err?.message, err);
     return res.status(500).json({ error: 'Internal server error', detail: err?.message });
   }

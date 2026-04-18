@@ -27,6 +27,7 @@ import BidSubmitScreen from './components/BidSubmitScreen';
 import { supabase } from './supabase/supabaseClient';
 import { getProjectMembers, getProjectMemberRole } from './supabase/db';
 import { analytics, initCrisp, identifyUser, identifyCrispUser, resetAnalyticsUser } from './analytics';
+import { Sentry } from './sentry';
 
 const ACCENT = '#B89030';
 const HEADER = '#222222';
@@ -49,12 +50,16 @@ export default function App() {
   // Init Crisp once on mount (deferred — won't block first paint)
   useEffect(() => { initCrisp(); }, []);
 
-  // Identify user in PostHog + Crisp after auth
+  // Identify user in PostHog + Crisp + Sentry after auth
   useEffect(() => {
-    if (!user) return;
+    if (!user) {
+      Sentry.setUser(null);
+      return;
+    }
     const name = profile?.full_name || null;
     identifyUser(user.id, { email: user.email, name, company: profile?.company });
     identifyCrispUser(user.email, name);
+    Sentry.setUser({ id: user.id, email: user.email });
   }, [user?.id, profile?.full_name]);
 
   const [showLogin, setShowLogin] = useState(false);
@@ -654,6 +659,7 @@ function CostModelApp({ user, project, onBack, onSignOut }) {
   }, [updateItem]);
 
   async function exportPdf() {
+    analytics.exportClicked(project.id);
     setExportingPdf(true);
     try {
       const { data: { session } } = await supabase.auth.getSession();

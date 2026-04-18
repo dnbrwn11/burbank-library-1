@@ -1,4 +1,5 @@
 import posthog from 'posthog-js';
+import { Sentry } from './sentry';
 
 // ── PostHog ────────────────────────────────────────────────────────────────
 
@@ -40,20 +41,47 @@ function capture(event, props = {}) {
   try { posthog.capture(event, props); } catch { /* never throw from analytics */ }
 }
 
+function breadcrumb(message, data = {}) {
+  try {
+    Sentry.addBreadcrumb({ category: 'app', message, level: 'info', data });
+  } catch { /* never throw from analytics */ }
+}
+
 // Named event helpers — kept in one place so event names never drift
 export const analytics = {
-  projectCreated: (p) => capture('project_created', {
-    building_type: p.building_type,
-    delivery_method: p.delivery_method,
-    city: p.city,
-    state: p.state,
-  }),
+  projectCreated: (p) => {
+    breadcrumb('project_created', { building_type: p.building_type, city: p.city, state: p.state });
+    capture('project_created', {
+      building_type: p.building_type,
+      delivery_method: p.delivery_method,
+      city: p.city,
+      state: p.state,
+    });
+  },
 
-  estimateGenerated: (project, itemCount) => capture('estimate_generated', {
-    building_type: project?.building_type,
-    gross_sf: project?.gross_sf,
-    item_count: itemCount,
-  }),
+  estimateGenerated: (project, itemCount) => {
+    breadcrumb('estimate_generated', { building_type: project?.building_type, item_count: itemCount });
+    capture('estimate_generated', {
+      building_type: project?.building_type,
+      gross_sf: project?.gross_sf,
+      item_count: itemCount,
+    });
+  },
+
+  auditRun: (fileType) => {
+    breadcrumb('audit_run', { file_type: fileType });
+    capture('audit_run', { file_type: fileType });
+  },
+
+  exportClicked: (projectId) => {
+    breadcrumb('export_clicked', { project_id: projectId });
+    capture('pdf_exported', { project_id: projectId });
+  },
+
+  bidPackageCreated: (name) => {
+    breadcrumb('bid_package_created', { name });
+    capture('bid_package_created', { name });
+  },
 
   lineItemEdited: (field) => capture('line_item_edited', { field }),
 
@@ -61,7 +89,6 @@ export const analytics = {
 
   teamMemberInvited: (role) => capture('team_member_invited', { role }),
 
-  // Defined for future use — call when export actions are added
   pdfExported: (projectId) => capture('pdf_exported', { project_id: projectId }),
   excelExported: (projectId) => capture('excel_exported', { project_id: projectId }),
   featureRequested: (feature) => capture('feature_requested', { feature }),

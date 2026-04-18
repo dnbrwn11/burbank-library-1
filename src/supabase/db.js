@@ -380,6 +380,46 @@ export async function getBidInvitations(packageId) {
   return { data, error };
 }
 
+// ════════════════════════════════════════════
+// ALLOWANCE DRAWS
+// ════════════════════════════════════════════
+
+export async function getDraws(lineItemId) {
+  const { data, error } = await supabase
+    .from('allowance_draws')
+    .select('*')
+    .eq('line_item_id', lineItemId)
+    .order('drawn_date', { ascending: false });
+  return { data, error };
+}
+
+export async function getDrawsForItems(lineItemIds) {
+  if (!lineItemIds.length) return { data: [], error: null };
+  const { data, error } = await supabase
+    .from('allowance_draws')
+    .select('*')
+    .in('line_item_id', lineItemIds)
+    .order('drawn_date', { ascending: false });
+  return { data, error };
+}
+
+export async function createDraw({ line_item_id, amount, description, drawn_date, created_by }) {
+  const { data, error } = await supabase
+    .from('allowance_draws')
+    .insert({ line_item_id, amount, description, drawn_date, created_by })
+    .select()
+    .single();
+  return { data, error };
+}
+
+export async function deleteDraw(drawId) {
+  const { error } = await supabase
+    .from('allowance_draws')
+    .delete()
+    .eq('id', drawId);
+  return { error };
+}
+
 export async function getBidSubmissions(packageId) {
   const { data, error } = await supabase
     .from('bid_submissions')

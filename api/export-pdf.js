@@ -1,6 +1,7 @@
 import PDFDocument from 'pdfkit';
 import { createClient } from '@supabase/supabase-js';
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from '../lib/supabaseServer.js';
+import { Sentry } from '../lib/sentry-server.js';
 
 export const config = { maxDuration: 60 };
 
@@ -725,6 +726,7 @@ export default async function handler(req, res) {
     return res.end(pdfBuffer);
 
   } catch (err) {
+    Sentry.captureException(err);
     console.error('[export-pdf] Error:', err?.message, err);
     // Only send JSON error if headers not yet sent
     if (!res.headersSent) {

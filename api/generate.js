@@ -1,3 +1,5 @@
+import { Sentry } from '../lib/sentry-server.js';
+
 export const config = { maxDuration: 300 };
 
 export default async function handler(req, res) {
@@ -147,6 +149,7 @@ Remember: JSON array ONLY. 35-45 items. Short descriptions. Start with [ end wit
       globals: inferGlobals(project),
     });
   } catch (err) {
+    Sentry.captureException(err);
     console.error('[generate] Unexpected error:', err);
     return res.status(500).json({ error: err.message || 'Unexpected server error' });
   }

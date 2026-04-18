@@ -86,7 +86,7 @@ function SortableItemRow({
   item, cv, bsf, mob,
   hoverRow, setHoverRow, expR, setExpR, flashId,
   updateItem, onDelete, aiAdvice, aiLoading, askAI, applyAI,
-  openMoveMenu, overId, isDraggingAny,
+  openMoveMenu, overId, isDraggingAny, canEdit,
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: item.id });
 
@@ -105,10 +105,11 @@ function SortableItemRow({
     transition: isFlash ? undefined : combinedTransition,
     background: rowBg,
     opacity: isDragging ? 0 : 1,
-    // Gold top-border on the over row as an insertion indicator
     borderTop: isOver ? `2px solid ${COLORS.gn}` : undefined,
     borderBottom: `1px solid ${COLORS.bl}`,
     position: 'relative',
+    // Gold inset left border for allowance items
+    boxShadow: item.isAllowance ? 'inset 4px 0 0 #B89030' : undefined,
   };
 
   const uI = (f) => (v) => updateItem(item.id, f, v);
@@ -145,7 +146,18 @@ function SortableItemRow({
           >{ex ? '▼' : '▸'}</span>
         </div>
       </td>
-      <td style={{ padding: '4px 8px' }}><EditField value={item.description} onCommit={uI('description')} type="text" /></td>
+      <td style={{ padding: '4px 8px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+          <EditField value={item.description} onCommit={uI('description')} type="text" />
+          {item.isAllowance && (
+            <span style={{
+              fontSize: 8, fontWeight: 700, letterSpacing: 0.8, textTransform: 'uppercase',
+              padding: '1px 5px', borderRadius: 3, flexShrink: 0, lineHeight: 1.6,
+              background: '#FFF8E8', color: '#B89030', border: '1px solid #D4A843',
+            }}>ALLOW</span>
+          )}
+        </div>
+      </td>
       <td style={{ padding: '4px 8px', fontSize: 10, color: COLORS.mg, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.subcategory}</td>
       <td style={{ padding: '4px 8px' }}><EditField value={item.qtyMin} onCommit={uI('qtyMin')} /></td>
       <td style={{ padding: '4px 8px' }}><EditField value={item.qtyMax} onCommit={uI('qtyMax')} /></td>
@@ -157,7 +169,22 @@ function SortableItemRow({
       <td style={{ padding: '4px 8px', textAlign: 'right', fontSize: 10, color: COLORS.mg, fontVariantNumeric: 'tabular-nums' }}>{psf(sh, bsf)}</td>
       <td style={{ padding: '4px 8px' }}><Badge sensitivity={item.sensitivity} /></td>
       <td style={{ padding: '4px 4px' }}>
-        <button onClick={() => onDelete(item)} style={{ background: 'transparent', border: 'none', color: COLORS.ltg, cursor: 'pointer', fontSize: 10 }}>✕</button>
+        <div style={{ display: 'flex', gap: 3, alignItems: 'center', justifyContent: 'flex-end' }}>
+          {canEdit && (isHover || item.isAllowance) && (
+            <button
+              onClick={() => updateItem(item.id, 'isAllowance', !item.isAllowance)}
+              title={item.isAllowance ? 'Remove allowance flag' : 'Mark as allowance'}
+              style={{
+                background: item.isAllowance ? '#FFF8E8' : 'transparent',
+                border: item.isAllowance ? '1px solid #D4A843' : 'none',
+                color: item.isAllowance ? '#B89030' : COLORS.mg,
+                cursor: 'pointer', fontSize: 9, padding: '1px 4px', borderRadius: 3,
+                fontWeight: 700, lineHeight: 1.4, fontFamily: FONTS.heading,
+              }}
+            >$</button>
+          )}
+          <button onClick={() => onDelete(item)} style={{ background: 'transparent', border: 'none', color: COLORS.ltg, cursor: 'pointer', fontSize: 10 }}>✕</button>
+        </div>
       </td>
     </tr>
   );
@@ -165,7 +192,7 @@ function SortableItemRow({
 
 // ── Main component ────────────────────────────────────────────────────────────
 
-export function CostModel({ items, globals, activeItems, totals, updateItem, createItem, reorderItems, bsf, aiAdvice, aiLoading, askAI, applyAI, registerUndo }) {
+export function CostModel({ items, globals, activeItems, totals, updateItem, createItem, reorderItems, bsf, aiAdvice, aiLoading, askAI, applyAI, registerUndo, canEdit }) {
   const { mob } = useWindowSize();
   const [search, setSearch] = useState('');
   const [fCat, setFCat] = useState('All');
@@ -445,11 +472,14 @@ export function CostModel({ items, globals, activeItems, totals, updateItem, cre
                       const ex = expR === item.id;
                       const hasAI = aiAdvice?.[item.id] || aiLoading?.has(item.id);
                       return (
-                        <div key={item.id} style={{ background: COLORS.wh, border: `1px solid ${ex ? COLORS.yl : hasAI ? `${COLORS.gn}44` : COLORS.bd}`, borderRadius: 10, overflow: 'hidden' }}>
+                        <div key={item.id} style={{ background: COLORS.wh, border: `1px solid ${ex ? COLORS.yl : hasAI ? `${COLORS.gn}44` : COLORS.bd}`, borderRadius: 10, overflow: 'hidden', borderLeft: item.isAllowance ? '4px dashed #B89030' : undefined }}>
                           <div onClick={() => setExpR(ex ? null : item.id)} style={{ padding: '12px 14px', cursor: 'pointer' }}>
                             <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
                               <div style={{ flex: 1, minWidth: 0 }}>
-                                <div style={{ fontSize: 14, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.description}</div>
+                                <div style={{ fontSize: 14, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: 6 }}>
+                                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.description}</span>
+                                  {item.isAllowance && <span style={{ fontSize: 8, fontWeight: 700, letterSpacing: 0.8, padding: '1px 5px', borderRadius: 3, background: '#FFF8E8', color: '#B89030', border: '1px solid #D4A843', flexShrink: 0 }}>ALLOW</span>}
+                                </div>
                                 <div style={{ fontSize: 11, color: COLORS.mg }}>{item.subcategory} · {item.unit}</div>
                               </div>
                               <div style={{ textAlign: 'right', flexShrink: 0 }}>
@@ -540,6 +570,7 @@ export function CostModel({ items, globals, activeItems, totals, updateItem, cre
                             openMoveMenu={openMoveMenu}
                             overId={overId}
                             isDraggingAny={isDraggingAny}
+                            canEdit={canEdit}
                           />,
                           // Detail panel: hide while dragging to avoid layout issues
                           expR === item.id && !isDraggingAny && (
