@@ -15,6 +15,7 @@ import { CostModel } from './components/CostModel';
 import { Compare } from './components/Compare';
 import { Assumptions } from './components/Assumptions';
 import { AuditLog } from './components/AuditLog';
+import ScopeGapAnalysis from './components/ScopeGapAnalysis';
 import LoginPage from './components/LoginPage';
 import LandingPage from './components/LandingPage';
 import ProjectDashboard from './components/ProjectDashboard';
@@ -937,7 +938,12 @@ function CostModelApp({ user, project, onBack, onSignOut }) {
         {view === 'estimate' && <CostModel {...viewProps} registerUndo={(fn) => { undoFnRef.current = fn; }} />}
         {view === 'compare' && <Compare {...viewProps} addScenario={addScenario} />}
         {view === 'assumptions' && <Assumptions {...viewProps} scenarioName={active.name} />}
-        {view === 'audit' && <AuditLog audit={audit} items={items} updateItem={updateItem} updateGlobal={updateGlobal} />}
+        {view === 'audit' && (
+          <>
+            <AuditLog audit={audit} items={items} updateItem={updateItem} updateGlobal={updateGlobal} />
+            <ScopeGapAnalysis items={items} project={project} scenario={active} />
+          </>
+        )}
         {view === 'bidding' && <BiddingPanel {...viewProps} project={project} user={user} mob={mob} />}
       </div>
 
