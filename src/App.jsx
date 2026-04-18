@@ -21,6 +21,8 @@ import ProjectDashboard from './components/ProjectDashboard';
 import OrgSettings from './components/OrgSettings';
 import AIGenerator from './components/AIGenerator';
 import TeamPanel, { Avatar, initials } from './components/TeamPanel';
+import BiddingPanel from './components/BiddingPanel';
+import BidSubmitScreen from './components/BidSubmitScreen';
 import { supabase } from './supabase/supabaseClient';
 import { getProjectMembers, getProjectMemberRole } from './supabase/db';
 import { analytics, initCrisp, identifyUser, identifyCrispUser, resetAnalyticsUser } from './analytics';
@@ -65,6 +67,17 @@ export default function App() {
   };
   const [activeProject, setActiveProject] = useState(null);
   const [generatingProject, setGeneratingProject] = useState(null);
+
+  // Bid submission token — checked before invite tokens
+  const [bidToken] = useState(() => {
+    const params = new URLSearchParams(window.location.search);
+    const token = params.get('bid');
+    if (token) {
+      window.history.replaceState({}, '', window.location.pathname);
+      return token;
+    }
+    return null;
+  });
 
   // Invite state — set from URL on first render
   const [pendingInvite, setPendingInvite] = useState(() => {
@@ -132,6 +145,11 @@ export default function App() {
         </div>
       </div>
     );
+  }
+
+  // Bid submission screen — public, no auth required
+  if (bidToken) {
+    return <BidSubmitScreen token={bidToken} onDismiss={user ? () => window.location.reload() : null} />;
   }
 
   // Invite accept screen — shown when there's a pending invite token in URL/storage
@@ -680,6 +698,7 @@ function CostModelApp({ user, project, onBack, onSignOut }) {
     ['compare', 'COMPARE'],
     ['assumptions', 'ASSUMPTIONS'],
     ['audit', 'AUDIT'],
+    ['bidding', 'BIDDING'],
   ];
 
   if (loading) {
@@ -919,6 +938,7 @@ function CostModelApp({ user, project, onBack, onSignOut }) {
         {view === 'compare' && <Compare {...viewProps} addScenario={addScenario} />}
         {view === 'assumptions' && <Assumptions {...viewProps} scenarioName={active.name} />}
         {view === 'audit' && <AuditLog audit={audit} items={items} updateItem={updateItem} updateGlobal={updateGlobal} />}
+        {view === 'bidding' && <BiddingPanel {...viewProps} project={project} user={user} mob={mob} />}
       </div>
 
       {showTeamPanel && (

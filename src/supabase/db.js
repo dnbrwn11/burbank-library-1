@@ -357,3 +357,34 @@ export async function getOrgProjects(orgId) {
     .order('updated_at', { ascending: false });
   return { data, error };
 }
+
+// ════════════════════════════════════════════
+// BIDDING
+// ════════════════════════════════════════════
+
+export async function getBidPackages(projectId) {
+  const { data, error } = await supabase
+    .from('bid_packages')
+    .select('*')
+    .eq('project_id', projectId)
+    .order('created_at', { ascending: false });
+  return { data, error };
+}
+
+export async function getBidInvitations(packageId) {
+  const { data, error } = await supabase
+    .from('bid_invitations')
+    .select('*')
+    .eq('package_id', packageId)
+    .order('created_at', { ascending: true });
+  return { data, error };
+}
+
+export async function getBidSubmissions(packageId) {
+  const { data, error } = await supabase
+    .from('bid_submissions')
+    .select('*')
+    .eq('package_id', packageId)
+    .order('submitted_at', { ascending: false });
+  return { data, error };
+}
