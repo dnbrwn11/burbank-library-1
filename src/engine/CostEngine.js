@@ -101,3 +101,53 @@ export function itemTotal(item, cv) {
 export function cvKey(cv) {
   return cv === 'low' ? 'l' : cv === 'mid' ? 'm' : 'h';
 }
+
+// ── Sensitivity Spread Model ───────────────────────────────────────────────────
+
+export const DESIGN_PHASES = [
+  { key: 'conceptual', label: 'Conceptual', aace: 'Class 5', multiplier: 2.5 },
+  { key: 'sd',         label: 'SD',         aace: 'Class 4', multiplier: 1.8 },
+  { key: 'dd',         label: 'DD',         aace: 'Class 3', multiplier: 1.4 },
+  { key: 'cd50',       label: '50% CD',     aace: 'Class 2', multiplier: 1.1 },
+  { key: 'cd90',       label: '90% CD',     aace: 'Class 1', multiplier: 0.8 },
+  { key: 'cd100',      label: '100% CD',    aace: 'Class 1', multiplier: 0.5 },
+  { key: 'gmp',        label: 'GMP',        aace: 'Class 1', multiplier: 0.5 },
+];
+
+const BASE_SPREADS = { Low: 0.08, Medium: 0.15, High: 0.25, 'Very High': 0.35 };
+
+/** Effective spread fraction for an item given design phase */
+export function spreadForItem(item, designPhase) {
+  const base = BASE_SPREADS[item.sensitivity] ?? 0.15;
+  const phase = DESIGN_PHASES.find(p => p.key === designPhase);
+  return Math.min(base * (phase?.multiplier ?? 1), 0.95);
+}
+
+/**
+ * Project-level spread totals based on design phase + per-item sensitivity.
+ * Returns null if no design phase is set.
+ */
+export function projectSpreadTotals(items, globals) {
+  const designPhase = globals.designPhase;
+  if (!designPhase) return null;
+
+  let rawL = 0, rawM = 0, rawH = 0;
+  items.filter(i => !i.isArchived && i.inSummary).forEach(i => {
+    const m = midTotal(i) || 0;
+    const sp = spreadForItem(i, designPhase);
+    rawL += m * (1 - sp);
+    rawM += m;
+    rawH += m * (1 + sp);
+  });
+
+  const factor = (1 + (N(globals.escalation) || 0)) * (N(globals.regionFactor) || 1);
+  return {
+    phase: DESIGN_PHASES.find(p => p.key === designPhase),
+    raw: { l: rawL, m: rawM, h: rawH },
+    full: {
+      l: applyMarkups(rawL * factor, globals),
+      m: applyMarkups(rawM * factor, globals),
+      h: applyMarkups(rawH * factor, globals),
+    },
+  };
+}

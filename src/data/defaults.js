@@ -18,4 +18,5 @@ export const DEFAULT_GLOBALS = {
   buildingSF: 97500,       // Building gross area
   parkingStalls: 310,      // Structured parking stalls
   openSpaceSF: 43000,      // Primary open space area
+  designPhase: null,       // AACE design phase key (null = not set)
 };

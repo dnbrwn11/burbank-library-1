@@ -31,6 +31,11 @@ export function Dashboard({ totals, catGroups, activeItems, bsf, globals }) {
     [activeItems]
   );
 
+  const spreadTotals = useMemo(
+    () => CE.projectSpreadTotals(activeItems, globals),
+    [activeItems, globals]
+  );
+
   // KPI values switch based on mode
   const kpi = isDirect
     ? [
@@ -84,6 +89,35 @@ export function Dashboard({ totals, catGroups, activeItems, bsf, globals }) {
           </div>
         ))}
       </div>
+
+      {/* Spread model panel */}
+      {spreadTotals && (
+        <div style={{ gridColumn: '1/-1', background: '#FFFBF0', border: '1px solid #E8D5A0', borderRadius: 10, padding: mob ? 12 : 16 }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12, flexWrap: 'wrap', gap: 6 }}>
+            <div>
+              <div style={{ fontSize: 11, fontFamily: FONTS.heading, fontWeight: 700, color: COLORS.gn, textTransform: 'uppercase', letterSpacing: 2 }}>
+                Spread Model — {spreadTotals.phase.label} ({spreadTotals.phase.aace})
+              </div>
+              <div style={{ fontSize: 11, color: COLORS.mg, marginTop: 2, fontFamily: FONTS.body }}>
+                {spreadTotals.phase.multiplier}× phase multiplier · Low/High computed from Mid + sensitivity spread
+              </div>
+            </div>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: mob ? '1fr' : 'repeat(3,1fr)', gap: mob ? 8 : 12 }}>
+            {[
+              ['Spread Low',  spreadTotals.full.l.tot, COLORS.lg, '#E8F5F1'],
+              ['Spread Mid',  spreadTotals.full.m.tot, COLORS.gn, '#EFF6E8'],
+              ['Spread High', spreadTotals.full.h.tot, COLORS.or, '#FFF3EC'],
+            ].map(([label, val, color, bg]) => (
+              <div key={label} style={{ background: bg, border: `1px solid ${COLORS.bd}`, borderRadius: 8, padding: '12px 16px', textAlign: 'center' }}>
+                <div style={{ fontSize: 9, fontFamily: FONTS.heading, fontWeight: 600, color: COLORS.mg, textTransform: 'uppercase', letterSpacing: 2, marginBottom: 4 }}>{label}</div>
+                <div style={{ fontSize: mob ? 18 : 20, fontWeight: 700, fontFamily: FONTS.heading, color, fontVariantNumeric: 'tabular-nums' }}>{fmt(val)}</div>
+                <div style={{ fontSize: 11, color, fontFamily: FONTS.heading, fontWeight: 600, marginTop: 2 }}>{psf(val, bsf)}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Category bars */}
       <div style={{ gridColumn: '1/-1', background: COLORS.sf, border: `1px solid ${COLORS.bd}`, borderRadius: 10, padding: mob ? 12 : 16 }}>

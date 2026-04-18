@@ -697,6 +697,7 @@ function CostModelApp({ user, project, onBack, onSignOut }) {
     items, globals, activeItems, totals, catGroups, bsf,
     updateItem, createItem, reorderItems, updateGlobal, scenarios, active,
     aiAdvice, aiLoading, askAI, applyAI, canEdit,
+    project, scenarioName: active.name,
   };
 
   const tabs = [
