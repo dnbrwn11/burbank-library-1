@@ -107,15 +107,19 @@ export default function TopHeader({
           <button
             onClick={() => { setScenOpen(v => !v); setNewScenOpen(false); }}
             style={{
-              display: 'flex', alignItems: 'center', gap: 6,
-              background: '#fafaf8', border: `1px solid ${BORDER}`, borderRadius: 7,
-              padding: '6px 12px', cursor: 'pointer',
-              fontFamily: "'Archivo', sans-serif", fontWeight: 700, fontSize: 11, letterSpacing: 0.5,
-              color: TX, minWidth: 150, justifyContent: 'space-between',
+              display: 'flex', alignItems: 'center', gap: 8,
+              height: 32,
+              background: '#FFFFFF', border: `1px solid ${BORDER}`, borderRadius: 8,
+              padding: '0 12px', cursor: 'pointer',
+              fontFamily: "'Figtree', sans-serif", fontSize: 12, fontWeight: 500,
+              color: TX, minWidth: 180, justifyContent: 'space-between',
+              transition: 'border-color 150ms ease',
             }}
+            onMouseEnter={e => e.currentTarget.style.borderColor = '#D9D9D5'}
+            onMouseLeave={e => e.currentTarget.style.borderColor = BORDER}
           >
-            <span style={{ color: TX_DIM, fontSize: 9, letterSpacing: 1, textTransform: 'uppercase' }}>Scenario</span>
-            <span style={{ color: ACCENT, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 140 }}>
+            <span style={{ color: TX_DIM, fontSize: 10, letterSpacing: 0.5, textTransform: 'uppercase', fontWeight: 500 }}>Scenario</span>
+            <span style={{ color: TX, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1, textAlign: 'right', marginRight: 4 }}>
               {active?.name || 'Baseline'}
             </span>
             <ChevronDown size={13} color={TX_DIM} />
@@ -226,30 +230,38 @@ function ActionButton({ icon: Icon, label, onClick, primary, badge }) {
     <button
       onClick={onClick}
       style={{
-        display: 'flex', alignItems: 'center', gap: 5,
-        background: primary ? ACCENT : '#fafaf8',
-        color: primary ? '#fff' : TX,
+        display: 'flex', alignItems: 'center', gap: 6,
+        height: 32,
+        background: primary ? ACCENT : '#FFFFFF',
+        color: primary ? '#FFFFFF' : '#3A3A3A',
         border: primary ? 'none' : `1px solid ${BORDER}`,
-        borderRadius: 6, padding: '5px 10px',
+        borderRadius: 8, padding: '0 12px',
         cursor: 'pointer',
-        fontFamily: "'Figtree', sans-serif", fontSize: 12, fontWeight: 600,
-        transition: 'background 0.1s',
+        fontFamily: "'Figtree', sans-serif", fontSize: 12, fontWeight: 500,
+        transition: 'background 150ms ease, border-color 150ms ease, transform 150ms ease, box-shadow 150ms ease',
       }}
       onMouseEnter={e => {
-        if (!primary) e.currentTarget.style.background = '#f0f0ee';
+        e.currentTarget.style.transform = 'translateY(-1px)';
+        e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.06)';
+        if (primary) e.currentTarget.style.background = '#9a7826';
+        else { e.currentTarget.style.background = '#FAFAF9'; e.currentTarget.style.borderColor = '#D9D9D5'; }
       }}
       onMouseLeave={e => {
-        if (!primary) e.currentTarget.style.background = '#fafaf8';
+        e.currentTarget.style.transform = 'none';
+        e.currentTarget.style.boxShadow = 'none';
+        if (primary) e.currentTarget.style.background = ACCENT;
+        else { e.currentTarget.style.background = '#FFFFFF'; e.currentTarget.style.borderColor = BORDER; }
       }}
     >
-      <Icon size={13} />
+      <Icon size={14} />
       <span>{label}</span>
       {badge > 0 && (
         <span style={{
-          background: primary ? 'rgba(255,255,255,0.3)' : '#e5e5e0',
-          color: primary ? '#fff' : '#666',
-          borderRadius: 10, padding: '0 6px',
-          fontSize: 10, fontWeight: 700,
+          background: primary ? 'rgba(255,255,255,0.3)' : '#F3F3F1',
+          color: primary ? '#FFFFFF' : '#888',
+          borderRadius: 10, padding: '1px 6px',
+          fontFamily: "'JetBrains Mono', monospace",
+          fontSize: 10, fontWeight: 500,
         }}>
           {badge > 99 ? '99+' : badge}
         </span>

@@ -184,26 +184,30 @@ export default function Sidebar({
       </div>
 
       {/* Nav groups — scrollable */}
-      <nav style={{ flex: 1, overflowY: 'auto', padding: collapsed ? '10px 4px' : '10px 8px' }}>
-        {SECTIONS.map(section => {
+      <nav style={{ flex: 1, overflowY: 'auto', padding: collapsed ? '12px 4px' : '12px 8px' }}>
+        {SECTIONS.map((section, sectionIdx) => {
           const isOpen = collapsed ? true : openSections[section.key] !== false;
           return (
-            <div key={section.key} style={{ marginBottom: 14 }}>
+            <div key={section.key} style={{ marginTop: sectionIdx === 0 ? 0 : 20, marginBottom: 4 }}>
               {!collapsed && (
                 <button
                   onClick={() => toggleSection(section.key)}
                   style={{
                     width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                     background: 'none', border: 'none',
-                    padding: '4px 10px', marginBottom: 4, cursor: 'pointer',
+                    padding: '0 12px 8px', cursor: 'pointer',
                   }}
                 >
-                  <span style={{ fontSize: 10, fontWeight: 700, color: '#666', letterSpacing: 1, fontFamily: "'Archivo', sans-serif" }}>
+                  <span style={{
+                    fontFamily: "'Figtree', sans-serif",
+                    fontSize: 10, fontWeight: 600, color: '#555',
+                    letterSpacing: 1.2, textTransform: 'uppercase',
+                  }}>
                     {section.label}
                   </span>
                   <ChevronDown
                     size={11} color="#555"
-                    style={{ transform: isOpen ? 'rotate(0)' : 'rotate(-90deg)', transition: 'transform 0.15s' }}
+                    style={{ transform: isOpen ? 'rotate(0)' : 'rotate(-90deg)', transition: 'transform 150ms ease' }}
                   />
                 </button>
               )}
@@ -218,19 +222,19 @@ export default function Sidebar({
                     disabled={!item.available}
                     style={{
                       width: '100%',
-                      display: 'flex', alignItems: 'center', gap: collapsed ? 0 : 10,
+                      display: 'flex', alignItems: 'center', gap: collapsed ? 0 : 12,
                       justifyContent: collapsed ? 'center' : 'flex-start',
                       background: active ? G_ACTIVE : 'transparent',
                       border: 'none',
                       borderLeft: active ? `3px solid ${ACCENT}` : '3px solid transparent',
-                      padding: collapsed ? '9px 0' : `8px 10px 8px ${active ? 7 : 10}px`,
+                      padding: collapsed ? '10px 0' : `8px 12px 8px ${active ? 9 : 12}px`,
                       margin: '1px 0',
-                      borderRadius: collapsed ? 6 : 4,
+                      borderRadius: collapsed ? 6 : 0,
                       cursor: item.available ? 'pointer' : 'not-allowed',
-                      color: item.available ? (active ? '#fff' : '#ccc') : TX_FAINT,
-                      fontFamily: "'Figtree', sans-serif", fontSize: 13, fontWeight: active ? 600 : 500,
+                      color: item.available ? (active ? '#FFFFFF' : '#CCCCCC') : TX_FAINT,
+                      fontFamily: "'Figtree', sans-serif", fontSize: 13, fontWeight: active ? 500 : 400,
                       textAlign: 'left',
-                      transition: 'background 0.1s, color 0.1s',
+                      transition: 'background 150ms ease, color 150ms ease',
                     }}
                     onMouseEnter={e => {
                       if (!active && item.available) e.currentTarget.style.background = G_HOVER;
@@ -239,7 +243,12 @@ export default function Sidebar({
                       if (!active) e.currentTarget.style.background = 'transparent';
                     }}
                   >
-                    <Icon size={16} color={active ? ACCENT : (item.available ? '#aaa' : TX_FAINT)} strokeWidth={active ? 2.2 : 1.8} />
+                    <Icon
+                      size={18}
+                      color={active ? ACCENT : (item.available ? '#FFFFFF' : TX_FAINT)}
+                      strokeWidth={1.75}
+                      style={{ opacity: active ? 1 : 0.6 }}
+                    />
                     {!collapsed && <span style={{ flex: 1 }}>{item.label}</span>}
                   </button>
                 );
@@ -250,58 +259,60 @@ export default function Sidebar({
       </nav>
 
       {/* Fixed bottom: Settings / Help / User */}
-      <div style={{ borderTop: `1px solid ${G_DIVIDER}`, padding: collapsed ? '6px 4px' : '6px 8px' }}>
+      <div style={{ borderTop: `1px solid ${G_DIVIDER}`, padding: collapsed ? '8px 4px' : '8px 8px' }}>
         <button
           disabled
           title={collapsed ? 'Settings — Coming soon' : 'Coming soon'}
           style={{
-            width: '100%', display: 'flex', alignItems: 'center', gap: collapsed ? 0 : 10,
+            width: '100%', display: 'flex', alignItems: 'center', gap: collapsed ? 0 : 12,
             justifyContent: collapsed ? 'center' : 'flex-start',
             background: 'none', border: 'none',
-            padding: collapsed ? '9px 0' : '8px 10px',
-            borderRadius: collapsed ? 6 : 4,
+            padding: collapsed ? '10px 0' : '8px 12px',
+            borderRadius: collapsed ? 6 : 0,
             cursor: 'not-allowed',
             color: TX_FAINT,
-            fontFamily: "'Figtree', sans-serif", fontSize: 13, fontWeight: 500,
+            fontFamily: "'Figtree', sans-serif", fontSize: 13, fontWeight: 400,
             textAlign: 'left',
           }}
         >
-          <Settings size={16} color={TX_FAINT} strokeWidth={1.8} />
+          <Settings size={18} color={TX_FAINT} strokeWidth={1.75} style={{ opacity: 0.6 }} />
           {!collapsed && <span style={{ flex: 1 }}>Settings</span>}
         </button>
         <button
           onClick={openHelp}
           title={collapsed ? 'Help & support' : ''}
           style={{
-            width: '100%', display: 'flex', alignItems: 'center', gap: collapsed ? 0 : 10,
+            width: '100%', display: 'flex', alignItems: 'center', gap: collapsed ? 0 : 12,
             justifyContent: collapsed ? 'center' : 'flex-start',
             background: 'none', border: 'none',
-            padding: collapsed ? '9px 0' : '8px 10px',
-            borderRadius: collapsed ? 6 : 4,
-            cursor: 'pointer', color: '#ccc',
-            fontFamily: "'Figtree', sans-serif", fontSize: 13, fontWeight: 500,
+            padding: collapsed ? '10px 0' : '8px 12px',
+            borderRadius: collapsed ? 6 : 0,
+            cursor: 'pointer', color: '#CCCCCC',
+            fontFamily: "'Figtree', sans-serif", fontSize: 13, fontWeight: 400,
             textAlign: 'left',
+            transition: 'background 150ms ease',
           }}
           onMouseEnter={e => e.currentTarget.style.background = G_HOVER}
           onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
         >
-          <HelpCircle size={16} color="#aaa" strokeWidth={1.8} />
+          <HelpCircle size={18} color="#FFFFFF" strokeWidth={1.75} style={{ opacity: 0.6 }} />
           {!collapsed && <span style={{ flex: 1 }}>Help</span>}
         </button>
 
         {/* User row */}
-        <div ref={userMenuRef} style={{ position: 'relative', marginTop: 6, paddingTop: 6, borderTop: `1px solid ${G_DIVIDER}` }}>
+        <div ref={userMenuRef} style={{ position: 'relative', marginTop: 8, paddingTop: 8, borderTop: `1px solid ${G_DIVIDER}` }}>
           <button
             onClick={() => setUserMenuOpen(v => !v)}
             style={{
-              width: '100%', display: 'flex', alignItems: 'center', gap: collapsed ? 0 : 10,
+              width: '100%', display: 'flex', alignItems: 'center', gap: collapsed ? 0 : 12,
               justifyContent: collapsed ? 'center' : 'flex-start',
               background: 'none', border: 'none',
-              padding: collapsed ? '9px 0' : '8px 10px',
-              borderRadius: collapsed ? 6 : 4,
+              padding: collapsed ? '8px 0' : '8px 12px',
+              borderRadius: collapsed ? 6 : 0,
               cursor: 'pointer',
               fontFamily: "'Figtree', sans-serif", fontSize: 13, color: '#fff',
               textAlign: 'left',
+              transition: 'background 150ms ease',
             }}
             onMouseEnter={e => e.currentTarget.style.background = G_HOVER}
             onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
@@ -310,7 +321,7 @@ export default function Sidebar({
               width: 28, height: 28, borderRadius: '50%',
               background: ACCENT, color: '#fff',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
-              fontSize: 11, fontWeight: 700, fontFamily: "'Archivo', sans-serif",
+              fontSize: 11, fontWeight: 600, fontFamily: "'Archivo', sans-serif",
               flexShrink: 0,
             }}>
               {initials(displayName)}
@@ -320,7 +331,7 @@ export default function Sidebar({
                 <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                   {displayName}
                 </span>
-                <span style={{ fontSize: 9, fontWeight: 700, color: ACCENT, border: `1px solid ${ACCENT}`, padding: '1px 5px', borderRadius: 3, letterSpacing: 0.5, fontFamily: "'Archivo', sans-serif", flexShrink: 0 }}>
+                <span style={{ fontSize: 9, fontWeight: 600, color: ACCENT, border: `1px solid ${ACCENT}`, padding: '2px 6px', borderRadius: 3, letterSpacing: 0.5, fontFamily: "'Archivo', sans-serif", flexShrink: 0 }}>
                   {plan.toUpperCase()}
                 </span>
               </>

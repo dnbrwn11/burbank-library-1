@@ -44,17 +44,18 @@ export function Dashboard({ totals, catGroups, activeItems, bsf, globals, teamMe
     [activeItems, globals]
   );
 
-  // KPI values switch based on mode
+  // KPI values — white cards with colored left borders (not tinted backgrounds)
+  // Accent colors: low = info blue, mid = gold, high = danger red
   const kpi = isDirect
     ? [
-        ['Low',  totals.raw.l, COLORS.lg, '#E8F5F1'],
-        ['Mid',  totals.raw.m, COLORS.gn, '#EFF6E8'],
-        ['High', totals.raw.h, COLORS.or, '#FFF3EC'],
+        ['Low',  totals.raw.l, '#4470A0', '#FFFFFF'],
+        ['Mid',  totals.raw.m, '#B89030', '#FFFFFF'],
+        ['High', totals.raw.h, '#CC4444', '#FFFFFF'],
       ]
     : [
-        ['Low',  totals.full.l.tot, COLORS.lg, '#E8F5F1'],
-        ['Mid',  totals.full.m.tot, COLORS.gn, '#EFF6E8'],
-        ['High', totals.full.h.tot, COLORS.or, '#FFF3EC'],
+        ['Low',  totals.full.l.tot, '#4470A0', '#FFFFFF'],
+        ['Mid',  totals.full.m.tot, '#B89030', '#FFFFFF'],
+        ['High', totals.full.h.tot, '#CC4444', '#FFFFFF'],
       ];
 
   const gc = mob ? '1fr' : tab ? '1fr 1fr' : '1fr 1fr 1fr';
@@ -189,16 +190,34 @@ export function Dashboard({ totals, catGroups, activeItems, bsf, globals, teamMe
         </div>
       </div>
 
-      {/* Estimate KPIs */}
-      <div style={{ gridColumn: '1/-1', display: 'grid', gridTemplateColumns: mob ? '1fr' : 'repeat(3,1fr)', gap: mob ? 8 : 12 }}>
-        {kpi.map(([label, val, color, bg]) => (
-          <div key={label} style={{ background: bg, border: `1px solid ${COLORS.bd}`, borderRadius: 10, padding: mob ? 14 : '16px 20px', textAlign: 'center' }}>
-            <div style={{ fontSize: 10, fontFamily: FONTS.heading, fontWeight: 600, color: COLORS.mg, textTransform: 'uppercase', letterSpacing: 2, marginBottom: 4 }}>{label} Estimate</div>
-            <div style={{ fontSize: mob ? 22 : 24, fontWeight: 700, fontFamily: FONTS.heading, color, fontVariantNumeric: 'tabular-nums' }}>{fmt(val)}</div>
-            <div style={{ fontSize: 12, color, fontFamily: FONTS.heading, fontWeight: 600, marginTop: 2 }}>{psf(val, bsf)}</div>
-            {isDirect && (
-              <div style={{ fontSize: 10, color: COLORS.mg, fontFamily: FONTS.body, marginTop: 4 }}>direct cost only</div>
-            )}
+      {/* Estimate KPIs — white cards with colored left border accents */}
+      <div style={{ gridColumn: '1/-1', display: 'grid', gridTemplateColumns: mob ? '1fr' : 'repeat(3,1fr)', gap: 12 }}>
+        {kpi.map(([label, val, accent]) => (
+          <div key={label} style={{
+            background: '#FFFFFF',
+            border: '1px solid #E5E5E2',
+            borderLeft: `3px solid ${accent}`,
+            borderRadius: 12,
+            padding: 20,
+            transition: 'box-shadow 150ms ease',
+          }}>
+            <div style={{
+              fontFamily: "'Figtree', sans-serif", fontSize: 12, fontWeight: 500,
+              color: '#888', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8,
+            }}>
+              {label} Estimate
+            </div>
+            <div style={{
+              fontFamily: "'JetBrains Mono', monospace", fontSize: mob ? 24 : 28, fontWeight: 600,
+              color: '#1A1A1A', fontVariantNumeric: 'tabular-nums', lineHeight: 1.1,
+            }}>
+              {fmt(val)}
+            </div>
+            <div style={{
+              fontFamily: "'Figtree', sans-serif", fontSize: 13, color: '#888', marginTop: 4,
+            }}>
+              {psf(val, bsf)}{isDirect ? ' · direct cost only' : ''}
+            </div>
           </div>
         ))}
       </div>

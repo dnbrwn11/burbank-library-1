@@ -120,7 +120,7 @@ function SortableItemRow({
   openMoveMenu, overId, isDraggingAny, canEdit,
   tableEdit, activeCell, onActivateCell, onCellChange, onNavCell, cellValues,
   auditStatus, teamMembers, onAssignItem, selected, onToggleSelect, bulkMode,
-  isNew,
+  isNew, rowIdx,
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: item.id });
   const [assignOpen, setAssignOpen] = useState(false);
@@ -143,21 +143,25 @@ function SortableItemRow({
   // Audit status: live results take priority, then persisted item.aiAdvice
   const effectiveAudit = auditStatus ?? (item.aiAdvice?.status ? item.aiAdvice : null);
 
+  // Alternating stripe for even-indexed rows; hover + selected override.
+  const isEven = (typeof rowIdx === 'number') ? rowIdx % 2 === 1 : false;
   const rowBg = isFlash ? '#FFF3B0'
-    : selected ? `${COLORS.gn}0A`
-    : isHover ? '#FCFCF9'
-    : hasAI ? `${COLORS.gn}06`
-    : COLORS.wh;
-  const combinedTransition = [transition, 'background 0.15s'].filter(Boolean).join(', ');
+    : selected ? '#FEFCF6'
+    : isHover ? '#F8F7F4'
+    : isEven ? '#FAFAF9'
+    : '#FFFFFF';
+  const combinedTransition = [transition, 'background 150ms ease'].filter(Boolean).join(', ');
   const rowStyle = {
     transform: CSS.Transform.toString(transform),
     transition: isFlash ? undefined : combinedTransition,
     background: rowBg,
     opacity: isDragging ? 0 : 1,
     borderTop: isOver ? `2px solid ${COLORS.gn}` : undefined,
-    borderBottom: `1px solid ${COLORS.bl}`,
+    borderBottom: `1px solid #F0F0ED`,
+    borderLeft: selected ? '3px solid #B89030' : '3px solid transparent',
     position: 'relative',
-    boxShadow: item.isAllowance ? 'inset 4px 0 0 #B89030' : undefined,
+    height: 40,
+    boxShadow: item.isAllowance ? 'inset 3px 0 0 #B89030' : undefined,
     animation: isNew ? 'cd-fade-in 0.3s ease-out' : undefined,
   };
 
@@ -1110,7 +1114,7 @@ export function CostModel({ items, globals, activeItems, totals, updateItem, cre
                             {arrowBtn((e) => { e.stopPropagation(); moveCatDown(g.c); }, isLast, '▼')}
                           </td>
                         </tr>,
-                        ...(!cl ? g.items.flatMap(item => [
+                        ...(!cl ? g.items.flatMap((item, ii) => [
                           <SortableItemRow
                             key={item.id} item={item} cv={cv} bsf={bsf} mob={mob}
                             hoverRow={hoverRow} setHoverRow={setHoverRow}
@@ -1124,6 +1128,7 @@ export function CostModel({ items, globals, activeItems, totals, updateItem, cre
                             teamMembers={teamMembers} onAssignItem={handleAssignItem}
                             selected={selectedItems.has(item.id)} onToggleSelect={toggleSelectItem} bulkMode={bulkMode}
                             isNew={newItemIds?.has(item.id)}
+                            rowIdx={ii}
                           />,
                           expR === item.id && !isDraggingAny && (
                             <tr key={`${item.id}_x`} style={{ background: '#F8F8F3', borderBottom: `1px solid ${COLORS.bd}` }}>
@@ -1217,18 +1222,59 @@ export function CostModel({ items, globals, activeItems, totals, updateItem, cre
         </DndContext>
       )}
 
-      {/* Sticky totals */}
-      <div style={{ marginTop: 12, background: COLORS.wh, border: `1px solid ${COLORS.bd}`, borderRadius: 10, padding: mob ? '10px 14px' : '10px 18px', position: 'sticky', bottom: 0, zIndex: 10, boxShadow: '0 -2px 12px rgba(0,0,0,.06)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
-        <span style={{ fontSize: 11, color: COLORS.mg }}>{filtered.length} items · {bsf.toLocaleString()} SF</span>
-        <div style={{ display: 'flex', gap: mob ? 12 : 20, alignItems: 'center' }}>
-          {!mob && <div style={{ textAlign: 'right' }}><div style={{ fontSize: 8, fontFamily: FONTS.heading, fontWeight: 600, color: COLORS.mg, letterSpacing: 1.5 }}>MID RAW</div><div style={{ fontSize: 13, fontWeight: 600, color: COLORS.gn, fontVariantNumeric: 'tabular-nums' }}>{fK(totals.raw.m)}</div></div>}
-          <div style={{ borderLeft: mob ? 'none' : `2px solid ${COLORS.yl}`, paddingLeft: mob ? 0 : 18, textAlign: 'right' }}>
-            <div style={{ fontSize: 8, fontFamily: FONTS.heading, fontWeight: 600, color: COLORS.mg, letterSpacing: 1.5 }}>MID TOTAL</div>
-            <div style={{ fontSize: mob ? 16 : 17, fontWeight: 700, fontFamily: FONTS.heading, color: COLORS.gn }}>{fmt(totals.full.m.tot)}</div>
-            <div style={{ fontSize: 11, fontFamily: FONTS.heading, fontWeight: 600, color: COLORS.gn }}>{psf(totals.full.m.tot, bsf)}</div>
+      {/* Sticky summary bar — items / categories / audit stats / total */}
+      {(() => {
+        const catCount = new Set(filtered.map(i => i.category)).size;
+        const auditVals = Object.values(auditResults);
+        const inRange = auditVals.filter(a => a?.status === 'ok').length;
+        const caution = auditVals.filter(a => a?.status === 'caution').length;
+        const flagged = auditVals.filter(a => a?.status === 'flagged').length;
+        return (
+          <div style={{
+            marginTop: 12,
+            background: '#FFFFFF',
+            borderTop: '1px solid #E5E5E2',
+            borderBottom: '1px solid #E5E5E2',
+            borderRadius: 0,
+            padding: '0 20px',
+            height: 44,
+            position: 'sticky',
+            bottom: 0,
+            zIndex: 10,
+            boxShadow: '0 -1px 3px rgba(0,0,0,0.04)',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            flexWrap: 'wrap',
+            gap: 8,
+          }}>
+            <span style={{ fontFamily: "'Figtree', sans-serif", fontSize: 12, color: '#888' }}>
+              <span style={{ fontFamily: "'JetBrains Mono', monospace", fontWeight: 500, color: '#3A3A3A' }}>{filtered.length}</span> items
+              <span style={{ margin: '0 8px', color: '#CCC' }}>·</span>
+              <span style={{ fontFamily: "'JetBrains Mono', monospace", fontWeight: 500, color: '#3A3A3A' }}>{catCount}</span> categories
+              {auditVals.length > 0 && (
+                <>
+                  <span style={{ margin: '0 8px', color: '#CCC' }}>·</span>
+                  <span style={{ color: '#3D946A', fontWeight: 500 }}>{inRange}</span> in range
+                  <span style={{ margin: '0 8px', color: '#CCC' }}>·</span>
+                  <span style={{ color: '#D49030', fontWeight: 500 }}>{caution}</span> caution
+                  <span style={{ margin: '0 8px', color: '#CCC' }}>·</span>
+                  <span style={{ color: '#CC4444', fontWeight: 500 }}>{flagged}</span> flagged
+                </>
+              )}
+            </span>
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+              <span style={{ fontFamily: "'Figtree', sans-serif", fontSize: 12, color: '#888' }}>Total:</span>
+              <span style={{
+                fontFamily: "'JetBrains Mono', monospace", fontSize: 15, fontWeight: 600,
+                color: '#B89030', fontVariantNumeric: 'tabular-nums',
+              }}>
+                {fmt(totals.full.m.tot)}
+              </span>
+            </div>
           </div>
-        </div>
-      </div>
+        );
+      })()}
 
       {/* Undo toast */}
       {undoToast && (
