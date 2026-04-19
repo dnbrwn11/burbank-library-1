@@ -31,6 +31,8 @@ import AlternatesPanel from './components/AlternatesPanel';
 import VELog from './components/VELog';
 import GenerationBanner from './components/GenerationBanner';
 import HistoryDrawer from './components/HistoryDrawer';
+import Sidebar from './components/Sidebar';
+import TopHeader from './components/TopHeader';
 import { useGenerationOrchestrator } from './hooks/useGenerationOrchestrator';
 import { supabase } from './supabase/supabaseClient';
 import { getProjectMembers, getProjectMemberRole } from './supabase/db';
@@ -651,6 +653,19 @@ function CostModelApp({ user, project, onBack, onSignOut, onProjectUpdate, genPa
   const [showHistoryDrawer, setShowHistoryDrawer] = useState(false);
   const [showAlternatesModal, setShowAlternatesModal] = useState(false);
   const [highlightItemId, setHighlightItemId] = useState(null); // scroll target for audit-click
+
+  // ── Sidebar state ────────────────────────────────────────────────────────
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
+    try { return localStorage.getItem('cd_sidebar_collapsed') === '1'; } catch { return false; }
+  });
+  const [sidebarMobileOpen, setSidebarMobileOpen] = useState(false);
+  const toggleSidebar = useCallback(() => {
+    setSidebarCollapsed(prev => {
+      const next = !prev;
+      try { localStorage.setItem('cd_sidebar_collapsed', next ? '1' : '0'); } catch {}
+      return next;
+    });
+  }, []);
   const [exportingPdf, setExportingPdf] = useState(false);
 
   // Role: owner always canEdit; others look up project_members
@@ -758,16 +773,15 @@ function CostModelApp({ user, project, onBack, onSignOut, onProjectUpdate, genPa
     isGenerating: genRunning,
   };
 
-  // Consolidated tab structure — audit/assumptions/alternates/bidding/compare
-  // folded into other tabs; audit log lives in the History drawer (toolbar button).
-  const tabs = [
-    ['dashboard',   'DASHBOARD'],
-    ['estimate',    'COST MODEL'],
-    ['scenarios',   'SCENARIOS'],
-    ['trades',      'TRADES'],
-    ['ve',          'VE LOG'],
-    ['scope_notes', 'SCOPE NOTES'],
-  ];
+  // Sidebar width for layout offset
+  const sidebarWidth = sidebarCollapsed ? 56 : 220;
+
+  // Nav handler — Team and Reports perform actions rather than change view
+  const handleNavigate = useCallback((id) => {
+    if (id === 'team')    { setShowTeamPanel(true); return; }
+    if (id === 'reports') { exportPdf(); return; }
+    setView(id);
+  }, [exportPdf]);
 
   if (loading) {
     return <ProjectLoadingSkeleton project={project} mob={mob} />;
@@ -810,6 +824,53 @@ function CostModelApp({ user, project, onBack, onSignOut, onProjectUpdate, genPa
 
   return (
     <div style={{ fontFamily: FONTS.body, background: COLORS.bg, color: COLORS.dg, minHeight: '100vh' }}>
+      {/* Sidebar (fixed left) */}
+      <Sidebar
+        view={view}
+        onNavigate={handleNavigate}
+        project={project}
+        onBackToProjects={onBack}
+        user={user}
+        profile={null}
+        plan="Beta"
+        collapsed={sidebarCollapsed}
+        onToggleCollapsed={toggleSidebar}
+        mobileOpen={sidebarMobileOpen}
+        onMobileClose={() => setSidebarMobileOpen(false)}
+        isMobile={mob}
+        onSignOut={onSignOut}
+      />
+
+      {/* Top header (fixed top) */}
+      <TopHeader
+        view={view}
+        project={project}
+        onNavigate={handleNavigate}
+        onBackToProjects={onBack}
+        scenarios={scenarios}
+        activeId={activeId}
+        setActiveId={setActiveId}
+        addScenario={addScenario}
+        scenarioNames={SCENARIO_TYPES.filter(t => !scenarios.find(s => s.name === t))}
+        totalMid={totals.full.m.tot}
+        onExport={exportPdf}
+        onAudit={() => { setView('estimate'); }}
+        onOpenHistory={() => setShowHistoryDrawer(true)}
+        auditCount={audit.length}
+        onMobileMenuOpen={() => setSidebarMobileOpen(true)}
+        isMobile={mob}
+        sidebarWidth={sidebarWidth}
+      />
+
+      {/* Main content area offset by sidebar + header */}
+      <div style={{
+        marginLeft: mob ? 0 : sidebarWidth,
+        paddingTop: 48,
+        minHeight: '100vh',
+        transition: 'margin-left 0.2s ease',
+        background: COLORS.bg,
+      }}>
+
       {saveError && (
         <div style={{ background: '#fef2f2', borderBottom: '1px solid #fca5a5', padding: '8px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
           <span style={{ fontFamily: "'Figtree', sans-serif", fontSize: 13, color: '#991b1b' }}>⚠ {saveError}</span>
@@ -837,180 +898,6 @@ function CostModelApp({ user, project, onBack, onSignOut, onProjectUpdate, genPa
         </div>
       )}
 
-      {/* Header */}
-      <div style={{
-        background: HEADER, padding: mob ? '8px 12px' : '0 20px',
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        minHeight: mob ? 48 : 52, flexWrap: 'wrap', gap: 4,
-      }}>
-        {/* Left: back + project name */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: mob ? 8 : 12 }}>
-          <button
-            onClick={onBack}
-            title="Back to Projects"
-            style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#888', fontSize: 18, padding: '0 4px 0 0', lineHeight: 1, display: 'flex', alignItems: 'center' }}
-          >
-            ‹
-          </button>
-          <button
-            onClick={onBack}
-            style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: ACCENT, fontFamily: "'Archivo', sans-serif", fontWeight: 800, fontSize: mob ? 12 : 14, letterSpacing: 2 }}
-          >
-            COSTDECK
-          </button>
-          {!mob && (
-            <span style={{ fontSize: 11, color: '#666', borderLeft: '1px solid #333', paddingLeft: 12 }}>
-              {project.name}
-            </span>
-          )}
-          {!mob && <SaveIndicator savePending={savePending} lastSaved={lastSaved} />}
-        </div>
-
-        {/* Right: scenario picker + total + team + user */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: mob ? 6 : 10 }}>
-          <select
-            value={activeId}
-            onChange={e => setActiveId(e.target.value)}
-            style={{ background: '#333', border: '1px solid #444', borderRadius: 6, color: ACCENT, padding: '6px 10px', fontSize: 11, fontFamily: FONTS.heading, fontWeight: 600 }}
-          >
-            {scenarios.map(s => (
-              <option key={s.id} value={s.id} style={{ color: COLORS.dg, background: '#fff' }}>{s.name}</option>
-            ))}
-          </select>
-
-          {scenarios.length < 5 && (
-            <div style={{ position: 'relative' }}>
-              <button
-                onClick={() => setShowNewScen(!showNewScen)}
-                style={{ background: ACCENT, color: '#fff', border: 'none', borderRadius: 6, padding: '6px 10px', fontSize: 11, fontFamily: FONTS.heading, fontWeight: 700, cursor: 'pointer' }}
-              >
-                + Scenario
-              </button>
-              {showNewScen && (
-                <div style={{ position: 'absolute', right: 0, top: 34, background: COLORS.wh, border: `1px solid ${COLORS.bd}`, borderRadius: 8, padding: 4, zIndex: 100, minWidth: 140, boxShadow: '0 4px 12px rgba(0,0,0,.15)' }}>
-                  {SCENARIO_TYPES.filter(t => !scenarios.find(s => s.name === t)).map(t => (
-                    <button key={t} onClick={() => { addScenario(t); setShowNewScen(false); }}
-                      style={{ display: 'block', width: '100%', textAlign: 'left', background: 'transparent', border: 'none', padding: '8px 12px', fontSize: 12, fontFamily: FONTS.body, cursor: 'pointer', color: COLORS.dg, borderRadius: 4 }}
-                    >
-                      {t}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
-
-          {!mob && (
-            <span style={{ color: ACCENT, fontSize: 13, fontFamily: FONTS.heading, fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>
-              {fK(totals.full.m.tot)}
-            </span>
-          )}
-
-          {!mob && (
-            <button
-              onClick={exportPdf}
-              disabled={exportingPdf}
-              title="Export PDF report"
-              style={{
-                display: 'flex', alignItems: 'center', gap: 5,
-                background: exportingPdf ? '#2a2a2a' : '#2a2a2a',
-                border: '1px solid #444', borderRadius: 6,
-                padding: '5px 10px', cursor: exportingPdf ? 'default' : 'pointer',
-                color: exportingPdf ? '#666' : '#aaa',
-                fontFamily: "'Figtree', sans-serif", fontSize: 11,
-              }}
-            >
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                <polyline points="7 10 12 15 17 10" />
-                <line x1="12" y1="15" x2="12" y2="3" />
-              </svg>
-              {exportingPdf ? 'Exporting…' : 'PDF'}
-            </button>
-          )}
-
-          {/* History drawer button */}
-          <button
-            onClick={() => setShowHistoryDrawer(true)}
-            title="Change history"
-            style={{
-              display: 'flex', alignItems: 'center', gap: 4,
-              background: 'none', border: '1px solid #444',
-              borderRadius: 6, padding: '5px 10px', cursor: 'pointer',
-              color: '#aaa', fontFamily: "'Figtree', sans-serif", fontSize: 11,
-            }}
-          >
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M3 3v5h5" />
-              <path d="M3.05 13A9 9 0 1 0 6 5.3L3 8" />
-              <path d="M12 7v5l4 2" />
-            </svg>
-            History
-            {audit.length > 0 && (
-              <span style={{ background: '#444', color: '#ccc', borderRadius: 8, padding: '0 5px', fontSize: 9, fontWeight: 600 }}>
-                {audit.length > 99 ? '99+' : audit.length}
-              </span>
-            )}
-          </button>
-
-          {/* Team avatar stack + team button */}
-          <button
-            onClick={() => setShowTeamPanel(true)}
-            title="Team members"
-            style={{
-              display: 'flex', alignItems: 'center', gap: 0,
-              background: 'none', border: '1px solid #444',
-              borderRadius: 6, padding: '4px 8px', cursor: 'pointer',
-            }}
-          >
-            {/* Owner avatar (always shown) */}
-            <div style={{ width: 26, height: 26, borderRadius: '50%', background: ACCENT, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700, color: '#fff', fontFamily: "'Archivo', sans-serif", border: '2px solid #222', flexShrink: 0 }}>
-              {initials(user.email?.split('@')[0] || 'U')}
-            </div>
-            {/* Additional members, overlapping */}
-            {avatarMembers.map((m, i) => (
-              <div key={m.user_id} style={{ width: 26, height: 26, borderRadius: '50%', background: '#555', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700, color: '#ccc', fontFamily: "'Archivo', sans-serif", border: '2px solid #222', marginLeft: -6, flexShrink: 0 }}>
-                {initials(m.profiles?.full_name || m.profiles?.email || '?')}
-              </div>
-            ))}
-            {!mob && (
-              <span style={{ marginLeft: hasTeam ? 4 : 6, fontSize: 10, color: '#888', fontFamily: "'Figtree', sans-serif", whiteSpace: 'nowrap' }}>
-                Team
-              </span>
-            )}
-          </button>
-
-          {/* User menu */}
-          <div style={{ position: 'relative' }}>
-            <button
-              onClick={() => setShowUserMenu(v => !v)}
-              style={{ background: '#333', border: '1px solid #444', borderRadius: 6, padding: '5px 10px', fontFamily: "'Figtree', sans-serif", fontSize: 11, color: '#aaa', cursor: 'pointer' }}
-            >
-              {user.email?.split('@')[0] || 'Account'}
-            </button>
-            {showUserMenu && (
-              <div style={{ position: 'absolute', right: 0, top: 34, background: COLORS.wh, border: `1px solid ${COLORS.bd}`, borderRadius: 8, padding: 4, zIndex: 100, minWidth: 160, boxShadow: '0 4px 12px rgba(0,0,0,.15)' }}>
-                <div style={{ padding: '8px 12px 6px', fontFamily: "'Figtree', sans-serif", fontSize: 11, color: '#999', borderBottom: '1px solid #eee', marginBottom: 2 }}>
-                  {user.email}
-                </div>
-                <button
-                  onClick={() => { setShowUserMenu(false); onBack(); }}
-                  style={{ display: 'block', width: '100%', textAlign: 'left', background: 'transparent', border: 'none', padding: '7px 12px', fontSize: 12, fontFamily: "'Figtree', sans-serif", cursor: 'pointer', color: COLORS.dg, borderRadius: 4 }}
-                >
-                  ← All Projects
-                </button>
-                <button
-                  onClick={onSignOut}
-                  style={{ display: 'block', width: '100%', textAlign: 'left', background: 'transparent', border: 'none', padding: '7px 12px', fontSize: 12, fontFamily: "'Figtree', sans-serif", cursor: 'pointer', color: '#c0392b', borderRadius: 4 }}
-                >
-                  Sign out
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-
       {/* Generation banner */}
       <GenerationBanner
         status={genStatus}
@@ -1020,18 +907,6 @@ function CostModelApp({ user, project, onBack, onSignOut, onProjectUpdate, genPa
         errorMsg={genErrorMsg}
         onRetry={genRetry}
       />
-
-      {/* Nav */}
-      <div style={{ background: COLORS.wh, borderBottom: `1px solid ${COLORS.bd}`, display: 'flex', overflowX: 'auto', WebkitOverflowScrolling: 'touch', paddingLeft: mob ? 8 : 20 }}>
-        {tabs.map(([id, label]) => (
-          <button key={id} onClick={() => setView(id)}
-            style={{ padding: mob ? '10px 12px' : '10px 18px', fontSize: 10, fontFamily: FONTS.heading, fontWeight: 600, background: 'transparent', color: view === id ? COLORS.dg : COLORS.mg, border: 'none', borderBottom: view === id ? `3px solid ${ACCENT}` : '3px solid transparent', cursor: 'pointer', letterSpacing: 1.5, whiteSpace: 'nowrap', flexShrink: 0 }}
-          >
-            {label}
-            {id === 'compare' && scenarios.length > 1 ? ` (${scenarios.length})` : ''}
-          </button>
-        ))}
-      </div>
 
       {/* Content */}
       <div style={{ padding: mob ? 12 : 18 }}>
@@ -1071,7 +946,49 @@ function CostModelApp({ user, project, onBack, onSignOut, onProjectUpdate, genPa
           />
         )}
         {view === 'scope_notes' && <ScopeNotes project={project} active={active} canEdit={canEdit} />}
+        {view === 'audit' && (
+          <div style={{ maxWidth: 760, margin: '0 auto', padding: '24px 0' }}>
+            <div style={{ fontFamily: "'Archivo', sans-serif", fontWeight: 800, fontSize: 22, color: COLORS.dg, marginBottom: 10 }}>AI Audit</div>
+            <p style={{ fontFamily: "'Figtree', sans-serif", fontSize: 14, color: '#666', lineHeight: 1.6, marginBottom: 20 }}>
+              The AI audit benchmarks every line item against current market data and gives you an overall confidence grade plus flagged items. Run it from the Cost Model tab using the "Audit" action in the toolbar — flagged items open inline there so you can fix costs without switching views.
+            </p>
+            <button
+              onClick={() => setView('estimate')}
+              style={{ background: COLORS.gn, color: '#fff', border: 'none', borderRadius: 8, padding: '10px 20px', fontFamily: "'Archivo', sans-serif", fontWeight: 700, fontSize: 13, cursor: 'pointer' }}
+            >
+              Go to Cost Model →
+            </button>
+          </div>
+        )}
+        {view === 'scope_check' && (
+          <div style={{ maxWidth: 960, margin: '0 auto' }}>
+            <div style={{ fontFamily: "'Archivo', sans-serif", fontWeight: 800, fontSize: 22, color: COLORS.dg, marginBottom: 6 }}>Scope Check</div>
+            <p style={{ fontFamily: "'Figtree', sans-serif", fontSize: 14, color: '#666', lineHeight: 1.6, marginBottom: 20 }}>
+              Upload a budget or paste a scope document — AI compares it against your estimate and surfaces anything missing, duplicated, or underscoped.
+            </p>
+            <ScopeGapAnalysis
+              items={activeItems}
+              project={project}
+              scenario={active}
+              onAddItem={createItem ? async (missing) => {
+                await createItem(missing.category || 'Interiors', {
+                  description: missing.description || 'Missing scope',
+                  subcategory: missing.subcategory || '',
+                  qtyMin: Number(missing.qty) || 1,
+                  qtyMax: Number(missing.qty) || 1,
+                  unit: missing.unit || 'LS',
+                  unitCostLow: Number(missing.unit_cost_low) || 0,
+                  unitCostMid: Number(missing.unit_cost_mid) || 0,
+                  unitCostHigh: Number(missing.unit_cost_high) || 0,
+                  sensitivity: missing.sensitivity || 'Medium',
+                });
+              } : null}
+            />
+          </div>
+        )}
       </div>
+
+      </div>{/* end main content offset wrapper */}
 
       {/* History drawer — audit log (slide-out from right) */}
       {showHistoryDrawer && (
