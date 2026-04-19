@@ -4,6 +4,7 @@ import * as CE from '../engine/CostEngine';
 import { COLORS, FONTS } from '../data/constants';
 import { fmt, fK, psf } from '../utils/format';
 import { supabase } from '../supabase/supabaseClient';
+import AllowancesPanel from './AllowancesPanel';
 
 const INDIRECT_CATEGORIES = new Set([
   'General Conditions', 'Overhead & Fee', 'Contingency',
@@ -12,7 +13,7 @@ const INDIRECT_CATEGORIES = new Set([
 
 // ── Dashboard ─────────────────────────────────────────────────────────────────
 
-export function Dashboard({ totals, catGroups, activeItems, bsf, globals, teamMembers = [], project, active }) {
+export function Dashboard({ totals, catGroups, activeItems, bsf, globals, teamMembers = [], project, active, user, canEdit }) {
   const { mob, tab } = useWindowSize();
   const [costView, setCostView] = useState('total'); // 'total' | 'direct'
   const [alternates, setAlternates] = useState([]);
@@ -110,6 +111,12 @@ export function Dashboard({ totals, catGroups, activeItems, bsf, globals, teamMe
       }, 0);
   }, [alternates, checkedAlts]);
 
+  // ── Allowances ───────────────────────────────────────────────────────────────
+  const allowanceItems = useMemo(
+    () => activeItems.filter(i => i.isAllowance),
+    [activeItems],
+  );
+
   // ── Assignment progress ──────────────────────────────────────────────────────
   const assignmentProgress = useMemo(() => {
     if (!teamMembers.length) return null;
@@ -202,6 +209,16 @@ export function Dashboard({ totals, catGroups, activeItems, bsf, globals, teamMe
           {warnings.map((w, i) => (
             <div key={i} style={{ fontSize: 12, color: '#78350F', padding: '3px 0', lineHeight: 1.5, fontFamily: FONTS.body }}>• {w}</div>
           ))}
+        </div>
+      )}
+
+      {/* Allowances panel */}
+      {allowanceItems.length > 0 && (
+        <div style={{ gridColumn: '1/-1', background: COLORS.sf, border: `1px solid ${COLORS.bd}`, borderRadius: 10, padding: mob ? 12 : 16 }}>
+          <div style={{ fontSize: 11, fontFamily: FONTS.heading, fontWeight: 600, color: COLORS.dg, textTransform: 'uppercase', letterSpacing: 2, marginBottom: 14 }}>
+            Allowances ({allowanceItems.length})
+          </div>
+          <AllowancesPanel allowanceItems={allowanceItems} user={user} canEdit={canEdit} />
         </div>
       )}
 
