@@ -1,7 +1,8 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { supabase } from '../supabase/supabaseClient';
 import { FONTS, COLORS } from '../data/constants';
-import { Skeleton } from './ui';
+import { Skeleton, EmptyState, Button } from './ui';
+import { TrendingDown } from 'lucide-react';
 
 const ACCENT = '#B89030';
 const BORDER = '#E5E5E2';
@@ -783,17 +784,17 @@ export default function VELog({ project, active, items = [], canEdit, user, scen
           {[1,2,3,4].map(n => <Skeleton key={n} height={44} radius={8} />)}
         </div>
       ) : veItems.length === 0 ? (
-        <div style={{ textAlign: 'center', padding: '48px 24px', background: '#fff', border: `1.5px dashed ${BORDER}`, borderRadius: 12 }}>
-          <div style={{ fontSize: 32, marginBottom: 12 }}>◎</div>
-          <div style={{ fontFamily: FONTS.heading, fontWeight: 700, fontSize: 16, color: '#111', marginBottom: 8 }}>No VE items yet</div>
-          <div style={{ fontFamily: FONTS.body, fontSize: 13, color: '#888', marginBottom: 18 }}>Create a VE item manually or use AI to find savings opportunities.</div>
-          {canEdit && (
-            <div style={{ display: 'flex', gap: 10, justifyContent: 'center' }}>
-              <button onClick={() => setShowNewForm(true)} style={{ background: ACCENT, color: '#fff', border: 'none', borderRadius: 8, padding: '9px 20px', fontFamily: FONTS.heading, fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>+ New VE Item</button>
-              <button onClick={findSavings} disabled={loadingSuggestions} style={{ background: '#fff', color: ACCENT, border: `1px solid ${ACCENT}`, borderRadius: 8, padding: '9px 20px', fontFamily: FONTS.heading, fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>✦ Find Savings with AI</button>
+        <EmptyState
+          icon={TrendingDown}
+          title="No value engineering items yet"
+          body="Start tracking VE opportunities or let AI find savings across your estimate."
+          action={canEdit && (
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'center' }}>
+              <Button variant="primary" onClick={() => setShowNewForm(true)}>+ New VE Item</Button>
+              <Button variant="secondary" onClick={findSavings} disabled={loadingSuggestions}>✦ Find Savings with AI</Button>
             </div>
           )}
-        </div>
+        />
       ) : (
         <>
           {/* Table header */}

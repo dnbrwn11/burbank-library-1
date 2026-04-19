@@ -4,6 +4,8 @@ import { fK, psf } from '../utils/format';
 import * as CE from '../engine/CostEngine';
 import { supabase } from '../supabase/supabaseClient';
 import BiddingPanel from './BiddingPanel';
+import { EmptyState } from './ui';
+import { Users } from 'lucide-react';
 
 export function TradesPanel({ items, globals, bsf, updateItem, project, canEdit, active, user, totals, createItem, mob }) {
   const [scopeLoading, setScopeLoading] = useState(null);
@@ -260,11 +262,11 @@ export function TradesPanel({ items, globals, bsf, updateItem, project, canEdit,
       })}
 
       {tradeGroups.length === 0 && (
-        <div style={{ background: COLORS.wh, border: '1.5px dashed #d8d8d4', borderRadius: 12, padding: '48px 24px', textAlign: 'center' }}>
-          <div style={{ fontSize: 28, marginBottom: 12 }}>🏗</div>
-          <div style={{ fontFamily: FONTS.heading, fontWeight: 700, fontSize: 16, color: '#333', marginBottom: 8 }}>No items yet</div>
-          <div style={{ fontFamily: FONTS.body, fontSize: 13, color: '#999' }}>Add line items in the Cost Model tab to see trades here.</div>
-        </div>
+        <EmptyState
+          icon={Users}
+          title="No trades assigned"
+          body="Assign trades to line items from the Cost Model to group them here and generate AI scopes."
+        />
       )}
 
       {/* Bid packages — merged from former BIDDING tab */}

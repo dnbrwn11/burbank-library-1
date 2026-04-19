@@ -2,6 +2,8 @@ import { useState, useEffect, useMemo } from 'react';
 import { getDrawsForItems, createDraw, deleteDraw } from '../supabase/db';
 import { FONTS } from '../data/constants';
 import * as CE from '../engine/CostEngine';
+import { Skeleton, EmptyState, Button } from './ui';
+import { DollarSign } from 'lucide-react';
 
 const ACCENT = '#B89030';
 const BORDER = '#E5E5E2';
@@ -195,7 +197,22 @@ export default function AllowancesPanel({ allowanceItems, user, canEdit }) {
   };
 
   if (loading) {
-    return <div style={{ padding: '16px 0', fontFamily: FONTS.body, color: '#aaa', fontSize: 13, textAlign: 'center' }}>Loading allowances…</div>;
+    return (
+      <div style={{ padding: '8px 0', display: 'flex', flexDirection: 'column', gap: 8 }}>
+        {[1, 2, 3].map(n => <Skeleton key={n} height={56} radius={8} />)}
+      </div>
+    );
+  }
+
+  // Empty state — no items marked as allowance
+  if (!allowanceItems.length) {
+    return (
+      <EmptyState
+        icon={DollarSign}
+        title="No allowances marked"
+        body="Toggle the $ icon on any line item in the Cost Model to track it as an allowance with drawable budget."
+      />
+    );
   }
 
   return (

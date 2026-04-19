@@ -1,7 +1,8 @@
 import { useState, useEffect, useMemo } from 'react';
 import { supabase } from '../supabase/supabaseClient';
 import { FONTS, COLORS } from '../data/constants';
-import { Skeleton } from './ui';
+import { Skeleton, EmptyState, Button } from './ui';
+import { FileText } from 'lucide-react';
 
 const ACCENT = '#B89030';
 const BORDER = '#E5E5E2';
@@ -288,9 +289,14 @@ export default function BudgetTracker({ project, totals, canEdit, user }) {
           {[1,2,3].map(n => <Skeleton key={n} height={24} />)}
         </div>
       ) : events.length === 0 ? (
-        <div style={{ fontFamily: FONTS.body, fontSize: 12, color: '#aaa', fontStyle: 'italic', textAlign: 'center', padding: '8px 0' }}>
-          No budget events logged.{canEdit && ' Click "+ Log Event" to track changes.'}
-        </div>
+        <EmptyState
+          icon={FileText}
+          title="No budget events recorded"
+          body="Log amendments, change orders, and VE adjustments to track how the budget evolves over the project life."
+          action={canEdit && (
+            <Button variant="primary" onClick={() => setShowLogForm(true)}>+ Log Budget Event</Button>
+          )}
+        />
       ) : (
         <div>
           <div style={{ fontFamily: FONTS.body, fontSize: 10, color: '#aaa', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6 }}>Event Timeline</div>

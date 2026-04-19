@@ -1090,10 +1090,10 @@ export function CostModel({ items, globals, activeItems, totals, updateItem, cre
           <div style={{ borderRadius: 12, border: `1px solid #E5E5E2`, overflow: 'clip', background: COLORS.wh }}>
             <div style={{ overflowX: 'auto' }}>
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, fontFamily: FONTS.body, minWidth: 1160 }}>
-                <thead>
-                  <tr style={{ background: '#F5F5F0' }}>
+                <thead style={{ position: 'sticky', top: 0, zIndex: 10 }}>
+                  <tr style={{ background: '#FFFFFF', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
                     {[['', '3%'], ['Description', '21%'], ['Sub', '9%'], ['Qty Min', '6%', true], ['Qty Max', '6%', true], ['Unit', '4%', true], ['$/Low', '6%', true], ['$/Mid', '6%', true], ['$/High', '6%', true], [cv.toUpperCase() + ' Total', '8%', true], ['$/SF', '5%', true], ['Trade', '6%'], ['Sens', '4%'], ['Asn', '3%', true], ['', '2%']].map(([l, w, r], i) => (
-                      <th key={i} style={{ width: w, padding: '9px 8px', textAlign: r ? 'right' : 'left', fontSize: 9, fontFamily: FONTS.heading, fontWeight: 600, color: COLORS.mg, textTransform: 'uppercase', letterSpacing: 1, borderBottom: `2px solid #22222222` }}>{l}</th>
+                      <th key={i} style={{ width: w, padding: '12px 8px', textAlign: r ? 'right' : 'left', fontSize: 10, fontFamily: FONTS.heading, fontWeight: 600, color: '#555', textTransform: 'uppercase', letterSpacing: 0.5, borderBottom: `1px solid #E5E5E2`, background: '#FFFFFF' }}>{l}</th>
                     ))}
                   </tr>
                 </thead>

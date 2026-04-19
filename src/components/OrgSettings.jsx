@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../supabase/supabaseClient';
 import { updateOrganization, getOrgMembers, removeOrgMember } from '../supabase/db';
+import { Skeleton } from './ui';
 
 const ACCENT = '#B89030';
 const HEADER = '#222222';
@@ -425,7 +426,9 @@ function MembersTab({ org, user, orgRole }) {
           Members ({memberCount})
         </div>
         {loading ? (
-          <div style={{ padding: '20px', fontFamily: "'Figtree', sans-serif", fontSize: 13, color: '#aaa' }}>Loading…</div>
+          <div style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {[1,2,3].map(n => <Skeleton key={n} height={48} />)}
+          </div>
         ) : (
           members.map(m => {
             const displayName = m.profiles?.full_name || m.profiles?.email || '(no profile)';

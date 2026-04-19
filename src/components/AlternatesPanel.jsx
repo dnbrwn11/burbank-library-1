@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../supabase/supabaseClient';
 import { COLORS, FONTS } from '../data/constants';
-import { Skeleton } from './ui';
+import { Skeleton, EmptyState, Button } from './ui';
+import { Layers } from 'lucide-react';
 
 const ACCENT = '#B89030';
 const BORDER = '#E5E5E2';
@@ -606,8 +607,8 @@ export default function AlternatesPanel({ project, active, items = [], canEdit }
 
   if (loading) {
     return (
-      <div style={{ padding: '40px 0', textAlign: 'center', fontFamily: FONTS.body, color: '#aaa', fontSize: 14 }}>
-        Loading alternates…
+      <div style={{ padding: '8px 0', display: 'flex', flexDirection: 'column', gap: 8 }}>
+        {[1,2,3,4].map(n => <Skeleton key={n} height={52} radius={8} />)}
       </div>
     );
   }
@@ -662,26 +663,14 @@ export default function AlternatesPanel({ project, active, items = [], canEdit }
 
       {/* List */}
       {alternates.length === 0 && !showCreateForm ? (
-        <div style={{
-          textAlign: 'center', padding: '48px 24px',
-          background: '#fff', border: `1.5px dashed ${BORDER}`, borderRadius: 12,
-        }}>
-          <div style={{ fontSize: 32, marginBottom: 12 }}>⊞</div>
-          <div style={{ fontFamily: FONTS.heading, fontWeight: 700, fontSize: 16, color: '#111', marginBottom: 8 }}>
-            No alternates yet
-          </div>
-          <div style={{ fontFamily: FONTS.body, fontSize: 13, color: '#888', marginBottom: 20 }}>
-            Add alternates to track optional scope additions or deductions.
-          </div>
-          {canEdit && (
-            <button
-              onClick={() => setShowCreateForm(true)}
-              style={{ background: ACCENT, color: '#fff', border: 'none', borderRadius: 8, padding: '10px 22px', fontFamily: FONTS.heading, fontWeight: 700, fontSize: 13, cursor: 'pointer' }}
-            >
-              + New Alternate
-            </button>
+        <EmptyState
+          icon={Layers}
+          title="No alternates yet"
+          body="Track optional scope additions and deductions. Link line items to measure cost impact."
+          action={canEdit && (
+            <Button variant="primary" onClick={() => setShowCreateForm(true)}>+ New Alternate</Button>
           )}
-        </div>
+        />
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           {/* Summary row header */}

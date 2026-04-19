@@ -2,7 +2,8 @@ import { useState, useEffect } from 'react';
 import { supabase } from '../supabase/supabaseClient';
 import { getBidPackages, getBidInvitations, getBidSubmissions } from '../supabase/db';
 import { analytics } from '../analytics';
-import { Skeleton } from './ui';
+import { Skeleton, EmptyState, Button } from './ui';
+import { Handshake } from 'lucide-react';
 
 const ACCENT = '#B89030';
 const HEADER_BG = '#222222';
@@ -631,23 +632,14 @@ export default function BiddingPanel({ project, user, totals, createItem, canEdi
           {[1,2,3].map(n => <Skeleton key={n} height={56} radius={12} />)}
         </div>
       ) : packages.length === 0 && !showNewPkgForm ? (
-        <div style={{ textAlign: 'center', padding: '56px 24px', background: '#fff', border: `1.5px dashed ${BORDER}`, borderRadius: 12 }}>
-          <div style={{ fontSize: 36, marginBottom: 16 }}>📦</div>
-          <h3 style={{ fontFamily: "'Archivo', sans-serif", fontWeight: 800, fontSize: 18, color: '#111', marginBottom: 8 }}>
-            No bid packages yet
-          </h3>
-          <p style={{ fontFamily: "'Figtree', sans-serif", color: '#888', fontSize: 14, marginBottom: 24, maxWidth: 360, margin: '0 auto 24px' }}>
-            Create a bid package to group scope items, invite subs, and collect competitive pricing.
-          </p>
-          {canEdit && (
-            <button
-              onClick={() => setShowNewPkgForm(true)}
-              style={{ background: ACCENT, color: '#fff', border: 'none', borderRadius: 8, padding: '11px 22px', fontFamily: "'Archivo', sans-serif", fontWeight: 700, fontSize: 13, cursor: 'pointer' }}
-            >
-              + Create First Package
-            </button>
+        <EmptyState
+          icon={Handshake}
+          title="No bid packages yet"
+          body="Group scope items into a bid package, invite trade partners, and collect competitive pricing."
+          action={canEdit && (
+            <Button variant="primary" onClick={() => setShowNewPkgForm(true)}>+ Create Bid Package</Button>
           )}
-        </div>
+        />
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           {packages.map(pkg => (
