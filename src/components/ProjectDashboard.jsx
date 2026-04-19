@@ -1,9 +1,50 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { getAllProjects, getOrgProjects, createProject, updateProject, deleteProject, getScenarios, createLineItems, duplicateProject } from '../supabase/db';
+import { supabase } from '../supabase/supabaseClient';
 import { analytics } from '../analytics';
 import { OrgAvatar, OrgMenu } from './OrgSettings';
 import { SAMPLE_LIBRARY_LINE_ITEMS, SAMPLE_PROJECT } from '../data/sampleLineItems';
 import { CLIENT_TYPES } from '../../lib/templates';
+
+// ── Shimmer keyframes (injected once) ────────────────────────────────────────
+if (typeof document !== 'undefined' && !document.getElementById('pd-shimmer')) {
+  const s = document.createElement('style');
+  s.id = 'pd-shimmer';
+  s.textContent = `
+    @keyframes pd-shimmer {
+      0%   { background-position: -400px 0 }
+      100% { background-position:  400px 0 }
+    }
+    .pd-skel {
+      background: linear-gradient(90deg, #f0f0ee 25%, #e6e6e2 50%, #f0f0ee 75%);
+      background-size: 800px 100%;
+      animation: pd-shimmer 1.4s ease-in-out infinite;
+      border-radius: 6px;
+    }
+  `;
+  document.head.appendChild(s);
+}
+
+function SkeletonCard() {
+  return (
+    <div style={{
+      background: '#fff', border: '1px solid #e6e6e2', borderRadius: 10,
+      padding: '18px 22px', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+    }}>
+      <div style={{ flex: 1 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+          <div className="pd-skel" style={{ height: 16, width: 200 }} />
+          <div className="pd-skel" style={{ height: 14, width: 52, borderRadius: 4 }} />
+        </div>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <div className="pd-skel" style={{ height: 12, width: 120 }} />
+          <div className="pd-skel" style={{ height: 12, width: 90 }} />
+        </div>
+      </div>
+      <div className="pd-skel" style={{ height: 20, width: 24, marginLeft: 16 }} />
+    </div>
+  );
+}
 
 const isLockError = (err) => {
   const msg = (err?.message || '').toLowerCase();
@@ -73,6 +114,7 @@ const EMPTY_FORM = {
 export default function ProjectDashboard({ user, org, orgRole, onSignOut, onSelectProject, onProjectCreated, onOrgSettings }) {
   const [projects, setProjects] = useState([]);
   const [loadingProjects, setLoadingProjects] = useState(true);
+  const [loadError, setLoadError] = useState(null); // null | 'timeout' | string
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
@@ -82,14 +124,58 @@ export default function ProjectDashboard({ user, org, orgRole, onSignOut, onSele
   const [sortBy, setSortBy] = useState('updated');
   const [search, setSearch] = useState('');
   const [editingProject, setEditingProject] = useState(null);
+  const loadTimeoutRef = useRef(null);
 
   const loadProjects = async () => {
     setLoadingProjects(true);
-    const { data } = org?.id
-      ? await getOrgProjects(org.id)
-      : await getAllProjects();
-    setProjects(data || []);
-    setLoadingProjects(false);
+    setLoadError(null);
+
+    // Guard: confirm the auth session is present before querying.
+    // This prevents the race condition where onAuthStateChange has fired
+    // but the Supabase HTTP client hasn't attached the JWT yet.
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        // Session not ready — retry once after a brief delay
+        await new Promise(r => setTimeout(r, 400));
+        const { data: { session: s2 } } = await supabase.auth.getSession();
+        if (!s2) throw new Error('Auth session not ready');
+      }
+    } catch {
+      // Non-fatal — proceed anyway; RLS will simply return empty data
+    }
+
+    // 10-second timeout: if the query hangs, surface a retry button
+    let settled = false;
+    clearTimeout(loadTimeoutRef.current);
+    loadTimeoutRef.current = setTimeout(() => {
+      if (!settled) {
+        settled = true;
+        setLoadingProjects(false);
+        setLoadError('timeout');
+      }
+    }, 10_000);
+
+    try {
+      const { data, error } = org?.id
+        ? await getOrgProjects(org.id)
+        : await getAllProjects();
+
+      if (settled) return; // timed out — ignore result
+      settled = true;
+      clearTimeout(loadTimeoutRef.current);
+
+      if (error) throw error;
+      setProjects(data || []);
+    } catch (err) {
+      if (settled) return;
+      settled = true;
+      clearTimeout(loadTimeoutRef.current);
+      setLoadError(err?.message || 'Failed to load projects');
+    } finally {
+      if (!settled) { settled = true; clearTimeout(loadTimeoutRef.current); }
+      setLoadingProjects(false);
+    }
   };
 
   const handleCreateSample = async ({ autoOpen = true } = {}) => {
@@ -454,11 +540,26 @@ export default function ProjectDashboard({ user, org, orgRole, onSignOut, onSele
         )}
 
         {loadingProjects ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {[1, 2, 3].map(n => <SkeletonCard key={n} />)}
+          </div>
+        ) : loadError ? (
           <div style={{
-            textAlign: 'center', padding: 64,
-            fontFamily: "'Figtree', sans-serif", color: '#aaa', fontSize: 14,
+            textAlign: 'center', padding: '56px 24px',
+            background: '#fff', border: '1px solid #fde8e8', borderRadius: 12,
           }}>
-            Loading projects…
+            <div style={{ fontSize: 28, marginBottom: 12 }}>⚠️</div>
+            <p style={{ fontFamily: "'Figtree', sans-serif", color: '#666', fontSize: 14, marginBottom: 20 }}>
+              {loadError === 'timeout'
+                ? 'Projects took too long to load. Check your connection and try again.'
+                : `Couldn't load projects: ${loadError}`}
+            </p>
+            <button
+              onClick={loadProjects}
+              style={{ background: ACCENT, color: '#fff', border: 'none', borderRadius: 8, padding: '10px 24px', fontFamily: "'Archivo', sans-serif", fontWeight: 700, fontSize: 13, cursor: 'pointer' }}
+            >
+              Retry
+            </button>
           </div>
         ) : !hasProjects ? (
           <div style={{
