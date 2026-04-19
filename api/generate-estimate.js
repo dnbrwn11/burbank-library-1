@@ -59,15 +59,17 @@ const ITEM_SCHEMA = `{
 
 function buildProjectContext(project) {
   if (!project) return '';
+  const scopeLabel = project.scope || (project.scope_type === 'renovation' ? 'Renovation / TI' : 'New Construction');
   const lines = [
     `Building Type: ${project.building_type || 'Not specified'}`,
     `Location: ${project.city || ''}, ${project.state || 'CA'}`,
-    `Scope: ${project.scope || 'New Construction'}`,
+    `Scope: ${scopeLabel}`,
+    `Client: ${project.client_name || 'Not specified'}${project.client_type ? ` (${project.client_type})` : ''}`,
     `Gross SF: ${project.gross_sf ? Number(project.gross_sf).toLocaleString() : 'Not specified'}`,
     `Stories: ${project.stories || 'Not specified'}`,
     `Labor Type: ${project.labor_type || 'Not specified'}`,
     `Delivery Method: ${project.delivery_method || 'Not specified'}`,
-    `Target Budget: ${project.target_budget ? '$' + Number(project.target_budget).toLocaleString() : 'Not specified'}`,
+    `Target Budget: ${project.target_budget ? '$' + Number(project.target_budget).toLocaleString() : 'TBD / Not specified'}`,
   ];
   const optional = [
     ['Structure Type',    project.structure_type],
@@ -214,17 +216,55 @@ Return ONLY a JSON object — no markdown, no explanation:
   }
 }
 
+// Budget calibration guidance — strong signal when target_budget is provided
+function budgetCalibrationBlock(project) {
+  const budget = Number(project?.target_budget);
+  if (!budget || budget <= 0) {
+    return 'BUDGET: TBD / not provided. Estimate at market-typical quality for the building type and location.';
+  }
+  const sf = Number(project?.gross_sf);
+  const psfHint = sf > 0 ? ` (~$${Math.round(budget / sf).toLocaleString()}/SF implied)` : '';
+  return `BUDGET CALIBRATION
+The client's target budget is $${budget.toLocaleString()}${psfHint}.
+Use this to calibrate the scope and quality level of your estimate. If the budget implies $100/SF for an office TI, generate standard-grade finishes and systems, not premium. If your estimate significantly exceeds the budget, note it in the item's "basis" field but DO NOT artificially lower costs — instead reflect realistic market pricing for the scope. If the budget implies a lower-tier fit-out, choose economy-grade materials, standard MEP, and minimal specialty scope.`;
+}
+
+// Renovation / TI guidance — only included when scope indicates renovation
+function renovationBlock(project) {
+  const scopeType = project?.scope_type;
+  const scopeText = (project?.scope || '').toLowerCase();
+  const isReno = scopeType === 'renovation'
+    || scopeText.includes('renovation')
+    || scopeText.includes('tenant improvement')
+    || scopeText.includes(' ti ')
+    || scopeText.endsWith(' ti');
+  if (!isReno) return '';
+  return `RENOVATION / TENANT IMPROVEMENT SCOPE
+This is a RENOVATION or TENANT IMPROVEMENT project, NOT new construction. Critical adjustments:
+- Do NOT include foundations, structural frame, roofing, or building shell unless specifically mentioned in the description.
+- DO include selective demolition of existing conditions (partitions, finishes, MEP to be removed).
+- DO include temporary protection and dust barriers if the space is occupied.
+- Reduce site work to minimal patching — no mass grading, no new utilities unless mentioned.
+- Focus on interior buildout: framing, drywall, ceilings, flooring, paint, millwork, MEP distribution (not major equipment unless specified).
+- For TI projects, assume the base building provides the main HVAC equipment, electrical switchgear, plumbing risers, and fire protection mains — the TI only connects to and distributes from these existing systems.
+- Typical TI cost ranges: standard office $60–120/SF, mid-range $100–175/SF, high-end $150–250/SF. Adjust for location (CA/NY trend higher).`;
+}
+
 // ── Single chunk generator ────────────────────────────────────────────────────
 
 async function generateChunk(client, description, project, chunk, planningContext) {
   const allowedCategories = chunk.categories.join(', ');
   const projectContext    = buildProjectContext(project);
+  const budgetBlock       = budgetCalibrationBlock(project);
+  const renoBlock         = renovationBlock(project);
 
   const systemPrompt = `You are a senior preconstruction estimator. Generate EXACTLY ${chunk.count} construction cost line items for the "${chunk.name}" section.
 
 Focus on: ${chunk.focus}
 Allowed categories: ${allowedCategories}
 
+${budgetBlock}
+${renoBlock ? '\n' + renoBlock + '\n' : ''}
 RULES:
 1. Respond with ONLY a valid JSON array. No markdown, no backticks, no explanation.
 2. Generate EXACTLY ${chunk.count} items.
@@ -232,6 +272,7 @@ RULES:
 4. Every item MUST use only these categories: ${allowedCategories}
 5. Calibrate costs to ${project?.city || 'local'}, ${project?.state || 'CA'} 2025–2026 market rates.
 6. Derive quantities realistically from the project description.
+7. Respect the budget calibration and scope-type guidance above — scope and quality level should match.
 
 Each item must have exactly these fields:
 ${ITEM_SCHEMA}

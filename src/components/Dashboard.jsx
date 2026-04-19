@@ -79,8 +79,15 @@ export function Dashboard({ totals, catGroups, activeItems, bsf, globals, teamMe
         w.push(`"${topItem.description}" is ${(topMid / totals.raw.m * 100).toFixed(0)}% of total cost — review for reasonableness.`);
       }
     }
+    // Post-generation budget-overage warning — fires when mid estimate exceeds target by >20%
+    const budget = Number(project?.target_budget) || 0;
+    const midEst = totals?.full?.m?.tot || 0;
+    if (budget > 0 && midEst > 0 && midEst > budget * 1.2) {
+      const overPct = ((midEst / budget - 1) * 100).toFixed(0);
+      w.push(`Your estimate (${fmt(midEst)}) exceeds the target budget (${fmt(budget)}) by ${overPct}%. This may indicate the scope exceeds what the budget can support, or the budget may need to be revised.`);
+    }
     return w;
-  }, [activeItems, totals, globals, bsf]);
+  }, [activeItems, totals, globals, bsf, project]);
 
   // ── Alternates ───────────────────────────────────────────────────────────────
   useEffect(() => {
