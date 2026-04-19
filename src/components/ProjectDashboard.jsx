@@ -2,47 +2,8 @@ import { useState, useEffect, useMemo, useRef } from 'react';
 import { getAllProjects, getOrgProjects, createProject, updateProject, deleteProject, getScenarios, createLineItems, duplicateProject } from '../supabase/db';
 import { analytics } from '../analytics';
 import { OrgAvatar, OrgMenu } from './OrgSettings';
-
-// ── Sample project seed data (25 items, 5 categories) ───────────────────────
-const _si = (cat, sub, desc, qmin, qmax, unit, low, mid, high, sens, order) => ({
-  category: cat, subcategory: sub, description: desc,
-  qty_min: qmin, qty_max: qmax, unit,
-  unit_cost_low: low, unit_cost_mid: mid, unit_cost_high: high,
-  sensitivity: sens, in_summary: true, is_archived: false,
-  sort_order: order, basis: null, notes: null,
-});
-
-const SAMPLE_LINE_ITEMS = [
-  _si('Shell','Structure','Concrete structure & foundations',85000,85000,'SF',45,55,68,'High',0),
-  _si('Shell','Envelope','Building envelope & curtain wall',14000,18000,'SF',95,120,148,'High',1),
-  _si('Shell','Roofing','Roofing system (TPO/PVC)',21000,21000,'SF',20,27,36,'Medium',2),
-  _si('Shell','Glazing','Exterior glazing & storefront entries',2500,4000,'SF',70,90,120,'Medium',3),
-  _si('Shell','Structure','Structural steel — long-span library',120,180,'TON',7000,8500,10500,'Medium',4),
-
-  _si('Interiors','Partitions','Interior partitions & framing',85000,110000,'SF',13,17,24,'Medium',5),
-  _si('Interiors','Flooring','Floor finishes (carpet, VCT, concrete)',85000,85000,'SF',11,16,22,'Medium',6),
-  _si('Interiors','Ceilings','Ceiling finishes (ACT, GWB, open)',72000,72000,'SF',8,12,18,'Low',7),
-  _si('Interiors','Doors','Interior doors & hardware',160,220,'each',1800,2700,3900,'Medium',8),
-  _si('Interiors','Specialties','Signage & wayfinding system',1,1,'LS',140000,270000,440000,'Medium',9),
-  _si('Interiors','Glazing','Interior glazed partitions & sidelights',4000,7000,'SF',58,82,115,'Medium',10),
-
-  _si('Services','Mechanical','HVAC & mechanical systems',85000,85000,'SF',32,43,56,'High',11),
-  _si('Services','Plumbing','Plumbing & fixtures',85000,85000,'SF',13,18,24,'Medium',12),
-  _si('Services','Fire Protection','Fire protection sprinkler system',85000,85000,'SF',6,8,12,'Low',13),
-  _si('Services','Electrical','Electrical & lighting',85000,85000,'SF',22,30,42,'Medium',14),
-  _si('Services','Technology','Data, AV & security systems',85000,85000,'SF',10,15,22,'Medium',15),
-  _si('Services','Vertical Transport','Elevators',3,3,'each',95000,125000,168000,'Medium',16),
-  _si('Services','Controls','Building automation system (BAS)',1,1,'LS',420000,640000,880000,'High',17),
-
-  _si('Sitework','Earthwork','Site preparation, grading & utilities',2,2,'acres',88000,130000,175000,'High',18),
-  _si('Sitework','Hardscape','Hardscape, paving & walks',18000,24000,'SF',12,18,28,'Medium',19),
-  _si('Sitework','Landscape','Landscaping & irrigation',12000,18000,'SF',8,14,22,'Low',20),
-  _si('Sitework','Utilities','Site utility connections',1,1,'LS',175000,280000,420000,'High',21),
-
-  _si('General Conditions','Supervision','General conditions & project supervision',85000,85000,'SF',14,18,24,'Medium',22),
-  _si('General Conditions','Temporary','Temporary facilities & protection',1,1,'LS',110000,180000,270000,'Medium',23),
-  _si('General Conditions','Insurance','Insurance, bonds & permits allowance',1,1,'LS',175000,275000,370000,'Medium',24),
-];
+import { SAMPLE_LIBRARY_LINE_ITEMS, SAMPLE_PROJECT } from '../data/sampleLineItems';
+import { CLIENT_TYPES } from '../../lib/templates';
 
 const isLockError = (err) => {
   const msg = (err?.message || '').toLowerCase();
@@ -63,11 +24,6 @@ const BUILDING_TYPES = [
   'Airport Terminal', 'Transit Station', 'Water/Wastewater', 'Other',
 ];
 
-const DELIVERY_METHODS = [
-  'CM at Risk (GMP)', 'Design-Bid-Build', 'Design-Build',
-  'CM Multi-Prime', 'IPD', 'Construction Management Agency',
-];
-
 const US_STATES = [
   'AL','AK','AZ','AR','CA','CO','CT','DE','FL','GA','HI','ID','IL','IN',
   'IA','KS','KY','LA','ME','MD','MA','MI','MN','MS','MO','MT','NE','NV',
@@ -76,13 +32,14 @@ const US_STATES = [
 ];
 
 const STATUS_OPTIONS = ['active', 'on_hold', 'won', 'lost', 'archived'];
-const STATUS_LABELS = { active: 'Active', on_hold: 'On Hold', won: 'Won', lost: 'Lost', archived: 'Archived' };
+const STATUS_LABELS = { active: 'Active', on_hold: 'On Hold', won: 'Won', lost: 'Lost', archived: 'Archived', sample: 'Sample' };
 const STATUS_COLORS = {
   active:   { bg: '#f0fdf4', color: '#166534', border: '#bbf7d0' },
   on_hold:  { bg: '#fefce8', color: '#854d0e', border: '#fde68a' },
   won:      { bg: '#eff6ff', color: '#1e40af', border: '#bfdbfe' },
   lost:     { bg: '#fef2f2', color: '#991b1b', border: '#fecaca' },
   archived: { bg: '#f5f5f4', color: '#78716c', border: '#d6d3d1' },
+  sample:   { bg: '#eff6ff', color: '#1e40af', border: '#bfdbfe' },
 };
 
 const SORT_OPTIONS = [
@@ -102,8 +59,15 @@ const FILTER_OPTIONS = [
 ];
 
 const EMPTY_FORM = {
-  name: '', city: '', state: '', building_type: '',
-  delivery_method: '', target_budget: '', target_budget_tbd: false,
+  name: '',
+  client_name: '',
+  client_type: '',
+  city: '',
+  state: '',
+  building_type: '',
+  scope_type: 'new_construction',
+  target_budget: '',
+  target_budget_tbd: false,
 };
 
 export default function ProjectDashboard({ user, org, orgRole, onSignOut, onSelectProject, onProjectCreated, onOrgSettings }) {
@@ -128,41 +92,49 @@ export default function ProjectDashboard({ user, org, orgRole, onSignOut, onSele
     setLoadingProjects(false);
   };
 
-  const handleCreateSample = async () => {
-    if (saving) return;
+  const handleCreateSample = async ({ autoOpen = true } = {}) => {
+    if (saving) return null;
     setSaving(true);
     setFormError(null);
     try {
       const { data, error } = await createProject(
-        {
-          name: 'Sample: 85,000 SF Civic Library',
-          city: 'Burbank',
-          state: 'CA',
-          building_type: 'Civic/Library',
-          delivery_method: 'CM at Risk (GMP)',
-          gross_sf: 85000,
-          target_budget: 45000000,
-        },
+        { ...SAMPLE_PROJECT },
         user.id,
         org?.id || null,
       );
       if (error || !data) {
         setFormError('Could not create sample project. Please try again.');
-        return;
+        return null;
       }
       const { data: scenarios } = await getScenarios(data.id);
       const baseline = scenarios?.[0];
       if (baseline) {
-        await createLineItems(baseline.id, SAMPLE_LINE_ITEMS);
+        await createLineItems(baseline.id, SAMPLE_LIBRARY_LINE_ITEMS);
       }
       analytics.projectCreated(data);
-      onProjectCreated ? onProjectCreated(data) : onSelectProject(data);
+      if (autoOpen) {
+        onProjectCreated ? onProjectCreated(data) : onSelectProject(data);
+      }
+      return data;
     } finally {
       setSaving(false);
     }
   };
 
+  // Auto-create the sample project on first visit (user has 0 projects)
+  const autoSampleTriedRef = useRef(false);
   useEffect(() => { loadProjects(); }, [org?.id]);
+  useEffect(() => {
+    if (loadingProjects) return;
+    if (autoSampleTriedRef.current) return;
+    if (projects.length > 0) return;
+    autoSampleTriedRef.current = true;
+    // Fire-and-forget: create the sample, then reload so it appears in the list.
+    (async () => {
+      const created = await handleCreateSample({ autoOpen: false });
+      if (created) await loadProjects();
+    })();
+  }, [loadingProjects, projects.length]);
 
   const set = (field) => (val) => setForm(f => ({ ...f, [field]: val }));
 
@@ -175,10 +147,13 @@ export default function ProjectDashboard({ user, org, orgRole, onSignOut, onSele
       const { data, error } = await createProject(
         {
           name: form.name.trim(),
+          client_name: form.client_name.trim() || null,
+          client_type: form.client_type || null,
           city: form.city.trim(),
           state: form.state,
           building_type: form.building_type,
-          delivery_method: form.delivery_method,
+          scope_type: form.scope_type || 'new_construction',
+          delivery_method: null,
           labor_type: null,
           gross_sf: null,
           target_budget: (!form.target_budget_tbd && form.target_budget) ? parseFloat(form.target_budget) : null,
@@ -383,6 +358,17 @@ export default function ProjectDashboard({ user, org, orgRole, onSignOut, onSele
                   />
                 </FormField>
 
+                <FormField label="Client / Owner Name" span={2}>
+                  <FormInput
+                    value={form.client_name} onChange={set('client_name')}
+                    placeholder="e.g. Kaiser Permanente, City of Glendale"
+                  />
+                </FormField>
+
+                <FormField label="Client Type" span={2}>
+                  <FormSelect value={form.client_type} onChange={set('client_type')} options={CLIENT_TYPES} />
+                </FormField>
+
                 <FormField label="City" required>
                   <FormInput value={form.city} onChange={set('city')} placeholder="e.g. Los Angeles" required />
                 </FormField>
@@ -391,15 +377,15 @@ export default function ProjectDashboard({ user, org, orgRole, onSignOut, onSele
                   <FormSelect value={form.state} onChange={set('state')} options={US_STATES} required />
                 </FormField>
 
-                <FormField label="Building Type" required>
+                <FormField label="Building Type" required span={2}>
                   <FormSelect value={form.building_type} onChange={set('building_type')} options={BUILDING_TYPES} required />
                 </FormField>
 
-                <FormField label="Delivery Method" required>
-                  <FormSelect value={form.delivery_method} onChange={set('delivery_method')} options={DELIVERY_METHODS} required />
+                <FormField label="Scope" required span={2}>
+                  <ScopeToggle value={form.scope_type} onChange={set('scope_type')} />
                 </FormField>
 
-                <FormField label="Target Budget ($)">
+                <FormField label="Target Budget ($)" span={2}>
                   <FormInput
                     type="number"
                     value={form.target_budget_tbd ? '' : form.target_budget}
@@ -851,6 +837,39 @@ function FormField({ label, required, span, children }) {
         {required && <span style={{ color: ACCENT, marginLeft: 2 }}>*</span>}
       </label>
       {children}
+    </div>
+  );
+}
+
+function ScopeToggle({ value, onChange }) {
+  const options = [
+    { val: 'new_construction', label: 'New Construction' },
+    { val: 'renovation',       label: 'Renovation & TI' },
+  ];
+  return (
+    <div style={{ display: 'flex', gap: 8 }}>
+      {options.map(opt => {
+        const active = value === opt.val;
+        return (
+          <button
+            key={opt.val}
+            type="button"
+            onClick={() => onChange(opt.val)}
+            style={{
+              flex: 1, padding: '10px 14px',
+              border: active ? `1.5px solid ${ACCENT}` : '1.5px solid #e0e0dc',
+              background: active ? '#fffbf0' : '#fff',
+              color: active ? ACCENT : '#555',
+              borderRadius: 8,
+              fontFamily: "'Archivo', sans-serif", fontWeight: 700, fontSize: 12,
+              letterSpacing: 0.4, cursor: 'pointer',
+              transition: 'border-color 0.15s, background 0.15s',
+            }}
+          >
+            {opt.label}
+          </button>
+        );
+      })}
     </div>
   );
 }

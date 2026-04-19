@@ -21,6 +21,7 @@ import LandingPage from './components/LandingPage';
 import ProjectDashboard from './components/ProjectDashboard';
 import OrgSettings from './components/OrgSettings';
 import AIGenerator from './components/AIGenerator';
+import GenerateEstimateScreen from './components/GenerateEstimateScreen';
 import TeamPanel, { Avatar, initials } from './components/TeamPanel';
 import BiddingPanel from './components/BiddingPanel';
 import BidSubmitScreen from './components/BidSubmitScreen';
@@ -195,18 +196,17 @@ export default function App() {
   }
 
   if (generatingProject && !activeProject) {
-    // Skip AI Generator for sample projects — go directly to cost model
-    if (generatingProject.name?.startsWith('Sample:')) {
+    // Skip Generate Estimate for sample projects — items were seeded on creation
+    if (generatingProject.status === 'sample' || generatingProject.name?.startsWith('Sample:')) {
       setActiveProject(generatingProject);
       setGeneratingProject(null);
       return null;
     }
     return (
-      <AIGenerator
+      <GenerateEstimateScreen
         project={generatingProject}
         user={user}
         onSave={() => { setActiveProject(generatingProject); setGeneratingProject(null); }}
-        onSkip={() => { setActiveProject(generatingProject); setGeneratingProject(null); }}
         onGoHome={() => setGeneratingProject(null)}
         onSignOut={handleSignOut}
       />
@@ -770,16 +770,16 @@ function CostModelApp({ user, project, onBack, onSignOut }) {
         </div>
       )}
 
-      {project.name?.startsWith('Sample:') && (
+      {(project.status === 'sample' || project.name?.startsWith('Sample:')) && (
         <div style={{ background: '#f0f9ff', borderBottom: '1px solid #bae6fd', padding: '8px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
           <span style={{ fontFamily: "'Figtree', sans-serif", fontSize: 12, color: '#0369a1' }}>
-            This is a sample project — explore freely, then create your own estimate.
+            This is a sample project to explore CostDeck. Create your own to get started.
           </span>
           <button
             onClick={onBack}
-            style={{ background: '#0369a1', color: '#fff', border: 'none', borderRadius: 6, padding: '5px 14px', fontFamily: "'Archivo', sans-serif", fontWeight: 700, fontSize: 11, cursor: 'pointer', whiteSpace: 'nowrap' }}
+            style={{ background: ACCENT, color: '#fff', border: 'none', borderRadius: 6, padding: '5px 14px', fontFamily: "'Archivo', sans-serif", fontWeight: 700, fontSize: 11, cursor: 'pointer', whiteSpace: 'nowrap' }}
           >
-            Create My Project →
+            New Project
           </button>
         </div>
       )}
