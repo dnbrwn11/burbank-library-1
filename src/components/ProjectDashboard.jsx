@@ -918,11 +918,11 @@ function FormField({ label, required, span, children }) {
     <div style={span === 2 ? { gridColumn: 'span 2' } : {}}>
       <label style={{
         display: 'block', fontFamily: "'Figtree', sans-serif",
-        fontSize: 12, fontWeight: 600, color: '#555',
-        marginBottom: 5, textTransform: 'uppercase', letterSpacing: 0.4,
+        fontSize: 12, fontWeight: 500, color: '#888',
+        marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.5,
       }}>
         {label}
-        {required && <span style={{ color: ACCENT, marginLeft: 2 }}>*</span>}
+        {required && <span style={{ color: '#CC4444', marginLeft: 2 }}>*</span>}
       </label>
       {children}
     </div>
@@ -973,17 +973,25 @@ function FormInput({ value, onChange, placeholder, type = 'text', required, min,
       min={min}
       disabled={disabled}
       style={{
-        width: '100%', padding: '9px 12px',
-        border: '1.5px solid #e0e0dc', borderRadius: 7,
+        width: '100%', height: 40, padding: '0 12px',
+        border: '1px solid #E5E5E2', borderRadius: 8,
         fontFamily: "'Figtree', sans-serif", fontSize: 14,
         outline: 'none', boxSizing: 'border-box',
-        transition: 'border-color 0.15s',
-        background: disabled ? '#f5f5f3' : '#fff',
-        color: disabled ? '#aaa' : '#111',
+        transition: 'border-color 150ms ease, box-shadow 150ms ease',
+        background: disabled ? '#F3F3F1' : '#FFFFFF',
+        color: disabled ? '#aaa' : '#1A1A1A',
         cursor: disabled ? 'not-allowed' : 'text',
       }}
-      onFocus={e => { if (!disabled) e.target.style.borderColor = ACCENT; }}
-      onBlur={e => { e.target.style.borderColor = '#e0e0dc'; }}
+      onFocus={e => {
+        if (!disabled) {
+          e.target.style.borderColor = ACCENT;
+          e.target.style.boxShadow = '0 0 0 2px rgba(184,144,48,0.15)';
+        }
+      }}
+      onBlur={e => {
+        e.target.style.borderColor = '#E5E5E2';
+        e.target.style.boxShadow = 'none';
+      }}
     />
   );
 }
@@ -995,14 +1003,21 @@ function FormSelect({ value, onChange, options, required }) {
       onChange={e => onChange(e.target.value)}
       required={required}
       style={{
-        width: '100%', padding: '9px 12px',
-        border: '1.5px solid #e0e0dc', borderRadius: 7,
+        width: '100%', height: 40, padding: '0 12px',
+        border: '1px solid #E5E5E2', borderRadius: 8,
         fontFamily: "'Figtree', sans-serif", fontSize: 14,
         outline: 'none', boxSizing: 'border-box',
-        background: '#fff', cursor: 'pointer',
+        background: '#FFFFFF', cursor: 'pointer',
+        transition: 'border-color 150ms ease, box-shadow 150ms ease',
       }}
-      onFocus={e => { e.target.style.borderColor = ACCENT; }}
-      onBlur={e => { e.target.style.borderColor = '#e0e0dc'; }}
+      onFocus={e => {
+        e.target.style.borderColor = ACCENT;
+        e.target.style.boxShadow = '0 0 0 2px rgba(184,144,48,0.15)';
+      }}
+      onBlur={e => {
+        e.target.style.borderColor = '#E5E5E2';
+        e.target.style.boxShadow = 'none';
+      }}
     >
       <option value="">Select…</option>
       {options.map(o => <option key={o} value={o}>{o}</option>)}

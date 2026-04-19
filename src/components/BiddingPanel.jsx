@@ -359,7 +359,7 @@ export default function BiddingPanel({ project, user, totals, createItem, canEdi
                   <div style={{ display: 'grid', gridTemplateColumns: mob ? '1fr' : '1fr 1fr 1fr', gap: 10 }}>
                     <div>
                       <label style={{ display: 'block', fontFamily: "'Figtree', sans-serif", fontSize: 11, fontWeight: 600, color: '#666', marginBottom: 4 }}>
-                        Email <span style={{ color: ACCENT }}>*</span>
+                        Email <span style={{ color: '#CC4444' }}>*</span>
                       </label>
                       <input
                         type="email" required
@@ -561,7 +561,7 @@ export default function BiddingPanel({ project, user, totals, createItem, canEdi
             <div style={{ display: 'grid', gridTemplateColumns: mob ? '1fr' : '2fr 1fr', gap: 12 }}>
               <div>
                 <label style={{ display: 'block', fontFamily: "'Figtree', sans-serif", fontSize: 11, fontWeight: 600, color: '#555', marginBottom: 4, textTransform: 'uppercase', letterSpacing: 0.4 }}>
-                  Package Name <span style={{ color: ACCENT }}>*</span>
+                  Package Name <span style={{ color: '#CC4444' }}>*</span>
                 </label>
                 <input
                   type="text" required
@@ -660,7 +660,7 @@ function PackageCard({ pkg, onOpen }) {
       onMouseLeave={() => setHovered(false)}
       style={{
         background: '#fff',
-        border: `1px solid ${hovered ? ACCENT : BORDER}`,
+        border: `1px solid ${hovered ? '#D9D9D5' : BORDER}`,
         borderRadius: 12, padding: '18px 22px',
         textAlign: 'left', cursor: 'pointer',
         display: 'flex', justifyContent: 'space-between', alignItems: 'center',
@@ -680,7 +680,7 @@ function PackageCard({ pkg, onOpen }) {
           {pkg.scope && <span>· {pkg.scope.slice(0, 80)}{pkg.scope.length > 80 ? '…' : ''}</span>}
         </div>
       </div>
-      <span style={{ color: ACCENT, fontSize: 22, fontWeight: 300, marginLeft: 16, flexShrink: 0 }}>›</span>
+      <span style={{ color: '#888', fontSize: 22, fontWeight: 300, marginLeft: 16, flexShrink: 0 }}>›</span>
     </button>
   );
 }

@@ -22,24 +22,39 @@ export function AuditReportCard({ report, onClose }) {
   const gaugePos = Math.max(0, Math.min(1, (psfVal - gaugeMin) / Math.max(gaugeMax - gaugeMin, 1)));
 
   return (
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', zIndex: 3000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16, overflowY: 'auto' }}>
-      <div style={{ background: COLORS.wh, borderRadius: 14, width: '100%', maxWidth: 860, maxHeight: '92vh', display: 'flex', flexDirection: 'column', boxShadow: '0 20px 60px rgba(0,0,0,0.3)' }}>
+    <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 3000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16, overflowY: 'auto' }}>
+      <div onClick={e => e.stopPropagation()} style={{ background: '#FFFFFF', borderRadius: 16, width: '100%', maxWidth: 860, maxHeight: '92vh', display: 'flex', flexDirection: 'column', boxShadow: '0 8px 30px rgba(0,0,0,0.12)', overflow: 'hidden' }}>
 
         {/* Header */}
-        <div style={{ padding: '18px 24px 14px', borderBottom: `1px solid ${COLORS.bd}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-            <div style={{ width: 60, height: 60, borderRadius: 10, background: gradeBg, border: `2px solid ${gradeColor}44`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-              <span style={{ fontSize: 32, fontWeight: 800, fontFamily: FONTS.heading, color: gradeColor, lineHeight: 1 }}>{grade}</span>
+        <div style={{ padding: 20, borderBottom: `1px solid #E5E5E2`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0, position: 'relative' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+            <div style={{ width: 56, height: 56, borderRadius: 12, background: gradeBg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <span style={{ fontSize: 28, fontWeight: 700, fontFamily: FONTS.heading, color: gradeColor, lineHeight: 1 }}>{grade}</span>
             </div>
             <div>
-              <div style={{ fontSize: 17, fontWeight: 700, fontFamily: FONTS.heading, color: COLORS.dg }}>AI Estimate Audit</div>
-              <div style={{ fontSize: 13, color: COLORS.mg, marginTop: 2, fontFamily: FONTS.body }}>{gradeReason}</div>
+              <div style={{ fontSize: 18, fontWeight: 600, fontFamily: FONTS.heading, color: '#1A1A1A' }}>AI Estimate Audit</div>
+              <div style={{ fontSize: 13, color: '#888', marginTop: 4, fontFamily: FONTS.body }}>{gradeReason}</div>
             </div>
           </div>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: 20, cursor: 'pointer', color: COLORS.mg, lineHeight: 1, padding: 4 }}>✕</button>
+          <button
+            onClick={onClose}
+            aria-label="Close"
+            style={{
+              width: 32, height: 32, borderRadius: '50%',
+              background: 'transparent', border: 'none',
+              display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+              fontSize: 18, lineHeight: 1, color: '#888',
+              cursor: 'pointer',
+              transition: 'background 150ms ease',
+            }}
+            onMouseEnter={e => e.currentTarget.style.background = '#F3F3F1'}
+            onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+          >
+            ×
+          </button>
         </div>
 
-        <div style={{ overflowY: 'auto', flex: 1, padding: '16px 24px 24px' }}>
+        <div style={{ overflowY: 'auto', flex: 1, padding: 24 }}>
 
           {/* $/SF Gauge */}
           <div style={{ marginBottom: 20 }}>

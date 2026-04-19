@@ -1044,19 +1044,29 @@ function CostModelApp({ user, project, onBack, onSignOut, onProjectUpdate, genPa
       {showAlternatesModal && (
         <div
           onClick={() => setShowAlternatesModal(false)}
-          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 900, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: '40px 20px', overflowY: 'auto' }}
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 900, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: '40px 20px', overflowY: 'auto' }}
         >
           <div
             onClick={e => e.stopPropagation()}
-            style={{ background: '#fff', borderRadius: 12, maxWidth: 960, width: '100%', padding: '24px 24px 20px', boxShadow: '0 20px 60px rgba(0,0,0,0.3)' }}
+            style={{ background: '#FFFFFF', borderRadius: 16, maxWidth: 960, width: '100%', boxShadow: '0 8px 30px rgba(0,0,0,0.12)', overflow: 'hidden', maxHeight: '90vh', display: 'flex', flexDirection: 'column' }}
           >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-              <div style={{ fontFamily: "'Archivo', sans-serif", fontWeight: 800, fontSize: 17, color: '#111' }}>
+            <div style={{ padding: 20, borderBottom: '1px solid #E5E5E2', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{ fontFamily: "'Archivo', sans-serif", fontWeight: 600, fontSize: 18, color: '#1A1A1A' }}>
                 All Alternates
               </div>
-              <button onClick={() => setShowAlternatesModal(false)} style={{ background: 'none', border: 'none', fontSize: 20, color: '#aaa', cursor: 'pointer' }}>×</button>
+              <button
+                onClick={() => setShowAlternatesModal(false)}
+                aria-label="Close"
+                style={{ width: 32, height: 32, borderRadius: '50%', background: 'transparent', border: 'none', fontSize: 18, color: '#888', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', transition: 'background 150ms ease' }}
+                onMouseEnter={e => e.currentTarget.style.background = '#F3F3F1'}
+                onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+              >
+                ×
+              </button>
             </div>
-            <AlternatesPanel project={project} active={active} items={activeItems} canEdit={canEdit} />
+            <div style={{ padding: 24, overflowY: 'auto' }}>
+              <AlternatesPanel project={project} active={active} items={activeItems} canEdit={canEdit} />
+            </div>
           </div>
         </div>
       )}

@@ -90,10 +90,12 @@ function NewVEItemForm({ nextNumber, onSave, onClose }) {
     setSaving(false);
   };
 
+  // Aligned with ui.jsx Input spec: 40px height, 12px padding, 8px radius, #E5E5E2 border
   const inp = {
-    width: '100%', border: `1.5px solid ${BORDER}`, borderRadius: 7,
-    padding: '8px 11px', fontFamily: FONTS.body, fontSize: 13,
-    outline: 'none', boxSizing: 'border-box',
+    width: '100%', height: 40, border: `1px solid #E5E5E2`, borderRadius: 8,
+    padding: '0 12px', fontFamily: FONTS.body, fontSize: 14,
+    outline: 'none', boxSizing: 'border-box', background: '#FFFFFF',
+    transition: 'border-color 150ms ease, box-shadow 150ms ease',
   };
 
   return (
@@ -818,7 +820,7 @@ export default function VELog({ project, active, items = [], canEdit, user, scen
                     transition: 'border-color 0.1s',
                   }}
                 >
-                  <span style={{ fontFamily: FONTS.heading, fontWeight: 700, fontSize: 13, color: ACCENT }}>#{v.ve_number}</span>
+                  <span style={{ fontFamily: FONTS.heading, fontWeight: 600, fontSize: 13, color: '#555' }}>#{v.ve_number}</span>
                   <div>
                     <div style={{ fontFamily: FONTS.heading, fontWeight: 600, fontSize: 13, color: '#111' }}>{v.title}</div>
                     {v.description && (
