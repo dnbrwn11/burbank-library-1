@@ -473,7 +473,7 @@ function SuggestionsModal({ suggestions, onAddItem, onClose, loadingItems }) {
 
 // ── Main VELog Component ──────────────────────────────────────────────────────
 
-export default function VELog({ project, active, items = [], canEdit, user, scenarios = [], addScenario }) {
+export default function VELog({ project, active, items = [], canEdit, user, scenarios = [], addScenario, updateItem }) {
   const [veItems, setVeItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [tableError, setTableError] = useState(false);
@@ -548,7 +548,7 @@ export default function VELog({ project, active, items = [], canEdit, user, scen
     const { data } = await supabase.from('ve_items').update(updates).eq('id', id).select().single();
     if (data) {
       setVeItems(prev => prev.map(v => v.id === id ? data : v));
-      // Auto-log budget event on approval
+      // On approval, (a) auto-log budget event, (b) offer to apply pricing to linked line items
       if (newStatus === 'approved') {
         const veItem = veItems.find(v => v.id === id);
         if (veItem && veItem.cost_impact) {
@@ -562,6 +562,26 @@ export default function VELog({ project, active, items = [], canEdit, user, scen
             created_by: user?.id,
             event_date: new Date().toISOString().slice(0, 10),
           });
+        }
+        // Fetch linked line items for this VE; if any have proposed costs, confirm + apply
+        const { data: lines } = await supabase
+          .from('ve_item_lines')
+          .select('*')
+          .eq('ve_item_id', id);
+        const applicable = (lines || []).filter(l => l.line_item_id && l.proposed_cost);
+        if (applicable.length && updateItem) {
+          const ok = window.confirm(`Apply approved VE pricing to ${applicable.length} line item${applicable.length === 1 ? '' : 's'}?`);
+          if (ok) {
+            for (const line of applicable) {
+              const it = items.find(i => i.id === line.line_item_id);
+              if (!it) continue;
+              const qtyMid = ((it.qtyMin || 0) + (it.qtyMax || 0)) / 2 || 1;
+              const newUnitMid = Number(line.proposed_cost) / qtyMid;
+              if (isFinite(newUnitMid)) {
+                await updateItem(line.line_item_id, 'unitCostMid', newUnitMid);
+              }
+            }
+          }
         }
       }
     }

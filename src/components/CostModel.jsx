@@ -22,6 +22,7 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { analytics } from '../analytics';
+import { Assumptions } from './Assumptions';
 
 const GOLD = '#B89030';
 const TABLE_COLS = ['description', 'subcategory', 'qtyMin', 'qtyMax', 'unit', 'unitCostLow', 'unitCostMid', 'unitCostHigh'];
@@ -207,6 +208,7 @@ function SortableItemRow({
   return (
     <tr
       ref={setNodeRef}
+      data-item-id={item.id}
       style={rowStyle}
       onContextMenu={(e) => openMoveMenu(e, item.id)}
       onMouseEnter={() => setHoverRow(item.id)}
@@ -509,7 +511,7 @@ function ImportModal({ onClose, createItem }) {
 
 // ── Main component ────────────────────────────────────────────────────────────
 
-export function CostModel({ items, globals, activeItems, totals, updateItem, createItem, reorderItems, bsf, aiAdvice, aiLoading, askAI, applyAI, registerUndo, canEdit, project, scenarioName, teamMembers = [], user, newItemIds, isGenerating }) {
+export function CostModel({ items, globals, activeItems, totals, updateItem, createItem, reorderItems, updateGlobal, bsf, aiAdvice, aiLoading, askAI, applyAI, registerUndo, canEdit, project, scenarioName, teamMembers = [], user, newItemIds, isGenerating, highlightItemId, onHighlightHandled }) {
   const { mob } = useWindowSize();
   const [search, setSearch] = useState('');
   const [fCat, setFCat] = useState('All');
@@ -810,6 +812,21 @@ export function CostModel({ items, globals, activeItems, totals, updateItem, cre
 
   const flash = (id) => { setFlashId(id); setTimeout(() => setFlashId(null), 700); };
 
+  // Jump-to-item: audit / scope-gap / VE pages navigate here with highlightItemId
+  useEffect(() => {
+    if (!highlightItemId) return;
+    // Wait for layout to settle, then scroll and flash
+    const t = setTimeout(() => {
+      const el = document.querySelector(`[data-item-id="${highlightItemId}"]`);
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        flash(highlightItemId);
+      }
+      onHighlightHandled?.();
+    }, 120);
+    return () => clearTimeout(t);
+  }, [highlightItemId]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const moveCatUp = (cat) => {
     const order = catOrder ?? groups.map(g => g.c);
     const idx = order.indexOf(cat);
@@ -900,6 +917,12 @@ export function CostModel({ items, globals, activeItems, totals, updateItem, cre
 
   return (
     <div style={{ fontFamily: FONTS.body }}>
+      {/* Collapsible Assumptions & Globals panel (merged from former ASSUMPTIONS tab) */}
+      <AssumptionsPanel
+        globals={globals} totals={totals} updateGlobal={updateGlobal}
+        bsf={bsf} scenarioName={scenarioName} activeItems={activeItems}
+      />
+
       {/* Toolbar */}
       <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap', alignItems: 'center' }}>
         <input placeholder="Search..." value={search} onChange={e => setSearch(e.target.value)}
@@ -1294,5 +1317,39 @@ function MenuItemRow({ onClick, children, danger }) {
       style={{ display: 'block', width: '100%', textAlign: 'left', background: hov ? (danger ? '#fef2f2' : '#F5F5F0') : 'transparent', border: 'none', padding: '7px 12px', fontSize: 12, fontFamily: FONTS.body, cursor: 'pointer', color: danger ? '#dc2626' : COLORS.dg, borderRadius: 4 }}>
       {children}
     </button>
+  );
+}
+
+// ── Collapsible Assumptions panel (merged from former ASSUMPTIONS tab) ───────
+function AssumptionsPanel({ globals, totals, updateGlobal, bsf, scenarioName, activeItems }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div style={{ marginBottom: 12, border: `1px solid ${COLORS.bd}`, borderRadius: 10, background: COLORS.wh, overflow: 'hidden' }}>
+      <button
+        onClick={() => setOpen(v => !v)}
+        style={{
+          width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          padding: '10px 14px', background: open ? '#fafaf8' : COLORS.wh,
+          border: 'none', cursor: 'pointer',
+          fontFamily: FONTS.heading, fontWeight: 700, fontSize: 11,
+          color: COLORS.dg, textTransform: 'uppercase', letterSpacing: 1,
+          borderBottom: open ? `1px solid ${COLORS.bd}` : 'none',
+        }}
+      >
+        <span>Assumptions & Globals</span>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#888" strokeWidth="2.2"
+          style={{ transform: open ? 'rotate(0)' : 'rotate(-90deg)', transition: 'transform 0.15s' }}>
+          <polyline points="6 9 12 15 18 9" />
+        </svg>
+      </button>
+      {open && (
+        <div style={{ padding: '14px 14px 18px' }}>
+          <Assumptions
+            globals={globals} totals={totals} updateGlobal={updateGlobal}
+            bsf={bsf} scenarioName={scenarioName} activeItems={activeItems}
+          />
+        </div>
+      )}
+    </div>
   );
 }

@@ -30,6 +30,7 @@ import ScopeNotes from './components/ScopeNotes';
 import AlternatesPanel from './components/AlternatesPanel';
 import VELog from './components/VELog';
 import GenerationBanner from './components/GenerationBanner';
+import HistoryDrawer from './components/HistoryDrawer';
 import { useGenerationOrchestrator } from './hooks/useGenerationOrchestrator';
 import { supabase } from './supabase/supabaseClient';
 import { getProjectMembers, getProjectMemberRole } from './supabase/db';
@@ -647,6 +648,9 @@ function CostModelApp({ user, project, onBack, onSignOut, onProjectUpdate, genPa
   const [showNewScen, setShowNewScen] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [showTeamPanel, setShowTeamPanel] = useState(false);
+  const [showHistoryDrawer, setShowHistoryDrawer] = useState(false);
+  const [showAlternatesModal, setShowAlternatesModal] = useState(false);
+  const [highlightItemId, setHighlightItemId] = useState(null); // scroll target for audit-click
   const [exportingPdf, setExportingPdf] = useState(false);
 
   // Role: owner always canEdit; others look up project_members
@@ -754,17 +758,15 @@ function CostModelApp({ user, project, onBack, onSignOut, onProjectUpdate, genPa
     isGenerating: genRunning,
   };
 
+  // Consolidated tab structure — audit/assumptions/alternates/bidding/compare
+  // folded into other tabs; audit log lives in the History drawer (toolbar button).
   const tabs = [
-    ['dashboard', 'DASHBOARD'],
-    ['estimate', 'COST MODEL'],
-    ['compare', 'COMPARE'],
-    ['assumptions', 'ASSUMPTIONS'],
-    ['audit', 'AUDIT'],
-    ['trades', 'TRADES'],
-    ['scope', 'SCOPE'],
-    ['alternates', 'ALTERNATES'],
-    ['ve', 'VE LOG'],
-    ['bidding', 'BIDDING'],
+    ['dashboard',   'DASHBOARD'],
+    ['estimate',    'COST MODEL'],
+    ['scenarios',   'SCENARIOS'],
+    ['trades',      'TRADES'],
+    ['ve',          'VE LOG'],
+    ['scope_notes', 'SCOPE NOTES'],
   ];
 
   if (loading) {
@@ -927,6 +929,30 @@ function CostModelApp({ user, project, onBack, onSignOut, onProjectUpdate, genPa
             </button>
           )}
 
+          {/* History drawer button */}
+          <button
+            onClick={() => setShowHistoryDrawer(true)}
+            title="Change history"
+            style={{
+              display: 'flex', alignItems: 'center', gap: 4,
+              background: 'none', border: '1px solid #444',
+              borderRadius: 6, padding: '5px 10px', cursor: 'pointer',
+              color: '#aaa', fontFamily: "'Figtree', sans-serif", fontSize: 11,
+            }}
+          >
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M3 3v5h5" />
+              <path d="M3.05 13A9 9 0 1 0 6 5.3L3 8" />
+              <path d="M12 7v5l4 2" />
+            </svg>
+            History
+            {audit.length > 0 && (
+              <span style={{ background: '#444', color: '#ccc', borderRadius: 8, padding: '0 5px', fontSize: 9, fontWeight: 600 }}>
+                {audit.length > 99 ? '99+' : audit.length}
+              </span>
+            )}
+          </button>
+
           {/* Team avatar stack + team button */}
           <button
             onClick={() => setShowTeamPanel(true)}
@@ -1009,22 +1035,73 @@ function CostModelApp({ user, project, onBack, onSignOut, onProjectUpdate, genPa
 
       {/* Content */}
       <div style={{ padding: mob ? 12 : 18 }}>
-        {view === 'dashboard' && <Dashboard {...viewProps} project={project} active={active} onProjectUpdate={onProjectUpdate} onManageTeam={() => setShowTeamPanel(true)} />}
-        {view === 'estimate' && <CostModel {...viewProps} registerUndo={(fn) => { undoFnRef.current = fn; }} />}
-        {view === 'compare' && <Compare {...viewProps} addScenario={addScenario} />}
-        {view === 'assumptions' && <Assumptions {...viewProps} scenarioName={active.name} />}
-        {view === 'audit' && (
-          <>
-            <AuditLog audit={audit} items={items} updateItem={updateItem} updateGlobal={updateGlobal} />
-            <ScopeGapAnalysis items={items} project={project} scenario={active} />
-          </>
+        {view === 'dashboard' && (
+          <Dashboard
+            {...viewProps}
+            project={project} active={active}
+            onProjectUpdate={onProjectUpdate}
+            onManageTeam={() => setShowTeamPanel(true)}
+            onViewAllAlternates={() => setShowAlternatesModal(true)}
+            onJumpToCostModel={(itemId) => { setHighlightItemId(itemId); setView('estimate'); }}
+          />
         )}
-        {view === 'trades' && <TradesPanel items={items} globals={globals} bsf={bsf} updateItem={updateItem} project={project} canEdit={canEdit} active={active} />}
-        {view === 'scope' && <ScopeNotes project={project} active={active} canEdit={canEdit} />}
-        {view === 'alternates' && <AlternatesPanel project={project} active={active} items={activeItems} canEdit={canEdit} />}
-        {view === 've' && <VELog project={project} active={active} items={activeItems} canEdit={canEdit} user={user} scenarios={scenarios} addScenario={addScenario} />}
-        {view === 'bidding' && <BiddingPanel {...viewProps} project={project} user={user} mob={mob} />}
+        {view === 'estimate' && (
+          <CostModel
+            {...viewProps}
+            registerUndo={(fn) => { undoFnRef.current = fn; }}
+            scenarioName={active.name}
+            highlightItemId={highlightItemId}
+            onHighlightHandled={() => setHighlightItemId(null)}
+          />
+        )}
+        {view === 'scenarios' && <Compare {...viewProps} addScenario={addScenario} />}
+        {view === 'trades' && (
+          <TradesPanel
+            items={items} globals={globals} bsf={bsf} updateItem={updateItem}
+            project={project} canEdit={canEdit} active={active}
+            user={user} totals={totals} createItem={createItem} mob={mob}
+          />
+        )}
+        {view === 've' && (
+          <VELog
+            project={project} active={active} items={activeItems}
+            canEdit={canEdit} user={user} scenarios={scenarios}
+            addScenario={addScenario}
+            updateItem={updateItem}
+          />
+        )}
+        {view === 'scope_notes' && <ScopeNotes project={project} active={active} canEdit={canEdit} />}
       </div>
+
+      {/* History drawer — audit log (slide-out from right) */}
+      {showHistoryDrawer && (
+        <HistoryDrawer
+          audit={audit} items={items}
+          updateItem={updateItem} updateGlobal={updateGlobal}
+          onClose={() => setShowHistoryDrawer(false)}
+        />
+      )}
+
+      {/* All-alternates modal */}
+      {showAlternatesModal && (
+        <div
+          onClick={() => setShowAlternatesModal(false)}
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 900, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: '40px 20px', overflowY: 'auto' }}
+        >
+          <div
+            onClick={e => e.stopPropagation()}
+            style={{ background: '#fff', borderRadius: 12, maxWidth: 960, width: '100%', padding: '24px 24px 20px', boxShadow: '0 20px 60px rgba(0,0,0,0.3)' }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+              <div style={{ fontFamily: "'Archivo', sans-serif", fontWeight: 800, fontSize: 17, color: '#111' }}>
+                All Alternates
+              </div>
+              <button onClick={() => setShowAlternatesModal(false)} style={{ background: 'none', border: 'none', fontSize: 20, color: '#aaa', cursor: 'pointer' }}>×</button>
+            </div>
+            <AlternatesPanel project={project} active={active} items={activeItems} canEdit={canEdit} />
+          </div>
+        </div>
+      )}
 
       {showTeamPanel && (
         <TeamPanel

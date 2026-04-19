@@ -3,8 +3,9 @@ import { COLORS, FONTS } from '../data/constants';
 import { fK, psf } from '../utils/format';
 import * as CE from '../engine/CostEngine';
 import { supabase } from '../supabase/supabaseClient';
+import BiddingPanel from './BiddingPanel';
 
-export function TradesPanel({ items, globals, bsf, updateItem, project, canEdit, active }) {
+export function TradesPanel({ items, globals, bsf, updateItem, project, canEdit, active, user, totals, createItem, mob }) {
   const [scopeLoading, setScopeLoading] = useState(null);
   const [scopes, setScopes] = useState({});
   const [expandedTrade, setExpandedTrade] = useState(null);
@@ -265,6 +266,17 @@ export function TradesPanel({ items, globals, bsf, updateItem, project, canEdit,
           <div style={{ fontFamily: FONTS.body, fontSize: 13, color: '#999' }}>Add line items in the Cost Model tab to see trades here.</div>
         </div>
       )}
+
+      {/* Bid packages — merged from former BIDDING tab */}
+      <div style={{ marginTop: 40, paddingTop: 28, borderTop: `1px solid ${COLORS.bd}` }}>
+        <div style={{ fontFamily: FONTS.heading, fontWeight: 800, fontSize: 18, color: COLORS.dg, marginBottom: 6 }}>
+          Trade Partner Bidding
+        </div>
+        <div style={{ fontFamily: FONTS.body, fontSize: 13, color: COLORS.mg, marginBottom: 18 }}>
+          Package scopes, invite trade partners, collect submissions, and award.
+        </div>
+        <BiddingPanel project={project} user={user} totals={totals} createItem={createItem} canEdit={canEdit} mob={mob} />
+      </div>
     </div>
   );
 }

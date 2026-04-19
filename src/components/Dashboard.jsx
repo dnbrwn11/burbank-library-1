@@ -8,6 +8,7 @@ import AllowancesPanel from './AllowancesPanel';
 import ProjectSummaryCard from './ProjectSummaryCard';
 import QuickStatsRow from './QuickStatsRow';
 import BudgetTracker from './BudgetTracker';
+import ScopeGapAnalysis from './ScopeGapAnalysis';
 
 const INDIRECT_CATEGORIES = new Set([
   'General Conditions', 'Overhead & Fee', 'Contingency',
@@ -16,7 +17,7 @@ const INDIRECT_CATEGORIES = new Set([
 
 // ── Dashboard ─────────────────────────────────────────────────────────────────
 
-export function Dashboard({ totals, catGroups, activeItems, bsf, globals, teamMembers = [], project, active, user, canEdit, updateGlobal, onProjectUpdate, onManageTeam }) {
+export function Dashboard({ totals, catGroups, activeItems, bsf, globals, teamMembers = [], project, active, user, canEdit, updateGlobal, createItem, onProjectUpdate, onManageTeam, onViewAllAlternates, onJumpToCostModel }) {
   const { mob, tab } = useWindowSize();
   const [costView, setCostView] = useState('total'); // 'total' | 'direct'
   const [alternates, setAlternates] = useState([]);
@@ -195,6 +196,37 @@ export function Dashboard({ totals, catGroups, activeItems, bsf, globals, teamMe
         ))}
       </div>
 
+      {/* Budget vs Estimate variance — shown when project has target_budget */}
+      {project?.target_budget && totals?.full?.m?.tot > 0 && (() => {
+        const budget = Number(project.target_budget) || 0;
+        const est = totals.full.m.tot + (altNetTotal || 0);
+        const variance = budget - est;
+        const pct = budget > 0 ? (variance / budget) * 100 : 0;
+        const over = variance < 0;
+        const color = over ? COLORS.or : COLORS.gn;
+        const bg = over ? '#FFF3EC' : '#EFF6E8';
+        return (
+          <div style={{ gridColumn: '1/-1', background: bg, border: `1px solid ${COLORS.bd}`, borderRadius: 10, padding: '10px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap' }}>
+              <span style={{ fontFamily: FONTS.body, fontSize: 13 }}>
+                <span style={{ color: COLORS.mg, fontSize: 10, fontFamily: FONTS.heading, fontWeight: 700, letterSpacing: 1, textTransform: 'uppercase', marginRight: 6 }}>Budget</span>
+                <span style={{ color: COLORS.dg, fontFamily: FONTS.heading, fontWeight: 700 }}>{fmt(budget)}</span>
+              </span>
+              <span style={{ fontFamily: FONTS.body, fontSize: 13 }}>
+                <span style={{ color: COLORS.mg, fontSize: 10, fontFamily: FONTS.heading, fontWeight: 700, letterSpacing: 1, textTransform: 'uppercase', marginRight: 6 }}>Estimate</span>
+                <span style={{ color: COLORS.dg, fontFamily: FONTS.heading, fontWeight: 700 }}>{fmt(est)}</span>
+              </span>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ fontSize: 16, color }}>{over ? '▲' : '▼'}</span>
+              <span style={{ fontFamily: FONTS.heading, fontWeight: 700, fontSize: 14, color }}>
+                {over ? 'Over by' : 'Under by'} {fmt(Math.abs(variance))} ({Math.abs(pct).toFixed(1)}%)
+              </span>
+            </div>
+          </div>
+        );
+      })()}
+
       {/* Spread model panel */}
       {spreadTotals && (
         <div style={{ gridColumn: '1/-1', background: '#FFFBF0', border: '1px solid #E8D5A0', borderRadius: 10, padding: mob ? 12 : 16 }}>
@@ -352,8 +384,18 @@ export function Dashboard({ totals, catGroups, activeItems, bsf, globals, teamMe
       {/* Alternates summary */}
       {alternates.length > 0 && (
         <div style={{ gridColumn: '1/-1', background: COLORS.sf, border: `1px solid ${COLORS.bd}`, borderRadius: 10, padding: mob ? 12 : 16 }}>
-          <div style={{ fontSize: 11, fontFamily: FONTS.heading, fontWeight: 600, color: COLORS.dg, textTransform: 'uppercase', letterSpacing: 2, marginBottom: 12 }}>
-            Alternates Summary
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+            <div style={{ fontSize: 11, fontFamily: FONTS.heading, fontWeight: 600, color: COLORS.dg, textTransform: 'uppercase', letterSpacing: 2 }}>
+              Alternates Summary
+            </div>
+            {onViewAllAlternates && (
+              <button
+                onClick={onViewAllAlternates}
+                style={{ background: 'none', border: 'none', color: COLORS.gn, fontFamily: FONTS.body, fontWeight: 600, fontSize: 12, cursor: 'pointer', padding: 0, textDecoration: 'underline' }}
+              >
+                View All Alternates →
+              </button>
+            )}
           </div>
 
           {/* Base bid row */}
@@ -424,6 +466,31 @@ export function Dashboard({ totals, catGroups, activeItems, bsf, globals, teamMe
           canEdit={canEdit}
           user={user}
         />
+      )}
+
+      {/* Scope gap analysis — upload a budget to check for gaps */}
+      {project && (
+        <div style={{ gridColumn: '1/-1' }}>
+          <ScopeGapAnalysis
+            items={activeItems}
+            project={project}
+            scenario={active}
+            onAddItem={createItem ? async (missing) => {
+              // Create a line item from the missing scope suggestion
+              await createItem(missing.category || 'Interiors', {
+                description: missing.description || 'Missing scope',
+                subcategory: missing.subcategory || '',
+                qtyMin: Number(missing.qty) || 1,
+                qtyMax: Number(missing.qty) || 1,
+                unit: missing.unit || 'LS',
+                unitCostLow:  Number(missing.unit_cost_low)  || 0,
+                unitCostMid:  Number(missing.unit_cost_mid)  || 0,
+                unitCostHigh: Number(missing.unit_cost_high) || 0,
+                sensitivity: missing.sensitivity || 'Medium',
+              });
+            } : null}
+          />
+        </div>
       )}
 
     </div>
