@@ -36,6 +36,7 @@ export default function TopHeader({
   onImport, onExport, onAudit, onOpenHistory, auditCount = 0,
   onMobileMenuOpen, isMobile,
   sidebarWidth = 220,
+  isGenerating = false,
 }) {
   const [scenOpen, setScenOpen] = useState(false);
   const [newScenOpen, setNewScenOpen] = useState(false);
@@ -198,13 +199,16 @@ export default function TopHeader({
 
       {/* Right: total + actions */}
       <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? 6 : 10, flexShrink: 0 }}>
-        {!isMobile && totalMid > 0 && (
+        {!isMobile && (isGenerating || totalMid > 0) && (
           <span style={{
-            fontFamily: "'JetBrains Mono', monospace",
-            fontSize: 16, fontWeight: 600, color: ACCENT,
+            fontFamily: isGenerating && totalMid === 0 ? "'Figtree', sans-serif" : "'JetBrains Mono', monospace",
+            fontSize: isGenerating && totalMid === 0 ? 12 : 16,
+            fontWeight: 600,
+            color: ACCENT,
             marginRight: 4,
+            opacity: isGenerating && totalMid === 0 ? 0.7 : 1,
           }}>
-            {fK(totalMid)}
+            {isGenerating && totalMid === 0 ? 'Generating…' : fK(totalMid)}
           </span>
         )}
 

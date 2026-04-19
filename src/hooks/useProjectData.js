@@ -84,7 +84,7 @@ function itemToInsertRow(item, sortOrder) {
  */
 const LOAD_TIMEOUT_MS = 10_000;
 
-export function useProjectData(projectId) {
+export function useProjectData(projectId, { skipSeed = false } = {}) {
   const [scenarios, setScenarios] = useState([]);
   const [activeId, setActiveId] = useState(null);
   const [audit, setAudit] = useState([]);
@@ -110,6 +110,12 @@ export function useProjectData(projectId) {
     if (!projectId) return;
     let cancelled = false;
     let timeoutId = null;
+
+    // Immediately clear stale data from any previous project so the UI
+    // shows an empty/loading state instead of the previous project's numbers.
+    setScenarios([]);
+    setActiveId(null);
+    setAudit([]);
 
     const load = async (attempt = 0) => {
       setLoading(true);
@@ -182,14 +188,20 @@ export function useProjectData(projectId) {
 
           let items;
           if (!itemRows?.length) {
-            // First open — seed default line items into this scenario
-            const seeds = createSeedItems();
-            const insertRows = seeds.map((item, idx) => itemToInsertRow(item, idx));
-            const { data: created, error: cErr } = await createLineItems(sr.id, insertRows);
-            if (cErr) {
-              console.error(`[useProjectData] createLineItems failed for scenario ${sr.id}:`, cErr.message);
+            if (skipSeed) {
+              // Generation in progress — start with empty items so generated
+              // rows are injected cleanly without colliding with seed data.
+              items = [];
+            } else {
+              // First open — seed default line items into this scenario
+              const seeds = createSeedItems();
+              const insertRows = seeds.map((item, idx) => itemToInsertRow(item, idx));
+              const { data: created, error: cErr } = await createLineItems(sr.id, insertRows);
+              if (cErr) {
+                console.error(`[useProjectData] createLineItems failed for scenario ${sr.id}:`, cErr.message);
+              }
+              items = !cErr && created?.length ? created.map(rowToItem) : seeds;
             }
-            items = !cErr && created?.length ? created.map(rowToItem) : seeds;
           } else {
             items = itemRows.map(rowToItem);
           }

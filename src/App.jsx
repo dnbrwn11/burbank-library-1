@@ -624,7 +624,11 @@ function CostModelApp({ user, project, onBack, onSignOut, onProjectUpdate, genPa
     savePending, lastSaved,
     updateItem, createItem, reorderItems, updateGlobal, addScenario, deleteScenario,
     injectItems,
-  } = useProjectData(project.id);
+  } = useProjectData(project.id, {
+    // When generation is starting, skip auto-seeding so the empty scenario
+    // stays clean and generated items inject without colliding with seed data.
+    skipSeed: !!genParams,
+  });
 
   // ── Generation orchestrator ────────────────────────────────────────────────
   const [newItemIds, setNewItemIds] = useState(new Set());
@@ -657,6 +661,12 @@ function CostModelApp({ user, project, onBack, onSignOut, onProjectUpdate, genPa
     onClear:    onGenParamsClear,
   });
 
+  // Switch to Cost Model view as soon as generation is running so the user
+  // can watch items stream in. Only fire once (when transitioning from idle).
+  useEffect(() => {
+    if (genRunning) setView('estimate');
+  }, [genRunning]);
+
   // Undo ref — CostModel registers its undo handler here
   const undoFnRef = useRef(null);
 
@@ -674,7 +684,8 @@ function CostModelApp({ user, project, onBack, onSignOut, onProjectUpdate, genPa
     return () => window.removeEventListener('keydown', handler);
   }, []);
 
-  const [view, setView] = useState('dashboard');
+  // When generation starts, jump to Cost Model so items appear in the table.
+  const [view, setView] = useState(() => genParams ? 'estimate' : 'dashboard');
   const [showNewScen, setShowNewScen] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [showTeamPanel, setShowTeamPanel] = useState(false);
@@ -881,6 +892,7 @@ function CostModelApp({ user, project, onBack, onSignOut, onProjectUpdate, genPa
         addScenario={addScenario}
         scenarioNames={SCENARIO_TYPES.filter(t => !scenarios.find(s => s.name === t))}
         totalMid={totals.full.m.tot}
+        isGenerating={genRunning}
         onExport={exportPdf}
         onAudit={() => { setView('estimate'); }}
         onOpenHistory={() => setShowHistoryDrawer(true)}
