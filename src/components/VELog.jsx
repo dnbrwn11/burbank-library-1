@@ -1,9 +1,10 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { supabase } from '../supabase/supabaseClient';
 import { FONTS, COLORS } from '../data/constants';
+import { Skeleton } from './ui';
 
 const ACCENT = '#B89030';
-const BORDER = '#E5E5E0';
+const BORDER = '#E5E5E2';
 const BG     = '#F9F9F8';
 
 const VE_CATEGORIES = [
@@ -11,19 +12,20 @@ const VE_CATEGORIES = [
   'Constructability', 'Schedule Optimization', 'Design Simplification',
 ];
 
+// Aligned with BADGE_STYLES tokens — neutral/info/success/warning/danger palette
 const STATUS_META = {
-  proposed:     { label: 'Proposed',     bg: '#f5f5f4', color: '#44403c', border: '#d6d3d1' },
-  under_review: { label: 'Under Review', bg: '#eff6ff', color: '#1e40af', border: '#bfdbfe' },
-  approved:     { label: 'Approved',     bg: '#f0fdf4', color: '#166534', border: '#bbf7d0' },
-  rejected:     { label: 'Rejected',     bg: '#fef2f2', color: '#991b1b', border: '#fecaca' },
-  deferred:     { label: 'Deferred',     bg: '#fffbeb', color: '#92400e', border: '#fde68a' },
-  implemented:  { label: 'Implemented',  bg: '#faf5ff', color: '#6b21a8', border: '#d8b4fe' },
+  proposed:     { label: 'Proposed',     bg: '#F3F3F1', color: '#888888' },
+  under_review: { label: 'Under Review', bg: '#E1EBF5', color: '#1E3A5F' },
+  approved:     { label: 'Approved',     bg: '#EAF3DE', color: '#27500A' },
+  rejected:     { label: 'Rejected',     bg: '#FCEBEB', color: '#791F1F' },
+  deferred:     { label: 'Deferred',     bg: '#FAEEDA', color: '#633806' },
+  implemented:  { label: 'Implemented',  bg: '#FBF5E8', color: '#8A6820' },
 };
 
 const RISK_META = {
-  low:    { label: 'Low',    bg: '#f0fdf4', color: '#166534' },
-  medium: { label: 'Medium', bg: '#fffbeb', color: '#92400e' },
-  high:   { label: 'High',   bg: '#fef2f2', color: '#991b1b' },
+  low:    { label: 'Low',    bg: '#EAF3DE', color: '#27500A' },
+  medium: { label: 'Medium', bg: '#FAEEDA', color: '#633806' },
+  high:   { label: 'High',   bg: '#FCEBEB', color: '#791F1F' },
 };
 
 const BUDGET_EVENT_TYPES = [
@@ -54,10 +56,10 @@ function fmtDate(d) {
 function Badge({ label, meta = {} }) {
   return (
     <span style={{
-      display: 'inline-block', fontSize: 9, fontWeight: 700, letterSpacing: 0.5,
-      padding: '2px 7px', borderRadius: 4, fontFamily: FONTS.heading,
-      background: meta.bg || '#f5f5f4', color: meta.color || '#333',
-      border: `1px solid ${meta.border || BORDER}`, whiteSpace: 'nowrap',
+      display: 'inline-block', fontSize: 11, fontWeight: 500,
+      padding: '3px 8px', borderRadius: 4, fontFamily: FONTS.body,
+      background: meta.bg || '#F3F3F1', color: meta.color || '#888',
+      whiteSpace: 'nowrap',
     }}>
       {label}
     </span>
@@ -94,7 +96,7 @@ function NewVEItemForm({ nextNumber, onSave, onClose }) {
   };
 
   return (
-    <div style={{ background: '#fff', border: `1px solid ${BORDER}`, borderRadius: 10, padding: '18px 20px', marginBottom: 14 }}>
+    <div style={{ background: '#fff', border: `1px solid ${BORDER}`, borderRadius: 12, padding: '18px 20px', marginBottom: 14 }}>
       <div style={{ fontFamily: FONTS.heading, fontWeight: 700, fontSize: 14, color: '#111', marginBottom: 14 }}>
         New VE Item — #{nextNumber}
       </div>
@@ -227,7 +229,7 @@ function VEItemDetail({ item, allItems, user, canEdit, onStatusChange, onClose, 
   const sm = STATUS_META[item.status] || STATUS_META.proposed;
 
   return (
-    <div style={{ background: '#fafaf8', border: `1px solid ${BORDER}`, borderRadius: 10, padding: '16px 18px', marginTop: 4 }}>
+    <div style={{ background: '#fafaf8', border: `1px solid ${BORDER}`, borderRadius: 12, padding: '16px 18px', marginTop: 4 }}>
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
         <div>
@@ -261,7 +263,10 @@ function VEItemDetail({ item, allItems, user, canEdit, onStatusChange, onClose, 
           )}
         </div>
         {loading ? (
-          <div style={{ color: '#aaa', fontSize: 12 }}>Loading…</div>
+          <div style={{ padding: 8 }}>
+            <Skeleton height={14} style={{ marginBottom: 6 }} />
+            <Skeleton width="80%" height={14} />
+          </div>
         ) : lines.length === 0 ? (
           <div style={{ color: '#aaa', fontSize: 12, fontStyle: 'italic' }}>No line items linked yet.</div>
         ) : (
@@ -433,7 +438,7 @@ function SuggestionsModal({ suggestions, onAddItem, onClose, loadingItems }) {
         </div>
 
         {suggestions.map((s, i) => (
-          <div key={i} style={{ border: `1px solid ${BORDER}`, borderRadius: 10, padding: '14px 16px', marginBottom: 10 }}>
+          <div key={i} style={{ border: `1px solid ${BORDER}`, borderRadius: 12, padding: '14px 16px', marginBottom: 10 }}>
             <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
@@ -774,7 +779,9 @@ export default function VELog({ project, active, items = [], canEdit, user, scen
 
       {/* Items list */}
       {loading ? (
-        <div style={{ padding: '32px 0', textAlign: 'center', color: '#aaa', fontSize: 13 }}>Loading…</div>
+        <div style={{ padding: '16px 0', display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {[1,2,3,4].map(n => <Skeleton key={n} height={44} radius={8} />)}
+        </div>
       ) : veItems.length === 0 ? (
         <div style={{ textAlign: 'center', padding: '48px 24px', background: '#fff', border: `1.5px dashed ${BORDER}`, borderRadius: 12 }}>
           <div style={{ fontSize: 32, marginBottom: 12 }}>◎</div>

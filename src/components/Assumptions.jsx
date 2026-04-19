@@ -28,7 +28,7 @@ export function Assumptions({ globals, totals, updateGlobal, bsf, scenarioName, 
     <div style={{ maxWidth: 960, fontFamily: FONTS.body }}>
 
       {/* Design Phase */}
-      <div style={{ background: COLORS.wh, border: `1px solid ${COLORS.bd}`, borderRadius: 10, padding: mob ? 14 : 22, marginBottom: 16 }}>
+      <div style={{ background: COLORS.wh, border: `1px solid #E5E5E2`, borderRadius: 12, padding: mob ? 14 : 22, marginBottom: 16 }}>
         <div style={{ fontSize: 13, fontFamily: FONTS.heading, fontWeight: 700, color: COLORS.gn, textTransform: 'uppercase', letterSpacing: 2, marginBottom: 14 }}>
           Design Phase &amp; Spread Model
         </div>
@@ -38,7 +38,7 @@ export function Assumptions({ globals, totals, updateGlobal, bsf, scenarioName, 
             <select
               value={globals.designPhase || ''}
               onChange={e => updateGlobal('designPhase', e.target.value || null)}
-              style={{ background: COLORS.wh, border: `1px solid ${COLORS.bd}`, borderRadius: 8, color: COLORS.dg, padding: 8, fontSize: 13, fontFamily: FONTS.body, outline: 'none', width: '100%', minHeight: 42 }}
+              style={{ background: COLORS.wh, border: `1px solid #E5E5E2`, borderRadius: 8, color: COLORS.dg, padding: 8, fontSize: 13, fontFamily: FONTS.body, outline: 'none', width: '100%', minHeight: 42 }}
             >
               <option value="">— Not set —</option>
               {DESIGN_PHASES.map(p => (
@@ -58,7 +58,7 @@ export function Assumptions({ globals, totals, updateGlobal, bsf, scenarioName, 
                   const base = { Low: 0.08, Medium: 0.15, High: 0.25, 'Very High': 0.35 }[s];
                   const spread = Math.min(base * phase.multiplier, 0.95);
                   return (
-                    <div key={s} style={{ background: COLORS.wh, border: `1px solid ${COLORS.bd}`, borderRadius: 6, padding: '8px 10px', textAlign: 'center' }}>
+                    <div key={s} style={{ background: COLORS.wh, border: `1px solid #E5E5E2`, borderRadius: 6, padding: '8px 10px', textAlign: 'center' }}>
                       <div style={{ fontSize: 9, fontFamily: FONTS.heading, fontWeight: 600, color: COLORS.mg, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 3 }}>{s}</div>
                       <div style={{ fontSize: 14, fontWeight: 700, fontFamily: FONTS.heading, color: COLORS.gn }}>±{(spread * 100).toFixed(0)}%</div>
                       <div style={{ fontSize: 9, color: COLORS.mg }}>base {SPREAD_LABELS[s]}</div>
@@ -71,7 +71,7 @@ export function Assumptions({ globals, totals, updateGlobal, bsf, scenarioName, 
               </div>
             </div>
           ) : (
-            <div style={{ background: COLORS.bl, border: `1px solid ${COLORS.bd}`, borderRadius: 8, padding: '12px 16px', display: 'flex', alignItems: 'center' }}>
+            <div style={{ background: COLORS.bl, border: `1px solid #E5E5E2`, borderRadius: 8, padding: '12px 16px', display: 'flex', alignItems: 'center' }}>
               <div style={{ fontSize: 12, color: COLORS.mg, fontFamily: FONTS.body, lineHeight: 1.5 }}>
                 Select a design phase to enable the spread model. Base spreads: Low ±8%, Medium ±15%, High ±25%, Very High ±35%, scaled by the AACE phase multiplier.
               </div>
@@ -81,7 +81,7 @@ export function Assumptions({ globals, totals, updateGlobal, bsf, scenarioName, 
       </div>
 
       {/* Global Assumptions */}
-      <div style={{ background: COLORS.wh, border: `1px solid ${COLORS.bd}`, borderRadius: 10, padding: mob ? 14 : 22, marginBottom: 16 }}>
+      <div style={{ background: COLORS.wh, border: `1px solid #E5E5E2`, borderRadius: 12, padding: mob ? 14 : 22, marginBottom: 16 }}>
         <div style={{ fontSize: 13, fontFamily: FONTS.heading, fontWeight: 700, color: COLORS.gn, textTransform: 'uppercase', letterSpacing: 2, marginBottom: 16 }}>
           Global Assumptions — {scenarioName}
         </div>
@@ -98,7 +98,7 @@ export function Assumptions({ globals, totals, updateGlobal, bsf, scenarioName, 
                     step={f.k === 'regionFactor' ? '0.01' : isArea ? '100' : '0.1'}
                     value={isPct ? (globals[f.k] * 100).toFixed(1) : globals[f.k]}
                     onChange={e => updateGlobal(f.k, isPct ? Number(e.target.value) / 100 : Number(e.target.value))}
-                    style={{ background: COLORS.wh, border: `1px solid ${COLORS.bd}`, borderRadius: 8, color: COLORS.dg, padding: 8, fontSize: 14, fontFamily: FONTS.body, outline: 'none', width: '100%', textAlign: 'right', minHeight: 42 }}
+                    style={{ background: COLORS.wh, border: `1px solid #E5E5E2`, borderRadius: 8, color: COLORS.dg, padding: 8, fontSize: 14, fontFamily: FONTS.body, outline: 'none', width: '100%', textAlign: 'right', minHeight: 42 }}
                   />
                   <span style={{ fontSize: 11, color: COLORS.mg, width: 16 }}>{isPct ? '%' : f.k === 'regionFactor' ? '×' : ''}</span>
                 </div>
@@ -116,7 +116,7 @@ export function Assumptions({ globals, totals, updateGlobal, bsf, scenarioName, 
           ['Mid',  totals.full.m, COLORS.gn, '#EFF6E8'],
           ['High', totals.full.h, COLORS.or, '#FFF3EC'],
         ].map(([label, d, color, bg]) => (
-          <div key={label} style={{ background: bg, border: `1px solid ${COLORS.bd}`, borderRadius: 10, padding: 14 }}>
+          <div key={label} style={{ background: bg, border: `1px solid #E5E5E2`, borderRadius: 12, padding: 14 }}>
             <div style={{ fontSize: 11, fontFamily: FONTS.heading, fontWeight: 600, color, textTransform: 'uppercase', letterSpacing: 2, marginBottom: 8 }}>{label}</div>
             {[
               { l: 'Subtotal', v: d.sub },

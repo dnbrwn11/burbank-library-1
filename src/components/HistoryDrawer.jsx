@@ -33,7 +33,7 @@ export default function HistoryDrawer({ audit, items, updateItem, updateGlobal, 
         }}
       >
         <div style={{
-          padding: '14px 18px', borderBottom: `1px solid ${COLORS.bd}`,
+          padding: '14px 18px', borderBottom: `1px solid #E5E5E2`,
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
           background: '#fff',
         }}>

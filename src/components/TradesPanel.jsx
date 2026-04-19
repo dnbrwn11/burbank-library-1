@@ -135,11 +135,11 @@ export function TradesPanel({ items, globals, bsf, updateItem, project, canEdit,
         const isLoading = scopeLoading === trade;
 
         return (
-          <div key={trade} style={{ background: COLORS.wh, border: `1px solid ${COLORS.bd}`, borderRadius: 10, marginBottom: 10, overflow: 'hidden' }}>
+          <div key={trade} style={{ background: COLORS.wh, border: `1px solid #E5E5E2`, borderRadius: 12, marginBottom: 10, overflow: 'hidden' }}>
             {/* Trade header */}
             <div
               onClick={() => setExpandedTrade(isExpanded ? null : trade)}
-              style={{ background: '#FAFAF6', padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', borderBottom: isExpanded ? `1px solid ${COLORS.bd}` : 'none' }}>
+              style={{ background: '#FAFAF6', padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', borderBottom: isExpanded ? `1px solid #E5E5E2` : 'none' }}>
               <span style={{ color: COLORS.gn, fontSize: 9, flexShrink: 0 }}>{isExpanded ? '▼' : '▶'}</span>
               <span style={{ fontWeight: 700, fontSize: 13, fontFamily: FONTS.heading, color: trade === '(Unassigned)' ? COLORS.mg : COLORS.dg, flex: 1 }}>{trade}</span>
               <span style={{ fontSize: 11, color: COLORS.mg }}>{tradeItems.length} items</span>
@@ -155,7 +155,7 @@ export function TradesPanel({ items, globals, bsf, updateItem, project, canEdit,
               )}
               {scope && (
                 <button onClick={e => { e.stopPropagation(); exportScopeAsText(trade, scope); }}
-                  style={{ background: COLORS.wh, border: `1px solid ${COLORS.bd}`, color: COLORS.dg, borderRadius: 6, padding: '5px 10px', fontSize: 11, fontFamily: FONTS.heading, cursor: 'pointer', flexShrink: 0 }}>
+                  style={{ background: COLORS.wh, border: `1px solid #E5E5E2`, color: COLORS.dg, borderRadius: 6, padding: '5px 10px', fontSize: 11, fontFamily: FONTS.heading, cursor: 'pointer', flexShrink: 0 }}>
                   Export
                 </button>
               )}
@@ -179,7 +179,7 @@ export function TradesPanel({ items, globals, bsf, updateItem, project, canEdit,
                       const mt = CE.midTotal(item) || 0;
                       const isEditing = editingItemId === item.id;
                       return (
-                        <tr key={item.id} style={{ borderBottom: `1px solid ${COLORS.bl}` }}>
+                        <tr key={item.id} style={{ borderBottom: `1px solid #E5E5E2` }}>
                           <td style={{ padding: '5px 10px' }}>{item.description}</td>
                           <td style={{ padding: '5px 10px', color: COLORS.mg, fontSize: 10 }}>{item.subcategory}</td>
                           <td style={{ padding: '5px 10px', textAlign: 'right', color: COLORS.mg }}>
@@ -202,7 +202,7 @@ export function TradesPanel({ items, globals, bsf, updateItem, project, canEdit,
                                     if (e.key === 'Enter') commitEdit(item);
                                     if (e.key === 'Escape') setEditingItemId(null);
                                   }}
-                                  style={{ width: '100%', border: `1px solid ${COLORS.bd}`, borderRadius: 4, padding: '2px 6px', fontSize: 11, fontFamily: FONTS.body, outline: 'none' }}
+                                  style={{ width: '100%', border: `1px solid #E5E5E2`, borderRadius: 4, padding: '2px 6px', fontSize: 11, fontFamily: FONTS.body, outline: 'none' }}
                                 />
                               ) : (
                                 <span onClick={() => startEdit(item)} style={{ cursor: 'pointer', fontSize: 11, color: item.trade ? COLORS.dg : COLORS.mg, padding: '2px 4px', borderRadius: 3 }}>
@@ -217,7 +217,7 @@ export function TradesPanel({ items, globals, bsf, updateItem, project, canEdit,
                   </tbody>
                   <tfoot>
                     <tr>
-                      <td colSpan={canEdit ? 7 : 6} style={{ padding: '6px 10px', textAlign: 'right', fontWeight: 700, fontFamily: FONTS.heading, color: COLORS.gn, borderTop: `1px solid ${COLORS.bd}` }}>
+                      <td colSpan={canEdit ? 7 : 6} style={{ padding: '6px 10px', textAlign: 'right', fontWeight: 700, fontFamily: FONTS.heading, color: COLORS.gn, borderTop: `1px solid #E5E5E2` }}>
                         Trade Total: {fK(midTotal)} &nbsp;·&nbsp; {psf(midTotal, bsf)}
                       </td>
                     </tr>
@@ -226,7 +226,7 @@ export function TradesPanel({ items, globals, bsf, updateItem, project, canEdit,
 
                 {/* Scope preview */}
                 {scope && (
-                  <div style={{ padding: '14px 16px', borderTop: `1px solid ${COLORS.bd}`, background: '#FFFBF0' }}>
+                  <div style={{ padding: '14px 16px', borderTop: `1px solid #E5E5E2`, background: '#FFFBF0' }}>
                     <div style={{ fontSize: 12, fontFamily: FONTS.heading, fontWeight: 700, color: COLORS.gn, marginBottom: 10 }}>
                       ✦ {scope.title}
                     </div>
@@ -268,7 +268,7 @@ export function TradesPanel({ items, globals, bsf, updateItem, project, canEdit,
       )}
 
       {/* Bid packages — merged from former BIDDING tab */}
-      <div style={{ marginTop: 40, paddingTop: 28, borderTop: `1px solid ${COLORS.bd}` }}>
+      <div style={{ marginTop: 40, paddingTop: 28, borderTop: `1px solid #E5E5E2` }}>
         <div style={{ fontFamily: FONTS.heading, fontWeight: 800, fontSize: 18, color: COLORS.dg, marginBottom: 6 }}>
           Trade Partner Bidding
         </div>

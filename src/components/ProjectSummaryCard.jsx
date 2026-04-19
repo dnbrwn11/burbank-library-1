@@ -4,7 +4,7 @@ import { FONTS, COLORS } from '../data/constants';
 import { useWindowSize } from '../hooks/useWindowSize';
 
 const ACCENT = '#B89030';
-const BORDER = '#E5E5E0';
+const BORDER = '#E5E5E2';
 
 const DELIVERY_METHODS = [
   '', 'CM at Risk (GMP)', 'Design-Bid-Build', 'Design-Build',
@@ -333,7 +333,7 @@ function TeamAvatarRow({ teamMembers, onManageTeam, canEdit }) {
         {extra > 0 && (
           <div style={{
             width: 28, height: 28, borderRadius: '50%',
-            background: '#e5e5e0', color: '#555',
+            background: '#E5E5E2', color: '#555',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             fontSize: 9, fontWeight: 700, fontFamily: FONTS.heading,
             border: '2px solid #fff', marginLeft: -8,
@@ -401,7 +401,7 @@ function AssumptionsSection({ assumptions, active, canEdit }) {
   if (!items.length && !canEdit) return null;
 
   return (
-    <div style={{ border: `1px solid ${BORDER}`, borderRadius: 10, overflow: 'hidden', marginBottom: 16 }}>
+    <div style={{ border: `1px solid ${BORDER}`, borderRadius: 12, overflow: 'hidden', marginBottom: 16 }}>
       <button
         onClick={() => setOpen(v => !v)}
         style={{

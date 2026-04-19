@@ -35,7 +35,7 @@ export function AIPanel({ item, advice, loading, onAsk, onApply, mob }) {
       }}>
         Could not get AI advice: {advice.error}
         <button onClick={onAsk} style={{
-          marginLeft: 12, background: COLORS.wh, border: `1px solid ${COLORS.bd}`,
+          marginLeft: 12, background: COLORS.wh, border: `1px solid #E5E5E2`,
           borderRadius: 4, padding: '4px 10px', fontSize: 11, cursor: 'pointer',
           color: COLORS.gn, fontFamily: FONTS.heading, fontWeight: 600,
         }}>Try Again</button>
@@ -70,7 +70,7 @@ export function AIPanel({ item, advice, loading, onAsk, onApply, mob }) {
   return (
     <div style={{
       marginTop: 10, background: `${COLORS.gn}08`,
-      border: `1px solid ${COLORS.gn}25`, borderRadius: 10, overflow: 'hidden',
+      border: `1px solid ${COLORS.gn}25`, borderRadius: 12, overflow: 'hidden',
     }}>
       {/* Header */}
       <div style={{
@@ -104,7 +104,7 @@ export function AIPanel({ item, advice, loading, onAsk, onApply, mob }) {
           ].map(([label, val, color]) => (
             <div key={label} style={{
               background: COLORS.wh, borderRadius: 6, padding: '8px 10px',
-              textAlign: 'center', border: `1px solid ${COLORS.bd}`,
+              textAlign: 'center', border: `1px solid #E5E5E2`,
             }}>
               <div style={{
                 fontSize: 9, fontFamily: FONTS.heading, fontWeight: 600,
@@ -169,7 +169,7 @@ export function AIPanel({ item, advice, loading, onAsk, onApply, mob }) {
           }}>APPLY AI SUGGESTION</button>
           <button onClick={onAsk} style={{
             background: COLORS.wh, color: COLORS.gn,
-            border: `1px solid ${COLORS.bd}`, borderRadius: 6,
+            border: `1px solid #E5E5E2`, borderRadius: 6,
             padding: '8px 16px', fontSize: 12,
             fontFamily: FONTS.heading, fontWeight: 600, cursor: 'pointer',
           }}>RE-ANALYZE</button>

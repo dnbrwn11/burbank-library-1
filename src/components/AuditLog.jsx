@@ -4,7 +4,7 @@ export function AuditLog({ audit, items, updateItem, updateGlobal }) {
   if (audit.length === 0) {
     return (
       <div style={{
-        background: COLORS.wh, border: `1px solid ${COLORS.bd}`, borderRadius: 10,
+        background: COLORS.wh, border: `1px solid #E5E5E2`, borderRadius: 12,
         padding: 40, textAlign: 'center', color: COLORS.mg, fontFamily: FONTS.body,
       }}>
         Edit quantities or costs to build the audit trail.
@@ -19,7 +19,7 @@ export function AuditLog({ audit, items, updateItem, updateGlobal }) {
         const item = items.find(i => i.id === e.iid);
         return (
           <div key={e.id} style={{
-            background: COLORS.wh, border: `1px solid ${COLORS.bl}`, borderRadius: 8,
+            background: COLORS.wh, border: `1px solid #E5E5E2`, borderRadius: 8,
             padding: '10px 14px', display: 'flex', justifyContent: 'space-between',
             alignItems: 'center', gap: 8, flexWrap: 'wrap',
           }}>
@@ -40,7 +40,7 @@ export function AuditLog({ audit, items, updateItem, updateGlobal }) {
                 else updateItem(e.iid, e.f, e.o);
               }}
               style={{
-                background: COLORS.wh, border: `1px solid ${COLORS.bd}`, borderRadius: 6,
+                background: COLORS.wh, border: `1px solid #E5E5E2`, borderRadius: 6,
                 color: COLORS.gn, padding: '6px 12px', fontSize: 11,
                 fontFamily: FONTS.heading, fontWeight: 600, cursor: 'pointer', flexShrink: 0,
               }}

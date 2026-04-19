@@ -1,17 +1,22 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../supabase/supabaseClient';
 import { COLORS, FONTS } from '../data/constants';
+import { Skeleton } from './ui';
 
 const ACCENT = '#B89030';
-const BORDER = '#E5E5E0';
+const BORDER = '#E5E5E2';
 
 const TYPE_LABELS  = { add: 'Add Alternate', deduct: 'Deduct Alternate' };
-const TYPE_COLORS  = { add: { bg: '#f0fdf4', fg: '#166534', border: '#bbf7d0' }, deduct: { bg: '#fef2f2', fg: '#991b1b', border: '#fecaca' } };
+// Aligned with BADGE_STYLES tokens — single source of truth for all badge colors
+const TYPE_COLORS  = {
+  add:    { bg: '#EAF3DE', fg: '#27500A' },
+  deduct: { bg: '#FCEBEB', fg: '#791F1F' },
+};
 const STATUS_LABELS = { priced: 'Priced', accepted: 'Accepted', rejected: 'Rejected' };
 const STATUS_COLORS = {
-  priced:   { bg: '#eff6ff', fg: '#1e40af', border: '#bfdbfe' },
-  accepted: { bg: '#f0fdf4', fg: '#166534', border: '#bbf7d0' },
-  rejected: { bg: '#fef2f2', fg: '#991b1b', border: '#fecaca' },
+  priced:   { bg: '#E1EBF5', fg: '#1E3A5F' },
+  accepted: { bg: '#EAF3DE', fg: '#27500A' },
+  rejected: { bg: '#FCEBEB', fg: '#791F1F' },
 };
 
 const ADJ_TYPE_LABELS = { add: '+ Add', deduct: '− Deduct', replace: '↔ Replace' };
@@ -35,10 +40,10 @@ function fmtSigned(n, type) {
 function Badge({ label, colors }) {
   return (
     <span style={{
-      fontSize: 10, fontWeight: 700, letterSpacing: 0.5, padding: '2px 8px',
-      borderRadius: 4, fontFamily: FONTS.heading,
-      background: colors.bg, color: colors.fg, border: `1px solid ${colors.border}`,
-      flexShrink: 0,
+      fontSize: 11, fontWeight: 500, padding: '3px 8px',
+      borderRadius: 4, fontFamily: FONTS.body,
+      background: colors.bg, color: colors.fg,
+      flexShrink: 0, whiteSpace: 'nowrap',
     }}>
       {label}
     </span>
@@ -285,7 +290,7 @@ function AlternateDetail({ alt, items, canEdit, onUpdate, onClose }) {
   return (
     <div style={{
       background: '#fff', border: `1px solid ${BORDER}`,
-      borderRadius: 10, overflow: 'hidden',
+      borderRadius: 12, overflow: 'hidden',
     }}>
       {/* Detail header */}
       <div style={{
@@ -382,8 +387,8 @@ function AlternateDetail({ alt, items, canEdit, onUpdate, onClose }) {
         </div>
 
         {loading ? (
-          <div style={{ padding: '20px 12px', fontFamily: FONTS.body, fontSize: 13, color: '#aaa', textAlign: 'center' }}>
-            Loading…
+          <div style={{ padding: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {[1,2,3].map(n => <Skeleton key={n} height={36} />)}
           </div>
         ) : altItems.length === 0 ? (
           <div style={{ padding: '20px 12px', fontFamily: FONTS.body, fontSize: 13, color: '#aaa', textAlign: 'center', fontStyle: 'italic' }}>
@@ -465,7 +470,7 @@ function CreateAlternateForm({ nextNumber, onSave, onClose }) {
   };
 
   return (
-    <div style={{ background: '#fff', border: `1px solid ${BORDER}`, borderRadius: 10, padding: '18px 20px', marginBottom: 12 }}>
+    <div style={{ background: '#fff', border: `1px solid ${BORDER}`, borderRadius: 12, padding: '18px 20px', marginBottom: 12 }}>
       <div style={{ fontFamily: FONTS.heading, fontWeight: 700, fontSize: 14, color: '#111', marginBottom: 14 }}>
         New Alternate — #{nextNumber}
       </div>

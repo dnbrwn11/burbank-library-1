@@ -4,7 +4,7 @@ import { FONTS } from '../data/constants';
 import * as CE from '../engine/CostEngine';
 
 const ACCENT = '#B89030';
-const BORDER = '#E5E5E0';
+const BORDER = '#E5E5E2';
 
 function fmtMoney(n) {
   const abs = Math.abs(n || 0);

@@ -263,7 +263,7 @@ function ActionButton({ icon: Icon, label, onClick, primary, badge }) {
         <span style={{
           background: primary ? 'rgba(255,255,255,0.3)' : '#F3F3F1',
           color: primary ? '#FFFFFF' : '#888',
-          borderRadius: 10, padding: '1px 6px',
+          borderRadius: 12, padding: '1px 6px',
           fontFamily: "'JetBrains Mono', monospace",
           fontSize: 10, fontWeight: 500,
         }}>

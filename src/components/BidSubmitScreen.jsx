@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 
 const ACCENT = '#B89030';
 const HEADER = '#222222';
-const BORDER = '#E5E5E0';
+const BORDER = '#E5E5E2';
 
 function fmt(n) {
   if (!n) return '';

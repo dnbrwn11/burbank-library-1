@@ -9,6 +9,8 @@ import ProjectSummaryCard from './ProjectSummaryCard';
 import QuickStatsRow from './QuickStatsRow';
 import BudgetTracker from './BudgetTracker';
 import ScopeGapAnalysis from './ScopeGapAnalysis';
+import { Card } from './ui';
+import { TYPE } from '../data/tokens';
 
 const INDIRECT_CATEGORIES = new Set([
   'General Conditions', 'Overhead & Fee', 'Contingency',
@@ -170,7 +172,7 @@ export function Dashboard({ totals, catGroups, activeItems, bsf, globals, teamMe
 
       {/* Toggle */}
       <div style={{ gridColumn: '1/-1', display: 'flex', alignItems: 'center', justifyContent: 'flex-end' }}>
-        <div style={{ display: 'flex', border: `1px solid ${COLORS.bd}`, borderRadius: 8, overflow: 'hidden' }}>
+        <div style={{ display: 'flex', border: `1px solid #E5E5E2`, borderRadius: 8, overflow: 'hidden' }}>
           {[['total', 'Total Cost'], ['direct', 'Direct Cost']].map(([v, label]) => (
             <button
               key={v}
@@ -190,35 +192,24 @@ export function Dashboard({ totals, catGroups, activeItems, bsf, globals, teamMe
         </div>
       </div>
 
-      {/* Estimate KPIs — white cards with colored left border accents */}
+      {/* Estimate KPIs — Card with colored left border accent */}
       <div style={{ gridColumn: '1/-1', display: 'grid', gridTemplateColumns: mob ? '1fr' : 'repeat(3,1fr)', gap: 12 }}>
         {kpi.map(([label, val, accent]) => (
-          <div key={label} style={{
-            background: '#FFFFFF',
-            border: '1px solid #E5E5E2',
-            borderLeft: `3px solid ${accent}`,
-            borderRadius: 12,
-            padding: 20,
-            transition: 'box-shadow 150ms ease',
-          }}>
-            <div style={{
-              fontFamily: "'Figtree', sans-serif", fontSize: 12, fontWeight: 500,
-              color: '#888', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8,
-            }}>
+          <Card key={label} accent={accent}>
+            <div style={{ ...TYPE.label, marginBottom: 8 }}>
               {label} Estimate
             </div>
             <div style={{
-              fontFamily: "'JetBrains Mono', monospace", fontSize: mob ? 24 : 28, fontWeight: 600,
-              color: '#1A1A1A', fontVariantNumeric: 'tabular-nums', lineHeight: 1.1,
+              ...TYPE.numLarge,
+              fontSize: mob ? 24 : 28,
+              lineHeight: 1.1,
             }}>
               {fmt(val)}
             </div>
-            <div style={{
-              fontFamily: "'Figtree', sans-serif", fontSize: 13, color: '#888', marginTop: 4,
-            }}>
+            <div style={{ ...TYPE.bodyMuted, marginTop: 4 }}>
               {psf(val, bsf)}{isDirect ? ' · direct cost only' : ''}
             </div>
-          </div>
+          </Card>
         ))}
       </div>
 
@@ -232,7 +223,7 @@ export function Dashboard({ totals, catGroups, activeItems, bsf, globals, teamMe
         const color = over ? COLORS.or : COLORS.gn;
         const bg = over ? '#FFF3EC' : '#EFF6E8';
         return (
-          <div style={{ gridColumn: '1/-1', background: bg, border: `1px solid ${COLORS.bd}`, borderRadius: 10, padding: '10px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+          <div style={{ gridColumn: '1/-1', background: bg, border: `1px solid #E5E5E2`, borderRadius: 12, padding: '10px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
             <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap' }}>
               <span style={{ fontFamily: FONTS.body, fontSize: 13 }}>
                 <span style={{ color: COLORS.mg, fontSize: 10, fontFamily: FONTS.heading, fontWeight: 700, letterSpacing: 1, textTransform: 'uppercase', marginRight: 6 }}>Budget</span>
@@ -255,7 +246,7 @@ export function Dashboard({ totals, catGroups, activeItems, bsf, globals, teamMe
 
       {/* Spread model panel */}
       {spreadTotals && (
-        <div style={{ gridColumn: '1/-1', background: '#FFFBF0', border: '1px solid #E8D5A0', borderRadius: 10, padding: mob ? 12 : 16 }}>
+        <div style={{ gridColumn: '1/-1', background: '#FFFBF0', border: '1px solid #E8D5A0', borderRadius: 12, padding: mob ? 12 : 16 }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12, flexWrap: 'wrap', gap: 6 }}>
             <div>
               <div style={{ fontSize: 11, fontFamily: FONTS.heading, fontWeight: 700, color: COLORS.gn, textTransform: 'uppercase', letterSpacing: 2 }}>
@@ -272,7 +263,7 @@ export function Dashboard({ totals, catGroups, activeItems, bsf, globals, teamMe
               ['Spread Mid',  spreadTotals.full.m.tot, COLORS.gn, '#EFF6E8'],
               ['Spread High', spreadTotals.full.h.tot, COLORS.or, '#FFF3EC'],
             ].map(([label, val, color, bg]) => (
-              <div key={label} style={{ background: bg, border: `1px solid ${COLORS.bd}`, borderRadius: 8, padding: '12px 16px', textAlign: 'center' }}>
+              <div key={label} style={{ background: bg, border: `1px solid #E5E5E2`, borderRadius: 8, padding: '12px 16px', textAlign: 'center' }}>
                 <div style={{ fontSize: 9, fontFamily: FONTS.heading, fontWeight: 600, color: COLORS.mg, textTransform: 'uppercase', letterSpacing: 2, marginBottom: 4 }}>{label}</div>
                 <div style={{ fontSize: mob ? 18 : 20, fontWeight: 700, fontFamily: FONTS.heading, color, fontVariantNumeric: 'tabular-nums' }}>{fmt(val)}</div>
                 <div style={{ fontSize: 11, color, fontFamily: FONTS.heading, fontWeight: 600, marginTop: 2 }}>{psf(val, bsf)}</div>
@@ -284,7 +275,7 @@ export function Dashboard({ totals, catGroups, activeItems, bsf, globals, teamMe
 
       {/* Contextual warnings */}
       {warnings.length > 0 && (
-        <div style={{ gridColumn: '1/-1', background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 10, padding: mob ? 10 : 14 }}>
+        <div style={{ gridColumn: '1/-1', background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 12, padding: mob ? 10 : 14 }}>
           <div style={{ fontSize: 11, fontFamily: FONTS.heading, fontWeight: 700, color: '#92400E', textTransform: 'uppercase', letterSpacing: 1.5, marginBottom: 8 }}>⚠ Estimate Alerts</div>
           {warnings.map((w, i) => (
             <div key={i} style={{ fontSize: 12, color: '#78350F', padding: '3px 0', lineHeight: 1.5, fontFamily: FONTS.body }}>• {w}</div>
@@ -294,7 +285,7 @@ export function Dashboard({ totals, catGroups, activeItems, bsf, globals, teamMe
 
       {/* Allowances panel */}
       {allowanceItems.length > 0 && (
-        <div style={{ gridColumn: '1/-1', background: COLORS.sf, border: `1px solid ${COLORS.bd}`, borderRadius: 10, padding: mob ? 12 : 16 }}>
+        <div style={{ gridColumn: '1/-1', background: COLORS.sf, border: `1px solid #E5E5E2`, borderRadius: 12, padding: mob ? 12 : 16 }}>
           <div style={{ fontSize: 11, fontFamily: FONTS.heading, fontWeight: 600, color: COLORS.dg, textTransform: 'uppercase', letterSpacing: 2, marginBottom: 14 }}>
             Allowances ({allowanceItems.length})
           </div>
@@ -304,7 +295,7 @@ export function Dashboard({ totals, catGroups, activeItems, bsf, globals, teamMe
 
       {/* Assignment progress */}
       {assignmentProgress && assignmentProgress.rows.length > 0 && (
-        <div style={{ gridColumn: '1/-1', background: COLORS.sf, border: `1px solid ${COLORS.bd}`, borderRadius: 10, padding: mob ? 12 : 16 }}>
+        <div style={{ gridColumn: '1/-1', background: COLORS.sf, border: `1px solid #E5E5E2`, borderRadius: 12, padding: mob ? 12 : 16 }}>
           <div style={{ fontSize: 11, fontFamily: FONTS.heading, fontWeight: 600, color: COLORS.dg, textTransform: 'uppercase', letterSpacing: 2, marginBottom: 12 }}>
             Assignment Progress — {assignmentProgress.total - assignmentProgress.unassigned}/{assignmentProgress.total} assigned
           </div>
@@ -332,7 +323,7 @@ export function Dashboard({ totals, catGroups, activeItems, bsf, globals, teamMe
       )}
 
       {/* Category bars */}
-      <div style={{ gridColumn: '1/-1', background: COLORS.sf, border: `1px solid ${COLORS.bd}`, borderRadius: 10, padding: mob ? 12 : 16 }}>
+      <div style={{ gridColumn: '1/-1', background: COLORS.sf, border: `1px solid #E5E5E2`, borderRadius: 12, padding: mob ? 12 : 16 }}>
         <div style={{ fontSize: 11, fontFamily: FONTS.heading, fontWeight: 600, color: COLORS.dg, textTransform: 'uppercase', letterSpacing: 2, marginBottom: 12 }}>
           Cost by Category (Mid{isDirect ? ', Direct' : ', Loaded'}) — {bsf.toLocaleString()} SF
         </div>
@@ -351,12 +342,12 @@ export function Dashboard({ totals, catGroups, activeItems, bsf, globals, teamMe
       </div>
 
       {/* Breakdown */}
-      <div style={{ background: COLORS.sf, border: `1px solid ${COLORS.bd}`, borderRadius: 10, padding: mob ? 12 : 16 }}>
+      <div style={{ background: COLORS.sf, border: `1px solid #E5E5E2`, borderRadius: 12, padding: mob ? 12 : 16 }}>
         <div style={{ fontSize: 11, fontFamily: FONTS.heading, fontWeight: 600, color: COLORS.dg, textTransform: 'uppercase', letterSpacing: 2, marginBottom: 12 }}>Mid Breakdown</div>
 
         {isDirect ? (
           <>
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, padding: '5px 0', borderBottom: `1px solid ${COLORS.bl}` }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, padding: '5px 0', borderBottom: `1px solid #E5E5E2` }}>
               <span style={{ color: COLORS.mg }}>Raw Installed Cost</span>
               <span style={{ fontWeight: 500, fontVariantNumeric: 'tabular-nums' }}>
                 {fmt(totals.raw.m)} <span style={{ color: COLORS.mg, fontSize: 10 }}>{psf(totals.raw.m, bsf)}</span>
@@ -380,7 +371,7 @@ export function Dashboard({ totals, catGroups, activeItems, bsf, globals, teamMe
               ['Ins+Bond',       totals.full.m.ins],
               ['Tax',            totals.full.m.tx],
             ].map(([l, v]) => (
-              <div key={l} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, padding: '5px 0', borderBottom: `1px solid ${COLORS.bl}` }}>
+              <div key={l} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, padding: '5px 0', borderBottom: `1px solid #E5E5E2` }}>
                 <span style={{ color: COLORS.mg }}>{l}</span>
                 <span style={{ fontWeight: 500, fontVariantNumeric: 'tabular-nums' }}>
                   {fmt(v)} <span style={{ color: COLORS.mg, fontSize: 10 }}>{psf(v, bsf)}</span>
@@ -396,10 +387,10 @@ export function Dashboard({ totals, catGroups, activeItems, bsf, globals, teamMe
       </div>
 
       {/* Top drivers */}
-      <div style={{ gridColumn: mob ? '1/-1' : tab ? '1/-1' : 'span 2', background: COLORS.sf, border: `1px solid ${COLORS.bd}`, borderRadius: 10, padding: mob ? 12 : 16 }}>
+      <div style={{ gridColumn: mob ? '1/-1' : tab ? '1/-1' : 'span 2', background: COLORS.sf, border: `1px solid #E5E5E2`, borderRadius: 12, padding: mob ? 12 : 16 }}>
         <div style={{ fontSize: 11, fontFamily: FONTS.heading, fontWeight: 600, color: COLORS.dg, textTransform: 'uppercase', letterSpacing: 2, marginBottom: 12 }}>Top 10 Cost Drivers</div>
         {topDrivers.map((d, i) => (
-          <div key={d.id} style={{ display: 'flex', gap: 6, fontSize: mob ? 12 : 11, padding: '5px 0', borderBottom: `1px solid ${COLORS.bl}`, alignItems: 'center' }}>
+          <div key={d.id} style={{ display: 'flex', gap: 6, fontSize: mob ? 12 : 11, padding: '5px 0', borderBottom: `1px solid #E5E5E2`, alignItems: 'center' }}>
             <span style={{ color: COLORS.gn, fontWeight: 700, fontFamily: FONTS.heading, width: 18, flexShrink: 0 }}>{i + 1}</span>
             <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{d.description}</span>
             <span style={{ color: COLORS.gn, fontWeight: 600, fontVariantNumeric: 'tabular-nums', flexShrink: 0 }}>{fK(d._m)}</span>
@@ -409,7 +400,7 @@ export function Dashboard({ totals, catGroups, activeItems, bsf, globals, teamMe
 
       {/* Alternates summary */}
       {alternates.length > 0 && (
-        <div style={{ gridColumn: '1/-1', background: COLORS.sf, border: `1px solid ${COLORS.bd}`, borderRadius: 10, padding: mob ? 12 : 16 }}>
+        <div style={{ gridColumn: '1/-1', background: COLORS.sf, border: `1px solid #E5E5E2`, borderRadius: 12, padding: mob ? 12 : 16 }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
             <div style={{ fontSize: 11, fontFamily: FONTS.heading, fontWeight: 600, color: COLORS.dg, textTransform: 'uppercase', letterSpacing: 2 }}>
               Alternates Summary
@@ -425,7 +416,7 @@ export function Dashboard({ totals, catGroups, activeItems, bsf, globals, teamMe
           </div>
 
           {/* Base bid row */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '7px 0', borderBottom: `1px solid ${COLORS.bl}` }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '7px 0', borderBottom: `1px solid #E5E5E2` }}>
             <div style={{ width: 20, flexShrink: 0 }} />
             <span style={{ flex: 1, fontSize: 13, fontFamily: FONTS.heading, fontWeight: 600, color: COLORS.dg }}>Base Bid</span>
             <span style={{ fontSize: 13, fontFamily: FONTS.heading, fontWeight: 600, color: COLORS.dg, fontVariantNumeric: 'tabular-nums' }}>
@@ -442,7 +433,7 @@ export function Dashboard({ totals, catGroups, activeItems, bsf, globals, teamMe
             const checked = !!checkedAlts[a.id];
             const typeColor = a.type === 'deduct' ? '#991b1b' : '#166534';
             return (
-              <div key={a.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '7px 0', borderBottom: `1px solid ${COLORS.bl}` }}>
+              <div key={a.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '7px 0', borderBottom: `1px solid #E5E5E2` }}>
                 <input
                   type="checkbox"
                   checked={checked}

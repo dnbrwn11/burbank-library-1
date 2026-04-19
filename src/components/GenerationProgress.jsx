@@ -67,7 +67,7 @@ export default function GenerationProgress({ progress }) {
             return (
               <span key={label} style={{
                 fontFamily: "'Figtree', sans-serif", fontSize: 10,
-                padding: '3px 8px', borderRadius: 10,
+                padding: '3px 8px', borderRadius: 12,
                 background: done ? ACCENT : '#f0f0ee',
                 color: done ? '#fff' : '#aaa',
                 border: `1px solid ${active ? ACCENT : 'transparent'}`,

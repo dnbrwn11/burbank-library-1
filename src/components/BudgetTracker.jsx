@@ -1,9 +1,10 @@
 import { useState, useEffect, useMemo } from 'react';
 import { supabase } from '../supabase/supabaseClient';
 import { FONTS, COLORS } from '../data/constants';
+import { Skeleton } from './ui';
 
 const ACCENT = '#B89030';
-const BORDER = '#E5E5E0';
+const BORDER = '#E5E5E2';
 
 const EVENT_TYPE_META = {
   original_budget:       { label: 'Original Budget',       bg: '#eff6ff', color: '#1e40af', border: '#bfdbfe' },
@@ -176,7 +177,7 @@ export default function BudgetTracker({ project, totals, canEdit, user }) {
     { label: 'Original Budget', value: originalBudget, color: '#1e40af', bg: '#eff6ff', border: '#bfdbfe' },
     { label: 'Total Adjustments', value: totalAdjustments, signed: true, color: totalAdjustments >= 0 ? '#991b1b' : '#166534', bg: totalAdjustments >= 0 ? '#fef2f2' : '#f0fdf4', border: totalAdjustments >= 0 ? '#fecaca' : '#bbf7d0' },
     { label: 'Current Budget', value: currentBudget, color: '#1e40af', bg: '#eff6ff', border: '#bfdbfe' },
-    { label: 'Current Estimate', value: currentEstimate, color: COLORS.gn, bg: '#fffbf0', border: '#E8D5A0' },
+    { label: 'Current Estimate', value: currentEstimate, color: COLORS.gn, bg: '#fffbf0', border: '#E5E5E2' },
     {
       label: isOverBudget ? 'Over Budget' : 'Under Budget',
       value: Math.abs(variance),
@@ -187,7 +188,7 @@ export default function BudgetTracker({ project, totals, canEdit, user }) {
   ];
 
   return (
-    <div style={{ gridColumn: '1/-1', background: COLORS.sf, border: `1px solid ${COLORS.bd}`, borderRadius: 10, padding: 16 }}>
+    <div style={{ gridColumn: '1/-1', background: COLORS.sf, border: `1px solid #E5E5E2`, borderRadius: 12, padding: 16 }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
         <div style={{ fontSize: 11, fontFamily: FONTS.heading, fontWeight: 600, color: COLORS.dg, textTransform: 'uppercase', letterSpacing: 2 }}>
           Budget Tracker
@@ -283,7 +284,9 @@ export default function BudgetTracker({ project, totals, canEdit, user }) {
 
       {/* Events timeline */}
       {loading ? (
-        <div style={{ fontFamily: FONTS.body, fontSize: 12, color: '#aaa', textAlign: 'center', padding: '12px 0' }}>Loading…</div>
+        <div style={{ padding: '12px 0', display: 'flex', flexDirection: 'column', gap: 6 }}>
+          {[1,2,3].map(n => <Skeleton key={n} height={24} />)}
+        </div>
       ) : events.length === 0 ? (
         <div style={{ fontFamily: FONTS.body, fontSize: 12, color: '#aaa', fontStyle: 'italic', textAlign: 'center', padding: '8px 0' }}>
           No budget events logged.{canEdit && ' Click "+ Log Event" to track changes.'}

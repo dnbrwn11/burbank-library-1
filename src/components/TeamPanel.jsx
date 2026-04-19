@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { supabase } from '../supabase/supabaseClient';
 import { getProjectMembers, removeProjectMember } from '../supabase/db';
 import { analytics } from '../analytics';
+import { Skeleton } from './ui';
 
 const ACCENT = '#B89030';
 const HEADER_BG = '#222222';
@@ -163,8 +164,8 @@ export default function TeamPanel({ project, user, onClose }) {
         {/* Member list */}
         <div style={{ flex: 1, overflowY: 'auto', padding: '8px 0' }}>
           {loading ? (
-            <div style={{ padding: 20, fontFamily: "'Figtree', sans-serif", fontSize: 13, color: '#aaa' }}>
-              Loading…
+            <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {[1,2,3].map(n => <Skeleton key={n} height={48} />)}
             </div>
           ) : (
             <>

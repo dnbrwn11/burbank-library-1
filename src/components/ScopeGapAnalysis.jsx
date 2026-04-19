@@ -2,7 +2,7 @@ import { useState, useRef } from 'react';
 import { analytics } from '../analytics';
 
 const ACCENT = '#B89030';
-const BORDER = '#E5E5E0';
+const BORDER = '#E5E5E2';
 const BG = '#F9F9F8';
 
 // Extract significant keywords from a string (words 4+ chars, skip numbers)
@@ -192,7 +192,7 @@ export default function ScopeGapAnalysis({ items, project, scenario }) {
         onClick={() => !parsing && inputRef.current?.click()}
         style={{
           border: `2px dashed ${dragging ? ACCENT : BORDER}`,
-          borderRadius: 10,
+          borderRadius: 12,
           background: dragging ? '#fffdf5' : '#fff',
           padding: '28px 24px',
           textAlign: 'center',
@@ -291,7 +291,7 @@ export default function ScopeGapAnalysis({ items, project, scenario }) {
           )}
 
           {results.uploadOnly.length === 0 && results.estimateOnly.length === 0 && (
-            <div style={{ padding: '20px 24px', background: '#f0fdf4', border: `1px solid #bbf7d0`, borderRadius: 10, textAlign: 'center', fontFamily: "'Figtree', sans-serif", fontSize: 13, color: '#166534' }}>
+            <div style={{ padding: '20px 24px', background: '#f0fdf4', border: `1px solid #bbf7d0`, borderRadius: 12, textAlign: 'center', fontFamily: "'Figtree', sans-serif", fontSize: 13, color: '#166534' }}>
               No scope gaps found — all uploaded items matched the estimate.
             </div>
           )}
@@ -305,7 +305,7 @@ function ResultSection({ title, color, bg, items, emptyText, collapsed = false }
   const [open, setOpen] = useState(!collapsed);
   if (!items.length && !emptyText) return null;
   return (
-    <div style={{ background: '#fff', border: `1px solid ${BORDER}`, borderRadius: 10, overflow: 'hidden' }}>
+    <div style={{ background: '#fff', border: `1px solid ${BORDER}`, borderRadius: 12, overflow: 'hidden' }}>
       <button
         onClick={() => setOpen(v => !v)}
         style={{

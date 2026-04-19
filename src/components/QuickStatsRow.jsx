@@ -2,7 +2,7 @@ import { useMemo } from 'react';
 import { FONTS, COLORS } from '../data/constants';
 
 const ACCENT = '#B89030';
-const BORDER = '#E5E5E0';
+const BORDER = '#E5E5E2';
 
 export default function QuickStatsRow({ activeItems, activeItems: items }) {
   const stats = useMemo(() => {

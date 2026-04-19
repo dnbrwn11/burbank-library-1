@@ -5,6 +5,8 @@ import { analytics } from '../analytics';
 import { OrgAvatar, OrgMenu } from './OrgSettings';
 import { SAMPLE_LIBRARY_LINE_ITEMS, SAMPLE_PROJECT } from '../data/sampleLineItems';
 import { CLIENT_TYPES } from '../../lib/templates';
+import { Badge } from './ui';
+import { BADGE_STYLES } from '../data/tokens';
 
 // ── Shimmer keyframes (injected once) ────────────────────────────────────────
 if (typeof document !== 'undefined' && !document.getElementById('pd-shimmer')) {
@@ -28,7 +30,7 @@ if (typeof document !== 'undefined' && !document.getElementById('pd-shimmer')) {
 function SkeletonCard() {
   return (
     <div style={{
-      background: '#fff', border: '1px solid #e6e6e2', borderRadius: 10,
+      background: '#fff', border: '1px solid #e6e6e2', borderRadius: 12,
       padding: '18px 22px', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
     }}>
       <div style={{ flex: 1 }}>
@@ -74,14 +76,6 @@ const US_STATES = [
 
 const STATUS_OPTIONS = ['active', 'on_hold', 'won', 'lost', 'archived'];
 const STATUS_LABELS = { active: 'Active', on_hold: 'On Hold', won: 'Won', lost: 'Lost', archived: 'Archived', sample: 'Sample' };
-const STATUS_COLORS = {
-  active:   { bg: '#f0fdf4', color: '#166534', border: '#bbf7d0' },
-  on_hold:  { bg: '#fefce8', color: '#854d0e', border: '#fde68a' },
-  won:      { bg: '#eff6ff', color: '#1e40af', border: '#bfdbfe' },
-  lost:     { bg: '#fef2f2', color: '#991b1b', border: '#fecaca' },
-  archived: { bg: '#f5f5f4', color: '#78716c', border: '#d6d3d1' },
-  sample:   { bg: '#eff6ff', color: '#1e40af', border: '#bfdbfe' },
-};
 
 const SORT_OPTIONS = [
   { value: 'updated', label: 'Last Updated' },
@@ -647,7 +641,7 @@ export default function ProjectDashboard({ user, org, orgRole, onSignOut, onSele
             ) : (
               <>
                 {filteredProjects.length === 0 && filterStatus === 'all' ? (
-                  <div style={{ textAlign: 'center', padding: '24px', fontFamily: "'Figtree', sans-serif", color: '#aaa', fontSize: 14, background: '#fff', border: '1px solid #e6e6e2', borderRadius: 10 }}>
+                  <div style={{ textAlign: 'center', padding: '24px', fontFamily: "'Figtree', sans-serif", color: '#aaa', fontSize: 14, background: '#fff', border: '1px solid #e6e6e2', borderRadius: 12 }}>
                     No active projects match your search.
                   </div>
                 ) : (
@@ -735,7 +729,6 @@ function ProjectCard({ project: p, onSelect, fmtBudget, userId, onDuplicated, on
   const menuRef = useRef(null);
   const isEditing = editingProject === p.id;
   const status = p.status || 'active';
-  const statusStyle = STATUS_COLORS[status] || STATUS_COLORS.active;
 
   useEffect(() => {
     const handler = (e) => {
@@ -791,7 +784,7 @@ function ProjectCard({ project: p, onSelect, fmtBudget, userId, onDuplicated, on
       style={{ position: 'relative' }}
     >
       {isEditing ? (
-        <div style={{ background: '#fff', border: `1.5px solid ${ACCENT}`, borderRadius: 10, padding: '14px 18px', display: 'flex', gap: 10, alignItems: 'center' }}>
+        <div style={{ background: '#fff', border: `1.5px solid ${ACCENT}`, borderRadius: 12, padding: '14px 18px', display: 'flex', gap: 10, alignItems: 'center' }}>
           <input
             autoFocus
             value={editName}
@@ -811,7 +804,7 @@ function ProjectCard({ project: p, onSelect, fmtBudget, userId, onDuplicated, on
           style={{
             background: '#fff',
             border: `1px solid ${hovered ? ACCENT : '#e6e6e2'}`,
-            borderRadius: 10, padding: '18px 22px',
+            borderRadius: 12, padding: '18px 22px',
             textAlign: 'left', cursor: 'pointer',
             display: 'flex', justifyContent: 'space-between', alignItems: 'center',
             width: '100%', transition: 'border-color 0.15s, box-shadow 0.15s',
@@ -823,13 +816,7 @@ function ProjectCard({ project: p, onSelect, fmtBudget, userId, onDuplicated, on
               <span style={{ fontFamily: "'Archivo', sans-serif", fontWeight: 700, fontSize: 16, color: '#111' }}>
                 {p.name}
               </span>
-              <span style={{
-                fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 4,
-                background: statusStyle.bg, color: statusStyle.color, border: `1px solid ${statusStyle.border}`,
-                flexShrink: 0, fontFamily: "'Figtree', sans-serif",
-              }}>
-                {STATUS_LABELS[status] || status}
-              </span>
+              <Badge tone={status}>{STATUS_LABELS[status] || status}</Badge>
             </div>
             <div style={{ fontFamily: "'Figtree', sans-serif", fontSize: 13, color: '#999', display: 'flex', flexWrap: 'wrap', gap: '4px 10px' }}>
               {(p.city || p.state) && <span>{[p.city, p.state].filter(Boolean).join(', ')}</span>}
@@ -875,7 +862,7 @@ function ProjectCard({ project: p, onSelect, fmtBudget, userId, onDuplicated, on
                 <div style={{ padding: '4px 14px 2px', fontSize: 10, color: '#aaa', fontFamily: "'Figtree', sans-serif", textTransform: 'uppercase', letterSpacing: 0.5 }}>Set Status</div>
                 {STATUS_OPTIONS.filter(s => s !== (p.status || 'active')).map(s => (
                   <MenuItem key={s} onClick={(e) => handleStatusChange(e, s)}>
-                    <span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', background: STATUS_COLORS[s]?.color || '#888', marginRight: 8 }} />
+                    <span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', background: BADGE_STYLES[s]?.color || '#888', marginRight: 8 }} />
                     {STATUS_LABELS[s]}
                   </MenuItem>
                 ))}

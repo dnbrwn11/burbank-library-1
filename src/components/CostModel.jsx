@@ -64,7 +64,7 @@ function ItemDetailPanel({ item, updateItem, aiAdvice, aiLoading, askAI, applyAI
   const lt = CE.lowTotal(item), mt = CE.midTotal(item), ht = CE.highTotal(item);
   const uI = (f) => (v) => updateItem(item.id, f, v);
   return (
-    <div style={{ padding: mob ? '0 14px 14px' : '10px 20px', borderTop: mob ? `1px solid ${COLORS.bl}` : 'none' }}>
+    <div style={{ padding: mob ? '0 14px 14px' : '10px 20px', borderTop: mob ? `1px solid #E5E5E2` : 'none' }}>
       <div style={{ display: 'grid', gridTemplateColumns: mob ? '1fr 1fr' : 'repeat(5,1fr)', gap: 8, marginTop: mob ? 10 : 0 }}>
         {[['Qty Min', 'qtyMin'], ['Qty Max', 'qtyMax'], ['$/Low', 'unitCostLow'], ['$/Mid', 'unitCostMid'], ['$/High', 'unitCostHigh']].map(([l, f]) => (
           <div key={f}>
@@ -271,7 +271,7 @@ function SortableItemRow({
             }
           </div>
           {assignOpen && canEdit && (
-            <div style={{ position: 'absolute', right: 0, top: 26, background: COLORS.wh, border: `1px solid ${COLORS.bd}`, borderRadius: 8, padding: 4, zIndex: 500, minWidth: 160, boxShadow: '0 4px 16px rgba(0,0,0,.12)' }}>
+            <div style={{ position: 'absolute', right: 0, top: 26, background: COLORS.wh, border: `1px solid #E5E5E2`, borderRadius: 8, padding: 4, zIndex: 500, minWidth: 160, boxShadow: '0 4px 16px rgba(0,0,0,.12)' }}>
               <div style={{ padding: '4px 10px 3px', fontSize: 9, fontFamily: FONTS.heading, color: COLORS.mg, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 1 }}>Assign to</div>
               {(teamMembers || []).map(m => (
                 <button key={m.user_id} onClick={() => { onAssignItem(item.id, m.user_id); setAssignOpen(false); }}
@@ -282,7 +282,7 @@ function SortableItemRow({
               ))}
               {item.assignedTo && (
                 <button onClick={() => { onAssignItem(item.id, null); setAssignOpen(false); }}
-                  style={{ display: 'block', width: '100%', textAlign: 'left', background: 'transparent', border: 'none', padding: '5px 10px', fontSize: 11, fontFamily: FONTS.body, cursor: 'pointer', color: COLORS.mg, borderRadius: 4, borderTop: `1px solid ${COLORS.bl}`, marginTop: 3 }}>
+                  style={{ display: 'block', width: '100%', textAlign: 'left', background: 'transparent', border: 'none', padding: '5px 10px', fontSize: 11, fontFamily: FONTS.body, cursor: 'pointer', color: COLORS.mg, borderRadius: 4, borderTop: `1px solid #E5E5E2`, marginTop: 3 }}>
                   Unassign
                 </button>
               )}
@@ -421,7 +421,7 @@ function ImportModal({ onClose, createItem }) {
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 3000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}
       onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
       <div style={{ background: COLORS.wh, borderRadius: 12, maxWidth: 860, width: '100%', maxHeight: '90vh', display: 'flex', flexDirection: 'column', boxShadow: '0 24px 60px rgba(0,0,0,0.3)' }}>
-        <div style={{ padding: '18px 24px', borderBottom: `1px solid ${COLORS.bd}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
+        <div style={{ padding: '18px 24px', borderBottom: `1px solid #E5E5E2`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
           <div>
             <div style={{ fontFamily: FONTS.heading, fontWeight: 700, fontSize: 16, color: COLORS.dg }}>Import Line Items</div>
             <div style={{ fontFamily: FONTS.body, fontSize: 12, color: COLORS.mg, marginTop: 2 }}>Upload an Excel or CSV file, then map columns to fields.</div>
@@ -437,7 +437,7 @@ function ImportModal({ onClose, createItem }) {
               onDragLeave={() => setDragging(false)}
               onDrop={e => { e.preventDefault(); setDragging(false); const f = e.dataTransfer.files?.[0]; if (f) processFile(f); }}
               onClick={() => inputRef.current?.click()}
-              style={{ border: `2px dashed ${dragging ? GOLD : COLORS.bd}`, borderRadius: 10, padding: '40px 24px', textAlign: 'center', cursor: 'pointer', background: dragging ? '#FFFDF5' : '#fff', transition: 'border-color 0.15s' }}
+              style={{ border: `2px dashed ${dragging ? GOLD : COLORS.bd}`, borderRadius: 12, padding: '40px 24px', textAlign: 'center', cursor: 'pointer', background: dragging ? '#FFFDF5' : '#fff', transition: 'border-color 0.15s' }}
             >
               <input ref={inputRef} type="file" accept=".csv,.xlsx,.xls" onChange={e => { const f = e.target.files?.[0]; if (f) processFile(f); e.target.value = ''; }} style={{ display: 'none' }} />
               <div style={{ fontSize: 28, marginBottom: 10 }}>📂</div>
@@ -472,13 +472,13 @@ function ImportModal({ onClose, createItem }) {
                   </thead>
                   <tbody>
                     {header.map((h, i) => (
-                      <tr key={i} style={{ borderBottom: `1px solid ${COLORS.bl}` }}>
+                      <tr key={i} style={{ borderBottom: `1px solid #E5E5E2` }}>
                         <td style={{ padding: '6px 10px', fontWeight: 600, color: COLORS.dg, whiteSpace: 'nowrap' }}>{String(h)}</td>
                         <td style={{ padding: '6px 10px' }}>
                           <select
                             value={mapping[i] || '--ignore--'}
                             onChange={e => setMapping(m => ({ ...m, [i]: e.target.value }))}
-                            style={{ border: `1px solid ${COLORS.bd}`, borderRadius: 6, padding: '4px 8px', fontSize: 11, fontFamily: FONTS.body, background: '#fff', cursor: 'pointer', outline: 'none' }}
+                            style={{ border: `1px solid #E5E5E2`, borderRadius: 6, padding: '4px 8px', fontSize: 11, fontFamily: FONTS.body, background: '#fff', cursor: 'pointer', outline: 'none' }}
                           >
                             {IMPORT_FIELDS.map(f => <option key={f.key} value={f.key}>{f.label}{f.required ? ' *' : ''}</option>)}
                           </select>
@@ -492,7 +492,7 @@ function ImportModal({ onClose, createItem }) {
                 </table>
               </div>
               <button onClick={() => { setRows(null); setMapping({}); setError(null); }}
-                style={{ background: 'none', border: `1px solid ${COLORS.bd}`, borderRadius: 6, padding: '6px 14px', fontSize: 12, fontFamily: FONTS.body, color: COLORS.mg, cursor: 'pointer' }}>
+                style={{ background: 'none', border: `1px solid #E5E5E2`, borderRadius: 6, padding: '6px 14px', fontSize: 12, fontFamily: FONTS.body, color: COLORS.mg, cursor: 'pointer' }}>
                 ↩ Upload different file
               </button>
             </>
@@ -500,8 +500,8 @@ function ImportModal({ onClose, createItem }) {
         </div>
 
         {rows && (
-          <div style={{ padding: '14px 24px', borderTop: `1px solid ${COLORS.bd}`, display: 'flex', justifyContent: 'flex-end', gap: 10, flexShrink: 0 }}>
-            <button onClick={onClose} style={{ background: 'none', border: `1px solid ${COLORS.bd}`, borderRadius: 7, padding: '9px 20px', fontFamily: FONTS.body, fontSize: 13, color: '#555', cursor: 'pointer' }}>Cancel</button>
+          <div style={{ padding: '14px 24px', borderTop: `1px solid #E5E5E2`, display: 'flex', justifyContent: 'flex-end', gap: 10, flexShrink: 0 }}>
+            <button onClick={onClose} style={{ background: 'none', border: `1px solid #E5E5E2`, borderRadius: 7, padding: '9px 20px', fontFamily: FONTS.body, fontSize: 13, color: '#555', cursor: 'pointer' }}>Cancel</button>
             <button onClick={handleImport} disabled={importing}
               style={{ background: importing ? '#d4b86a' : GOLD, color: '#fff', border: 'none', borderRadius: 7, padding: '9px 22px', fontFamily: FONTS.heading, fontWeight: 700, fontSize: 13, cursor: importing ? 'not-allowed' : 'pointer' }}>
               {importing ? 'Importing…' : `Import ${rows.length - 1} rows →`}
@@ -787,7 +787,7 @@ export function CostModel({ items, globals, activeItems, totals, updateItem, cre
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   );
 
-  const inpStyle = { width: '100%', border: 'none', borderBottom: `1px solid ${COLORS.bd}`, outline: 'none', background: 'transparent', fontSize: 12, fontFamily: FONTS.body, color: COLORS.dg, padding: '1px 0' };
+  const inpStyle = { width: '100%', border: 'none', borderBottom: `1px solid #E5E5E2`, outline: 'none', background: 'transparent', fontSize: 12, fontFamily: FONTS.body, color: COLORS.dg, padding: '1px 0' };
 
   const openAddItem = (cat) => { setAddingItemCat(cat); setDraft({ unit: 'LS', sensitivity: 'Medium' }); };
   const cancelAddItem = () => { setAddingItemCat(null); setDraft({}); };
@@ -913,7 +913,7 @@ export function CostModel({ items, globals, activeItems, totals, updateItem, cre
   const tbBtn = (onClick, label, active) => (
     <button onClick={onClick} style={{
       background: active ? COLORS.gn : COLORS.wh, color: active ? COLORS.wh : COLORS.dg,
-      border: `1px solid ${COLORS.bd}`, borderRadius: 8, padding: '10px 14px',
+      border: `1px solid #E5E5E2`, borderRadius: 8, padding: '10px 14px',
       fontSize: 11, fontFamily: FONTS.heading, fontWeight: 600, cursor: 'pointer',
       textTransform: 'uppercase', letterSpacing: 0.5, minHeight: 42, whiteSpace: 'nowrap',
     }}>{label}</button>
@@ -930,13 +930,13 @@ export function CostModel({ items, globals, activeItems, totals, updateItem, cre
       {/* Toolbar */}
       <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap', alignItems: 'center' }}>
         <input placeholder="Search..." value={search} onChange={e => setSearch(e.target.value)}
-          style={{ background: COLORS.wh, border: `1px solid ${COLORS.bd}`, borderRadius: 8, color: COLORS.dg, padding: '10px 12px', fontSize: 14, fontFamily: FONTS.body, outline: 'none', flex: mob ? '1 1 100%' : '0 0 200px', minHeight: 42 }} />
+          style={{ background: COLORS.wh, border: `1px solid #E5E5E2`, borderRadius: 8, color: COLORS.dg, padding: '10px 12px', fontSize: 14, fontFamily: FONTS.body, outline: 'none', flex: mob ? '1 1 100%' : '0 0 200px', minHeight: 42 }} />
         <select value={fCat} onChange={e => setFCat(e.target.value)}
-          style={{ background: COLORS.wh, border: `1px solid ${COLORS.bd}`, borderRadius: 8, color: COLORS.dg, padding: '10px', fontSize: 12, fontFamily: FONTS.body, flex: mob ? '1 1 48%' : '0 0 auto', minHeight: 42 }}>
+          style={{ background: COLORS.wh, border: `1px solid #E5E5E2`, borderRadius: 8, color: COLORS.dg, padding: '10px', fontSize: 12, fontFamily: FONTS.body, flex: mob ? '1 1 48%' : '0 0 auto', minHeight: 42 }}>
           <option value="All">All Categories</option>
           {CSI_ORDER.map(c => <option key={c}>{c}</option>)}
         </select>
-        <div style={{ display: 'flex', border: `1px solid ${COLORS.bd}`, borderRadius: 8, overflow: 'hidden', flex: mob ? '1 1 48%' : '0 0 auto' }}>
+        <div style={{ display: 'flex', border: `1px solid #E5E5E2`, borderRadius: 8, overflow: 'hidden', flex: mob ? '1 1 48%' : '0 0 auto' }}>
           {['low', 'mid', 'high'].map(v => (
             <button key={v} onClick={() => setCv(v)} style={{ background: cv === v ? COLORS.gn : COLORS.wh, color: cv === v ? COLORS.wh : COLORS.dg, border: 'none', padding: '10px 14px', fontSize: 11, fontFamily: FONTS.heading, fontWeight: 600, cursor: 'pointer', textTransform: 'uppercase', flex: 1 }}>{v}</button>
           ))}
@@ -950,11 +950,11 @@ export function CostModel({ items, globals, activeItems, totals, updateItem, cre
             {/* Export dropdown */}
             <div ref={exportMenuRef} style={{ position: 'relative' }}>
               <button onClick={() => setExportMenuOpen(v => !v)}
-                style={{ background: COLORS.wh, border: `1px solid ${COLORS.bd}`, borderRadius: 8, padding: '10px 14px', fontSize: 11, fontFamily: FONTS.heading, fontWeight: 600, cursor: 'pointer', minHeight: 42, display: 'flex', alignItems: 'center', gap: 4 }}>
+                style={{ background: COLORS.wh, border: `1px solid #E5E5E2`, borderRadius: 8, padding: '10px 14px', fontSize: 11, fontFamily: FONTS.heading, fontWeight: 600, cursor: 'pointer', minHeight: 42, display: 'flex', alignItems: 'center', gap: 4 }}>
                 Export <span style={{ fontSize: 8 }}>▾</span>
               </button>
               {exportMenuOpen && (
-                <div style={{ position: 'absolute', top: 46, left: 0, background: COLORS.wh, border: `1px solid ${COLORS.bd}`, borderRadius: 8, padding: 4, zIndex: 200, minWidth: 200, boxShadow: '0 4px 16px rgba(0,0,0,.12)' }}>
+                <div style={{ position: 'absolute', top: 46, left: 0, background: COLORS.wh, border: `1px solid #E5E5E2`, borderRadius: 8, padding: 4, zIndex: 200, minWidth: 200, boxShadow: '0 4px 16px rgba(0,0,0,.12)' }}>
                   {[
                     ['📊 Excel (.xlsx)', handleExportExcel],
                     ['📄 CSV', handleExportCSV],
@@ -973,7 +973,7 @@ export function CostModel({ items, globals, activeItems, totals, updateItem, cre
 
             {/* Import button */}
             <button onClick={() => setImportOpen(true)}
-              style={{ background: COLORS.wh, border: `1px solid ${COLORS.bd}`, borderRadius: 8, padding: '10px 14px', fontSize: 11, fontFamily: FONTS.heading, fontWeight: 600, cursor: 'pointer', minHeight: 42 }}>
+              style={{ background: COLORS.wh, border: `1px solid #E5E5E2`, borderRadius: 8, padding: '10px 14px', fontSize: 11, fontFamily: FONTS.heading, fontWeight: 600, cursor: 'pointer', minHeight: 42 }}>
               Import
             </button>
 
@@ -1041,7 +1041,7 @@ export function CostModel({ items, globals, activeItems, totals, updateItem, cre
             const cl = col.has(g.c);
             return (
               <div key={g.c}>
-                <div onClick={() => toggleCol(g.c)} style={{ background: '#FAFAF6', border: `1px solid ${COLORS.bd}`, borderRadius: 10, padding: '12px 14px', display: 'flex', justifyContent: 'space-between', cursor: 'pointer' }}>
+                <div onClick={() => toggleCol(g.c)} style={{ background: '#FAFAF6', border: `1px solid #E5E5E2`, borderRadius: 12, padding: '12px 14px', display: 'flex', justifyContent: 'space-between', cursor: 'pointer' }}>
                   <div>
                     <div style={{ fontWeight: 700, fontSize: 13, fontFamily: FONTS.heading, color: COLORS.gn }}>{g.c.toUpperCase()}</div>
                     <div style={{ fontSize: 11, color: COLORS.mg }}>{g.items.length} items</div>
@@ -1058,7 +1058,7 @@ export function CostModel({ items, globals, activeItems, totals, updateItem, cre
                       const ex = expR === item.id;
                       const hasAI = aiAdvice?.[item.id] || aiLoading?.has(item.id);
                       return (
-                        <div key={item.id} style={{ background: COLORS.wh, border: `1px solid ${ex ? COLORS.yl : hasAI ? `${COLORS.gn}44` : COLORS.bd}`, borderRadius: 10, overflow: 'hidden', borderLeft: item.isAllowance ? '4px dashed #B89030' : undefined }}>
+                        <div key={item.id} style={{ background: COLORS.wh, border: `1px solid ${ex ? COLORS.yl : hasAI ? `${COLORS.gn}44` : COLORS.bd}`, borderRadius: 12, overflow: 'hidden', borderLeft: item.isAllowance ? '4px dashed #B89030' : undefined }}>
                           <div onClick={() => setExpR(ex ? null : item.id)} style={{ padding: '12px 14px', cursor: 'pointer' }}>
                             <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
                               <div style={{ flex: 1, minWidth: 0 }}>
@@ -1087,7 +1087,7 @@ export function CostModel({ items, globals, activeItems, totals, updateItem, cre
       ) : (
         /* Desktop/Tablet: Table layout */
         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragStart={handleDragStart} onDragOver={handleDragOver} onDragEnd={handleDragEnd}>
-          <div style={{ borderRadius: 10, border: `1px solid ${COLORS.bd}`, overflow: 'clip', background: COLORS.wh }}>
+          <div style={{ borderRadius: 12, border: `1px solid #E5E5E2`, overflow: 'clip', background: COLORS.wh }}>
             <div style={{ overflowX: 'auto' }}>
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, fontFamily: FONTS.body, minWidth: 1160 }}>
                 <thead>
@@ -1104,7 +1104,7 @@ export function CostModel({ items, globals, activeItems, totals, updateItem, cre
                       const isFirst = gIdx === 0;
                       const isLast  = gIdx === orderedGroups.length - 1;
                       return [
-                        <tr key={`c_${g.c}`} style={{ background: '#FAFAF6', cursor: 'pointer', borderBottom: `1px solid ${COLORS.bd}` }} onClick={() => toggleCol(g.c)}>
+                        <tr key={`c_${g.c}`} style={{ background: '#FAFAF6', cursor: 'pointer', borderBottom: `1px solid #E5E5E2` }} onClick={() => toggleCol(g.c)}>
                           <td style={{ padding: '8px 4px' }}><span style={{ color: COLORS.gn, fontSize: 9 }}>{cl ? '▶' : '▼'}</span></td>
                           <td colSpan={8} style={{ padding: '8px 8px', fontWeight: 700, fontSize: 12, fontFamily: FONTS.heading, color: COLORS.gn }}>{g.c.toUpperCase()} <span style={{ color: COLORS.mg, fontWeight: 400, fontSize: 10, fontFamily: FONTS.body }}>({g.items.length})</span></td>
                           <td style={{ padding: '8px 8px', textAlign: 'right', fontWeight: 700, fontFamily: FONTS.heading, color: COLORS.gn, fontVariantNumeric: 'tabular-nums' }}>{fmt(g.t[cvk])}</td>
@@ -1131,13 +1131,13 @@ export function CostModel({ items, globals, activeItems, totals, updateItem, cre
                             rowIdx={ii}
                           />,
                           expR === item.id && !isDraggingAny && (
-                            <tr key={`${item.id}_x`} style={{ background: '#F8F8F3', borderBottom: `1px solid ${COLORS.bd}` }}>
+                            <tr key={`${item.id}_x`} style={{ background: '#F8F8F3', borderBottom: `1px solid #E5E5E2` }}>
                               <td colSpan={15}><ItemDetailPanel item={item} updateItem={updateItem} aiAdvice={aiAdvice} aiLoading={aiLoading} askAI={askAI} applyAI={applyAI} mob={mob} /></td>
                             </tr>
                           ),
                         ]) : []),
                         addingItemCat === g.c
-                          ? <tr key={`${g.c}_newr`} style={{ background: `${COLORS.gn}06`, borderBottom: `1px solid ${COLORS.bd}` }}>
+                          ? <tr key={`${g.c}_newr`} style={{ background: `${COLORS.gn}06`, borderBottom: `1px solid #E5E5E2` }}>
                               <td style={{ padding: '4px 4px' }} />
                               <td style={{ padding: '4px 8px' }}><input autoFocus placeholder="Description…" value={draft.description || ''} onChange={e => setDraft(p => ({ ...p, description: e.target.value }))} onKeyDown={e => e.key === 'Enter' && handleSaveNewItem()} style={inpStyle} /></td>
                               <td style={{ padding: '4px 8px' }}><input placeholder="Subcategory" value={draft.subcategory || ''} onChange={e => setDraft(p => ({ ...p, subcategory: e.target.value }))} style={inpStyle} /></td>
@@ -1161,7 +1161,7 @@ export function CostModel({ items, globals, activeItems, totals, updateItem, cre
                                 <button onClick={cancelAddItem} style={{ background: 'none', border: 'none', cursor: 'pointer', color: COLORS.mg, fontSize: 13, padding: '0 2px' }}>✕</button>
                               </td>
                             </tr>
-                          : <tr key={`${g.c}_addtrig`} onClick={() => openAddItem(g.c)} style={{ cursor: 'pointer', borderBottom: `1px solid ${COLORS.bl}` }}>
+                          : <tr key={`${g.c}_addtrig`} onClick={() => openAddItem(g.c)} style={{ cursor: 'pointer', borderBottom: `1px solid #E5E5E2` }}>
                               <td colSpan={15} style={{ padding: '5px 8px 5px 28px', fontSize: 11, color: COLORS.mg, fontFamily: FONTS.body, userSelect: 'none' }}>+ Add item</td>
                             </tr>,
                       ];
@@ -1169,11 +1169,11 @@ export function CostModel({ items, globals, activeItems, totals, updateItem, cre
                   </SortableContext>
 
                   {addingItemCat && !groups.some(g => g.c === addingItemCat) && [
-                    <tr key="newcat_hdr" style={{ background: '#FAFAF6', borderBottom: `1px solid ${COLORS.bd}` }}>
+                    <tr key="newcat_hdr" style={{ background: '#FAFAF6', borderBottom: `1px solid #E5E5E2` }}>
                       <td style={{ padding: '8px 4px' }}><span style={{ color: COLORS.gn, fontSize: 9 }}>▼</span></td>
                       <td colSpan={14} style={{ padding: '8px 8px', fontWeight: 700, fontSize: 12, fontFamily: FONTS.heading, color: COLORS.gn }}>{addingItemCat.toUpperCase()} <span style={{ color: COLORS.mg, fontWeight: 400, fontSize: 10, fontFamily: FONTS.body }}>(new)</span></td>
                     </tr>,
-                    <tr key="newcat_newr" style={{ background: `${COLORS.gn}06`, borderBottom: `1px solid ${COLORS.bd}` }}>
+                    <tr key="newcat_newr" style={{ background: `${COLORS.gn}06`, borderBottom: `1px solid #E5E5E2` }}>
                       <td style={{ padding: '4px 4px' }} />
                       <td style={{ padding: '4px 8px' }}><input autoFocus placeholder="Description…" value={draft.description || ''} onChange={e => setDraft(p => ({ ...p, description: e.target.value }))} onKeyDown={e => e.key === 'Enter' && handleSaveNewItem()} style={inpStyle} /></td>
                       <td style={{ padding: '4px 8px' }}><input placeholder="Subcategory" value={draft.subcategory || ''} onChange={e => setDraft(p => ({ ...p, subcategory: e.target.value }))} style={inpStyle} /></td>
@@ -1200,10 +1200,10 @@ export function CostModel({ items, globals, activeItems, totals, updateItem, cre
                   ]}
 
                   <tr>
-                    <td colSpan={15} style={{ padding: '10px 16px', borderTop: `1px solid ${COLORS.bd}` }}>
+                    <td colSpan={15} style={{ padding: '10px 16px', borderTop: `1px solid #E5E5E2` }}>
                       {addingCat
                         ? <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                            <input autoFocus placeholder="Category name…" value={newCatName} onChange={e => setNewCatName(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') handleAddCategory(); if (e.key === 'Escape') { setAddingCat(false); setNewCatName(''); } }} style={{ border: `1px solid ${COLORS.bd}`, borderRadius: 6, padding: '5px 10px', fontSize: 12, fontFamily: FONTS.body, outline: 'none', color: COLORS.dg, width: 220 }} />
+                            <input autoFocus placeholder="Category name…" value={newCatName} onChange={e => setNewCatName(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') handleAddCategory(); if (e.key === 'Escape') { setAddingCat(false); setNewCatName(''); } }} style={{ border: `1px solid #E5E5E2`, borderRadius: 6, padding: '5px 10px', fontSize: 12, fontFamily: FONTS.body, outline: 'none', color: COLORS.dg, width: 220 }} />
                             <button onClick={handleAddCategory} style={{ background: COLORS.gn, color: '#fff', border: 'none', borderRadius: 6, padding: '5px 12px', fontSize: 11, fontFamily: FONTS.heading, fontWeight: 600, cursor: 'pointer' }}>Add</button>
                             <button onClick={() => { setAddingCat(false); setNewCatName(''); }} style={{ background: 'none', border: 'none', color: COLORS.mg, cursor: 'pointer', fontSize: 13 }}>✕</button>
                           </span>
@@ -1278,7 +1278,7 @@ export function CostModel({ items, globals, activeItems, totals, updateItem, cre
 
       {/* Undo toast */}
       {undoToast && (
-        <div style={{ position: 'fixed', bottom: 72, left: '50%', transform: 'translateX(-50%)', background: '#222', color: '#fff', borderRadius: 10, padding: '12px 18px', display: 'flex', alignItems: 'center', gap: 14, boxShadow: '0 4px 20px rgba(0,0,0,0.3)', zIndex: 2000, fontFamily: FONTS.body, fontSize: 13, whiteSpace: 'nowrap' }}>
+        <div style={{ position: 'fixed', bottom: 72, left: '50%', transform: 'translateX(-50%)', background: '#222', color: '#fff', borderRadius: 12, padding: '12px 18px', display: 'flex', alignItems: 'center', gap: 14, boxShadow: '0 4px 20px rgba(0,0,0,0.3)', zIndex: 2000, fontFamily: FONTS.body, fontSize: 13, whiteSpace: 'nowrap' }}>
           <span>Line item deleted</span>
           <button onClick={handleUndo} style={{ background: COLORS.gn, color: '#fff', border: 'none', borderRadius: 6, padding: '5px 14px', fontFamily: FONTS.heading, fontWeight: 700, fontSize: 12, cursor: 'pointer' }}>Undo</button>
         </div>
@@ -1294,7 +1294,7 @@ export function CostModel({ items, globals, activeItems, totals, updateItem, cre
               Assign to <span style={{ fontSize: 9 }}>▾</span>
             </button>
             {bulkAssignMenuOpen && (
-              <div style={{ position: 'absolute', bottom: 40, left: 0, background: COLORS.wh, border: `1px solid ${COLORS.bd}`, borderRadius: 8, padding: 4, zIndex: 300, minWidth: 170, boxShadow: '0 4px 16px rgba(0,0,0,.15)' }}>
+              <div style={{ position: 'absolute', bottom: 40, left: 0, background: COLORS.wh, border: `1px solid #E5E5E2`, borderRadius: 8, padding: 4, zIndex: 300, minWidth: 170, boxShadow: '0 4px 16px rgba(0,0,0,.15)' }}>
                 {(teamMembers || []).map(m => (
                   <button key={m.user_id} onClick={() => handleBulkAssign(m.user_id)}
                     style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', textAlign: 'left', background: 'transparent', border: 'none', padding: '6px 10px', fontSize: 12, fontFamily: FONTS.body, cursor: 'pointer', color: COLORS.dg, borderRadius: 4 }}>
@@ -1303,7 +1303,7 @@ export function CostModel({ items, globals, activeItems, totals, updateItem, cre
                   </button>
                 ))}
                 <button onClick={() => handleBulkAssign(null)}
-                  style={{ display: 'block', width: '100%', textAlign: 'left', background: 'transparent', border: 'none', padding: '6px 10px', fontSize: 11, fontFamily: FONTS.body, cursor: 'pointer', color: COLORS.mg, borderRadius: 4, borderTop: `1px solid ${COLORS.bl}`, marginTop: 3 }}>
+                  style={{ display: 'block', width: '100%', textAlign: 'left', background: 'transparent', border: 'none', padding: '6px 10px', fontSize: 11, fontFamily: FONTS.body, cursor: 'pointer', color: COLORS.mg, borderRadius: 4, borderTop: `1px solid #E5E5E2`, marginTop: 3 }}>
                   Unassign
                 </button>
               </div>
@@ -1322,16 +1322,16 @@ export function CostModel({ items, globals, activeItems, totals, updateItem, cre
           position: 'fixed',
           left: Math.min(moveMenu.x, window.innerWidth - 210),
           top: Math.min(moveMenu.y, window.innerHeight - 40 - (tableEdit ? 4 : groups.length) * 34),
-          background: '#fff', border: `1px solid ${COLORS.bd}`, borderRadius: 8,
+          background: '#fff', border: `1px solid #E5E5E2`, borderRadius: 8,
           boxShadow: '0 4px 16px rgba(0,0,0,0.15)', zIndex: 1000, minWidth: 190, padding: 4,
         }}>
           {tableEdit ? (
             <>
               <MenuItemRow onClick={() => handleInsertItem(moveMenu.itemId, 'above')}>↑ Insert Above</MenuItemRow>
               <MenuItemRow onClick={() => handleInsertItem(moveMenu.itemId, 'below')}>↓ Insert Below</MenuItemRow>
-              <div style={{ borderTop: `1px solid ${COLORS.bl}`, margin: '4px 0' }} />
+              <div style={{ borderTop: `1px solid #E5E5E2`, margin: '4px 0' }} />
               <MenuItemRow onClick={() => handleDuplicateItem(moveMenu.itemId)}>⧉ Duplicate</MenuItemRow>
-              <div style={{ borderTop: `1px solid ${COLORS.bl}`, margin: '4px 0' }} />
+              <div style={{ borderTop: `1px solid #E5E5E2`, margin: '4px 0' }} />
               <MenuItemRow onClick={() => { handleDeleteItem(flatItems.find(i => i.id === moveMenu.itemId)); setMoveMenu(null); }} danger>🗑 Delete</MenuItemRow>
             </>
           ) : (
@@ -1370,7 +1370,7 @@ function MenuItemRow({ onClick, children, danger }) {
 function AssumptionsPanel({ globals, totals, updateGlobal, bsf, scenarioName, activeItems }) {
   const [open, setOpen] = useState(false);
   return (
-    <div style={{ marginBottom: 12, border: `1px solid ${COLORS.bd}`, borderRadius: 10, background: COLORS.wh, overflow: 'hidden' }}>
+    <div style={{ marginBottom: 12, border: `1px solid #E5E5E2`, borderRadius: 12, background: COLORS.wh, overflow: 'hidden' }}>
       <button
         onClick={() => setOpen(v => !v)}
         style={{
@@ -1379,7 +1379,7 @@ function AssumptionsPanel({ globals, totals, updateGlobal, bsf, scenarioName, ac
           border: 'none', cursor: 'pointer',
           fontFamily: FONTS.heading, fontWeight: 700, fontSize: 11,
           color: COLORS.dg, textTransform: 'uppercase', letterSpacing: 1,
-          borderBottom: open ? `1px solid ${COLORS.bd}` : 'none',
+          borderBottom: open ? `1px solid #E5E5E2` : 'none',
         }}
       >
         <span>Assumptions & Globals</span>

@@ -389,7 +389,7 @@ function FormStep({ project, onGenerate, onSkip }) {
 
         {/* Project context bar */}
         <div style={{
-          background: '#fff', border: '1px solid #e6e6e2', borderRadius: 10,
+          background: '#fff', border: '1px solid #e6e6e2', borderRadius: 12,
           padding: '14px 18px', marginBottom: 28,
           display: 'flex', flexWrap: 'wrap', gap: '6px 16px', alignItems: 'center',
         }}>
@@ -761,7 +761,7 @@ function FormSection({ title, subtitle, open, onToggle, children }) {
         transition: 'max-height 0.35s ease',
       }}>
         <div style={{
-          background: '#fff', border: '1px solid #e6e6e2', borderRadius: 10,
+          background: '#fff', border: '1px solid #e6e6e2', borderRadius: 12,
           padding: '20px 20px',
         }}>
           {children}
@@ -976,7 +976,7 @@ function CategorySection({ cat, catItems, subtotal, collapsed, onToggle, updateI
           </span>
           <span style={{
             fontFamily: "'Figtree', sans-serif", fontSize: 11, color: '#888',
-            background: '#e8e8e4', borderRadius: 10, padding: '1px 7px',
+            background: '#e8e8e4', borderRadius: 12, padding: '1px 7px',
           }}>
             {catItems.length}
           </span>

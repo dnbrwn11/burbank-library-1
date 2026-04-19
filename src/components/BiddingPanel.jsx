@@ -2,10 +2,11 @@ import { useState, useEffect } from 'react';
 import { supabase } from '../supabase/supabaseClient';
 import { getBidPackages, getBidInvitations, getBidSubmissions } from '../supabase/db';
 import { analytics } from '../analytics';
+import { Skeleton } from './ui';
 
 const ACCENT = '#B89030';
 const HEADER_BG = '#222222';
-const BORDER = '#E5E5E0';
+const BORDER = '#E5E5E2';
 const BG = '#F9F9F8';
 
 function fmt(n) {
@@ -22,21 +23,22 @@ function fmtDate(d) {
 }
 
 function StatusBadge({ status }) {
+  // Aligned with BADGE_STYLES tokens — consistent palette across the app
   const colors = {
-    active:    { bg: '#f0fdf4', fg: '#166534', border: '#bbf7d0' },
-    draft:     { bg: '#fafafa', fg: '#666',    border: '#e5e5e0' },
-    closed:    { bg: '#fef2f2', fg: '#991b1b', border: '#fca5a5' },
-    pending:   { bg: '#fffbeb', fg: '#92400e', border: '#fde68a' },
-    submitted: { bg: '#eff6ff', fg: '#1e40af', border: '#bfdbfe' },
-    declined:  { bg: '#fef2f2', fg: '#991b1b', border: '#fca5a5' },
+    active:    { bg: '#EAF3DE', fg: '#27500A' },
+    draft:     { bg: '#F3F3F1', fg: '#888888' },
+    closed:    { bg: '#FCEBEB', fg: '#791F1F' },
+    pending:   { bg: '#FAEEDA', fg: '#633806' },
+    submitted: { bg: '#E1EBF5', fg: '#1E3A5F' },
+    declined:  { bg: '#FCEBEB', fg: '#791F1F' },
   };
   const c = colors[status] || colors.draft;
   return (
     <span style={{
-      fontSize: 10, fontWeight: 700, letterSpacing: 0.7, textTransform: 'uppercase',
-      padding: '2px 8px', borderRadius: 4,
-      background: c.bg, color: c.fg, border: `1px solid ${c.border}`,
-      flexShrink: 0,
+      fontSize: 11, fontWeight: 500, padding: '3px 8px',
+      borderRadius: 4, fontFamily: "'Figtree', sans-serif",
+      background: c.bg, color: c.fg,
+      flexShrink: 0, whiteSpace: 'nowrap', textTransform: 'capitalize',
     }}>
       {status}
     </span>
@@ -292,8 +294,8 @@ export default function BiddingPanel({ project, user, totals, createItem, canEdi
         )}
 
         {loadingDetail && (
-          <div style={{ padding: 32, textAlign: 'center', fontFamily: "'Figtree', sans-serif", color: '#aaa', fontSize: 13 }}>
-            Loading…
+          <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {[1,2,3].map(n => <Skeleton key={n} height={40} />)}
           </div>
         )}
 
@@ -301,7 +303,7 @@ export default function BiddingPanel({ project, user, totals, createItem, canEdi
         {!loadingDetail && detailTab === 'invitations' && (
           <div>
             {invitations.length === 0 ? (
-              <div style={{ textAlign: 'center', padding: '40px 24px', background: '#fff', border: `1.5px dashed ${BORDER}`, borderRadius: 10, marginBottom: 24 }}>
+              <div style={{ textAlign: 'center', padding: '40px 24px', background: '#fff', border: `1.5px dashed ${BORDER}`, borderRadius: 12, marginBottom: 24 }}>
                 <div style={{ fontSize: 28, marginBottom: 10 }}>📬</div>
                 <div style={{ fontFamily: "'Archivo', sans-serif", fontWeight: 700, fontSize: 15, color: '#444', marginBottom: 6 }}>No invitations sent yet</div>
                 <div style={{ fontFamily: "'Figtree', sans-serif", fontSize: 13, color: '#aaa' }}>
@@ -309,7 +311,7 @@ export default function BiddingPanel({ project, user, totals, createItem, canEdi
                 </div>
               </div>
             ) : (
-              <div style={{ background: '#fff', border: `1px solid ${BORDER}`, borderRadius: 10, overflow: 'hidden', marginBottom: 24 }}>
+              <div style={{ background: '#fff', border: `1px solid ${BORDER}`, borderRadius: 12, overflow: 'hidden', marginBottom: 24 }}>
                 <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, fontFamily: "'Figtree', sans-serif" }}>
                   <thead>
                     <tr style={{ background: '#F9F9F8', borderBottom: `2px solid ${BORDER}` }}>
@@ -348,7 +350,7 @@ export default function BiddingPanel({ project, user, totals, createItem, canEdi
 
             {/* Invite form */}
             {canEdit && (
-              <div style={{ background: '#fff', border: `1px solid ${BORDER}`, borderRadius: 10, padding: 20 }}>
+              <div style={{ background: '#fff', border: `1px solid ${BORDER}`, borderRadius: 12, padding: 20 }}>
                 <div style={{ fontFamily: "'Archivo', sans-serif", fontWeight: 700, fontSize: 12, letterSpacing: 1, color: '#555', textTransform: 'uppercase', marginBottom: 14 }}>
                   Invite Subcontractor
                 </div>
@@ -416,7 +418,7 @@ export default function BiddingPanel({ project, user, totals, createItem, canEdi
         {!loadingDetail && detailTab === 'submissions' && (
           <div>
             {submissions.length === 0 ? (
-              <div style={{ textAlign: 'center', padding: '40px 24px', background: '#fff', border: `1.5px dashed ${BORDER}`, borderRadius: 10 }}>
+              <div style={{ textAlign: 'center', padding: '40px 24px', background: '#fff', border: `1.5px dashed ${BORDER}`, borderRadius: 12 }}>
                 <div style={{ fontSize: 28, marginBottom: 10 }}>📋</div>
                 <div style={{ fontFamily: "'Archivo', sans-serif", fontWeight: 700, fontSize: 15, color: '#444', marginBottom: 6 }}>No bids received yet</div>
                 <div style={{ fontFamily: "'Figtree', sans-serif", fontSize: 13, color: '#aaa' }}>
@@ -424,7 +426,7 @@ export default function BiddingPanel({ project, user, totals, createItem, canEdi
                 </div>
               </div>
             ) : (
-              <div style={{ background: '#fff', border: `1px solid ${BORDER}`, borderRadius: 10, overflow: mob ? 'auto' : 'visible' }}>
+              <div style={{ background: '#fff', border: `1px solid ${BORDER}`, borderRadius: 12, overflow: mob ? 'auto' : 'visible' }}>
                 <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, fontFamily: "'Figtree', sans-serif", minWidth: 700 }}>
                   <thead>
                     <tr style={{ background: '#F9F9F8', borderBottom: `2px solid ${BORDER}` }}>
@@ -625,8 +627,8 @@ export default function BiddingPanel({ project, user, totals, createItem, canEdi
 
       {/* Package list */}
       {loading ? (
-        <div style={{ textAlign: 'center', padding: 48, fontFamily: "'Figtree', sans-serif", color: '#aaa', fontSize: 13 }}>
-          Loading…
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {[1,2,3].map(n => <Skeleton key={n} height={56} radius={12} />)}
         </div>
       ) : packages.length === 0 && !showNewPkgForm ? (
         <div style={{ textAlign: 'center', padding: '56px 24px', background: '#fff', border: `1.5px dashed ${BORDER}`, borderRadius: 12 }}>
@@ -667,7 +669,7 @@ function PackageCard({ pkg, onOpen }) {
       style={{
         background: '#fff',
         border: `1px solid ${hovered ? ACCENT : BORDER}`,
-        borderRadius: 10, padding: '18px 22px',
+        borderRadius: 12, padding: '18px 22px',
         textAlign: 'left', cursor: 'pointer',
         display: 'flex', justifyContent: 'space-between', alignItems: 'center',
         width: '100%', boxShadow: hovered ? '0 2px 12px rgba(184,144,48,0.1)' : '0 1px 4px rgba(0,0,0,0.04)',

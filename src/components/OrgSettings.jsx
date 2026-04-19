@@ -60,7 +60,7 @@ export function OrgMenu({ org, user, onOrgSettings, onSignOut, onBack, onClose }
       <div style={{
         position: 'absolute', right: 0, top: 42,
         background: '#fff', border: '1px solid #e5e5e0',
-        borderRadius: 10, padding: '6px 0', zIndex: 100,
+        borderRadius: 12, padding: '6px 0', zIndex: 100,
         minWidth: 230, boxShadow: '0 8px 32px rgba(0,0,0,0.18)',
       }}>
         {/* Org + user info header */}

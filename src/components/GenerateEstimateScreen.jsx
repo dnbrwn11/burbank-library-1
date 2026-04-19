@@ -4,7 +4,7 @@ import { PROJECT_TEMPLATES, findTemplateForBuildingType, templateDescription, te
 
 const ACCENT  = '#B89030';
 const HEADER  = '#222222';
-const BORDER  = '#E5E5E0';
+const BORDER  = '#E5E5E2';
 const BG      = '#F9F9F8';
 
 // ── Building-type SVG icon ────────────────────────────────────────────────────
@@ -156,7 +156,7 @@ function ProgressOverlay({ progress, onCancel }) {
         <div style={{ fontFamily: "'Figtree', sans-serif", fontSize: 13, color: '#888', marginBottom: 18, minHeight: 20 }}>
           {progress.batchName || (pct === 0 ? 'Planning…' : 'Generating sections in parallel…')}
         </div>
-        <div style={{ background: '#f0f0ee', borderRadius: 10, height: 10, overflow: 'hidden', marginBottom: 14 }}>
+        <div style={{ background: '#f0f0ee', borderRadius: 12, height: 10, overflow: 'hidden', marginBottom: 14 }}>
           <div style={{ background: ACCENT, height: '100%', width: `${pct}%`, transition: 'width 0.3s' }} />
         </div>
         <button

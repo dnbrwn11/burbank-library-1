@@ -12,7 +12,7 @@ import { supabase } from '../supabase/supabaseClient';
 import { COLORS, FONTS } from '../data/constants';
 
 const ACCENT = '#B89030';
-const BORDER = '#E5E5E0';
+const BORDER = '#E5E5E2';
 const BG = '#F9F9F8';
 
 const SECTIONS = [
@@ -156,7 +156,7 @@ function NoteSection({ section, notes, canEdit, onAdd, onUpdate, onDelete, onReo
   return (
     <div style={{
       background: '#fff', border: `1px solid ${BORDER}`,
-      borderRadius: 10, marginBottom: 14, overflow: 'hidden',
+      borderRadius: 12, marginBottom: 14, overflow: 'hidden',
     }}>
       {/* Section header */}
       <div
@@ -178,7 +178,7 @@ function NoteSection({ section, notes, canEdit, onAdd, onUpdate, onDelete, onReo
           </span>
           <span style={{
             fontSize: 11, fontFamily: FONTS.body, color: '#888',
-            background: '#f0f0ee', borderRadius: 10, padding: '1px 8px',
+            background: '#f0f0ee', borderRadius: 12, padding: '1px 8px',
           }}>
             {notes.length}
           </span>
