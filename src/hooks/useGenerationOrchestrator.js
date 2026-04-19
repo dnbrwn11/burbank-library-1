@@ -15,10 +15,11 @@ export function useGenerationOrchestrator({
 }) {
   const { generate, retryChunk, progress, isGenerating } = useGenerateEstimate();
 
-  const [status, setStatus]       = useState('idle'); // 'idle'|'generating'|'partial'|'complete'|'error'
-  const [itemCount, setItemCount] = useState(0);
+  const [status, setStatus]           = useState('idle'); // 'idle'|'generating'|'partial'|'complete'|'error'
+  const [itemCount, setItemCount]     = useState(0);
   const [failedChunks, setFailedChunks] = useState([]);
-  const [errorMsg, setErrorMsg]   = useState(null);
+  const [errorMsg, setErrorMsg]       = useState(null);
+  const [sanityWarning, setSanityWarning] = useState(null); // from post-generation budget check
 
   const startedRef       = useRef(false);
   const descriptionRef   = useRef(null);
@@ -65,7 +66,7 @@ export function useGenerationOrchestrator({
 
     (async () => {
       try {
-        const { globals, ai_assumptions, failedChunks: fc } = await generate(
+        const { globals, ai_assumptions, failedChunks: fc, sanityCheck } = await generate(
           genParams.description,
           genParams.projectCtx,
           {
@@ -94,6 +95,7 @@ export function useGenerationOrchestrator({
         }
 
         setFailedChunks(fc || []);
+        setSanityWarning(sanityCheck || null);
         const nextStatus = (fc?.length) ? 'partial' : 'complete';
         setStatus(nextStatus);
 
@@ -136,11 +138,12 @@ export function useGenerationOrchestrator({
   }, [failedChunks, retryChunk, saveChunk, onClear]);
 
   return {
-    status,           // 'idle'|'generating'|'partial'|'complete'|'error'
-    progress,         // { batch, totalBatches, batchName } from useGenerateEstimate
+    status,
+    progress,
     itemCount,
     failedChunks,
     errorMsg,
+    sanityWarning,
     isGenerating,
     handleRetry,
   };

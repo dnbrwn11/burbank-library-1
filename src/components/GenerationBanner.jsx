@@ -2,7 +2,7 @@ import { FONTS } from '../data/constants';
 
 const ACCENT = '#B89030';
 
-export default function GenerationBanner({ status, progress, itemCount, failedChunks = [], errorMsg, onRetry }) {
+export default function GenerationBanner({ status, progress, itemCount, failedChunks = [], errorMsg, sanityWarning, onRetry }) {
   if (status === 'idle') return null;
 
   const pct = (progress.totalBatches > 0)
@@ -112,6 +112,20 @@ export default function GenerationBanner({ status, progress, itemCount, failedCh
           </span>
         )}
       </div>
+
+      {/* Sanity warning — shown when estimate significantly exceeds budget */}
+      {sanityWarning && sanityWarning.type === 'over_budget' && (
+        <div style={{
+          background: '#FEF2F2', borderTop: '1px solid #FECACA',
+          padding: '8px 20px',
+          display: 'flex', alignItems: 'flex-start', gap: 8, flexWrap: 'wrap',
+        }}>
+          <span style={{ color: '#CC4444', fontSize: 14, flexShrink: 0, marginTop: 1 }}>⚠</span>
+          <span style={{ fontFamily: FONTS.body, fontSize: 12, color: '#7F1D1D', lineHeight: 1.5 }}>
+            {sanityWarning.message}
+          </span>
+        </div>
+      )}
     </div>
   );
 }

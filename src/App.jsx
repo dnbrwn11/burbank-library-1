@@ -613,13 +613,14 @@ function CostModelApp({ user, project, onBack, onSignOut, onProjectUpdate, genPa
   }, []);
 
   const {
-    status:       genStatus,
-    progress:     genProgress,
-    itemCount:    genItemCount,
-    failedChunks: genFailedChunks,
-    errorMsg:     genErrorMsg,
-    isGenerating: genRunning,
-    handleRetry:  genRetry,
+    status:        genStatus,
+    progress:      genProgress,
+    itemCount:     genItemCount,
+    failedChunks:  genFailedChunks,
+    errorMsg:      genErrorMsg,
+    sanityWarning: genSanityWarning,
+    isGenerating:  genRunning,
+    handleRetry:   genRetry,
   } = useGenerationOrchestrator({
     genParams,
     activeScenarioId: active?.id,
@@ -905,6 +906,7 @@ function CostModelApp({ user, project, onBack, onSignOut, onProjectUpdate, genPa
         itemCount={genItemCount}
         failedChunks={genFailedChunks}
         errorMsg={genErrorMsg}
+        sanityWarning={genSanityWarning}
         onRetry={genRetry}
       />
 
