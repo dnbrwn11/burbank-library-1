@@ -398,6 +398,21 @@ export function useProjectData(projectId) {
     ?? scenarios[0]
     ?? { id: null, name: '', items: [], globals: { ...DEFAULT_GLOBALS } };
 
+  // Merge Supabase-format rows into the active scenario's items list.
+  // Used by the generation orchestrator to add items as each chunk saves.
+  const injectItems = useCallback((savedRows) => {
+    const converted = (savedRows || []).map(rowToItem);
+    if (!converted.length) return;
+    setScenarios(prev => prev.map(s => {
+      if (s.id !== activeId) return s;
+      const existingIds = new Set(s.items.map(i => i.id));
+      const toAdd = converted.filter(i => !existingIds.has(i.id));
+      if (!toAdd.length) return s;
+      const merged = [...s.items, ...toAdd].sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
+      return { ...s, items: merged };
+    }));
+  }, [activeId]);
+
   return {
     scenarios,
     active,
@@ -417,5 +432,6 @@ export function useProjectData(projectId) {
     updateGlobal,
     addScenario,
     deleteScenario,
+    injectItems,
   };
 }

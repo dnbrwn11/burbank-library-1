@@ -29,6 +29,8 @@ import { TradesPanel } from './components/TradesPanel';
 import ScopeNotes from './components/ScopeNotes';
 import AlternatesPanel from './components/AlternatesPanel';
 import VELog from './components/VELog';
+import GenerationBanner from './components/GenerationBanner';
+import { useGenerationOrchestrator } from './hooks/useGenerationOrchestrator';
 import { supabase } from './supabase/supabaseClient';
 import { getProjectMembers, getProjectMemberRole } from './supabase/db';
 import { analytics, initCrisp, identifyUser, identifyCrispUser, resetAnalyticsUser } from './analytics';
@@ -78,6 +80,7 @@ export default function App() {
   };
   const [activeProject, setActiveProject] = useState(null);
   const [generatingProject, setGeneratingProject] = useState(null);
+  const [genParams, setGenParams] = useState(null); // { description, projectCtx }
 
   // Bid submission token — checked before invite tokens
   const [bidToken] = useState(() => {
@@ -210,6 +213,12 @@ export default function App() {
         onSave={() => { setActiveProject(generatingProject); setGeneratingProject(null); }}
         onGoHome={() => setGeneratingProject(null)}
         onSignOut={handleSignOut}
+        onStartGeneration={(description, projectCtx) => {
+          // Navigate to cost model immediately — generation runs inside CostModelApp
+          setGenParams({ description, projectCtx });
+          setActiveProject(generatingProject);
+          setGeneratingProject(null);
+        }}
       />
     );
   }
@@ -235,6 +244,8 @@ export default function App() {
       onBack={() => setActiveProject(null)}
       onSignOut={handleSignOut}
       onProjectUpdate={(updates) => setActiveProject(p => ({ ...p, ...updates }))}
+      genParams={genParams}
+      onGenParamsClear={() => setGenParams(null)}
     />
   );
 }
@@ -245,7 +256,11 @@ export default function App() {
 if (typeof document !== 'undefined' && !document.getElementById('cd-shimmer')) {
   const s = document.createElement('style');
   s.id = 'cd-shimmer';
-  s.textContent = '@keyframes cd-shimmer{0%{background-position:-200% 0}100%{background-position:200% 0}}';
+  s.textContent = [
+    '@keyframes cd-shimmer{0%{background-position:-200% 0}100%{background-position:200% 0}}',
+    '@keyframes cd-fade-in{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:translateY(0)}}',
+    '@keyframes cd-spin{to{transform:rotate(360deg)}}',
+  ].join('');
   document.head.appendChild(s);
 }
 
@@ -570,7 +585,7 @@ function InviteAcceptScreen({ inviteData, user, inviteStatus, inviteError, onSig
 
 // ─── Cost model app ──────────────────────────────────────────────────────────
 
-function CostModelApp({ user, project, onBack, onSignOut, onProjectUpdate }) {
+function CostModelApp({ user, project, onBack, onSignOut, onProjectUpdate, genParams, onGenParamsClear }) {
   const { mob } = useWindowSize();
   const {
     scenarios, active, activeId, setActiveId,
@@ -578,7 +593,38 @@ function CostModelApp({ user, project, onBack, onSignOut, onProjectUpdate }) {
     saveError, setSaveError,
     savePending, lastSaved,
     updateItem, createItem, reorderItems, updateGlobal, addScenario, deleteScenario,
+    injectItems,
   } = useProjectData(project.id);
+
+  // ── Generation orchestrator ────────────────────────────────────────────────
+  const [newItemIds, setNewItemIds] = useState(new Set());
+
+  const handleNewIds = useCallback((ids) => {
+    if (!ids?.size) return;
+    setNewItemIds(prev => new Set([...prev, ...ids]));
+    setTimeout(() => setNewItemIds(prev => {
+      const next = new Set(prev);
+      ids.forEach(id => next.delete(id));
+      return next;
+    }), 600);
+  }, []);
+
+  const {
+    status:       genStatus,
+    progress:     genProgress,
+    itemCount:    genItemCount,
+    failedChunks: genFailedChunks,
+    errorMsg:     genErrorMsg,
+    isGenerating: genRunning,
+    handleRetry:  genRetry,
+  } = useGenerationOrchestrator({
+    genParams,
+    activeScenarioId: active?.id,
+    scenarioGlobals:  active?.globals,
+    injectItems,
+    onNewIds:   handleNewIds,
+    onClear:    onGenParamsClear,
+  });
 
   // Undo ref — CostModel registers its undo handler here
   const undoFnRef = useRef(null);
@@ -704,6 +750,8 @@ function CostModelApp({ user, project, onBack, onSignOut, onProjectUpdate }) {
     aiAdvice, aiLoading, askAI, applyAI, canEdit,
     project, scenarioName: active.name,
     teamMembers, user,
+    newItemIds,       // Set<id> for fade-in animation on newly generated rows
+    isGenerating: genRunning,
   };
 
   const tabs = [
@@ -936,6 +984,16 @@ function CostModelApp({ user, project, onBack, onSignOut, onProjectUpdate }) {
           </div>
         </div>
       </div>
+
+      {/* Generation banner */}
+      <GenerationBanner
+        status={genStatus}
+        progress={genProgress}
+        itemCount={genItemCount}
+        failedChunks={genFailedChunks}
+        errorMsg={genErrorMsg}
+        onRetry={genRetry}
+      />
 
       {/* Nav */}
       <div style={{ background: COLORS.wh, borderBottom: `1px solid ${COLORS.bd}`, display: 'flex', overflowX: 'auto', WebkitOverflowScrolling: 'touch', paddingLeft: mob ? 8 : 20 }}>

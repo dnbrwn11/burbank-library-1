@@ -119,6 +119,7 @@ function SortableItemRow({
   openMoveMenu, overId, isDraggingAny, canEdit,
   tableEdit, activeCell, onActivateCell, onCellChange, onNavCell, cellValues,
   auditStatus, teamMembers, onAssignItem, selected, onToggleSelect, bulkMode,
+  isNew,
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: item.id });
   const [assignOpen, setAssignOpen] = useState(false);
@@ -156,6 +157,7 @@ function SortableItemRow({
     borderBottom: `1px solid ${COLORS.bl}`,
     position: 'relative',
     boxShadow: item.isAllowance ? 'inset 4px 0 0 #B89030' : undefined,
+    animation: isNew ? 'cd-fade-in 0.3s ease-out' : undefined,
   };
 
   const uI = (f) => (v) => updateItem(item.id, f, v);
@@ -507,7 +509,7 @@ function ImportModal({ onClose, createItem }) {
 
 // ── Main component ────────────────────────────────────────────────────────────
 
-export function CostModel({ items, globals, activeItems, totals, updateItem, createItem, reorderItems, bsf, aiAdvice, aiLoading, askAI, applyAI, registerUndo, canEdit, project, scenarioName, teamMembers = [], user }) {
+export function CostModel({ items, globals, activeItems, totals, updateItem, createItem, reorderItems, bsf, aiAdvice, aiLoading, askAI, applyAI, registerUndo, canEdit, project, scenarioName, teamMembers = [], user, newItemIds, isGenerating }) {
   const { mob } = useWindowSize();
   const [search, setSearch] = useState('');
   const [fCat, setFCat] = useState('All');
@@ -1098,6 +1100,7 @@ export function CostModel({ items, globals, activeItems, totals, updateItem, cre
                             auditStatus={auditResults[item.id]}
                             teamMembers={teamMembers} onAssignItem={handleAssignItem}
                             selected={selectedItems.has(item.id)} onToggleSelect={toggleSelectItem} bulkMode={bulkMode}
+                            isNew={newItemIds?.has(item.id)}
                           />,
                           expR === item.id && !isDraggingAny && (
                             <tr key={`${item.id}_x`} style={{ background: '#F8F8F3', borderBottom: `1px solid ${COLORS.bd}` }}>
