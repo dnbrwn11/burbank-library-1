@@ -150,18 +150,7 @@ export default function App() {
   }
 
   if (authLoading) {
-    return (
-      <div style={{ minHeight: '100vh', background: '#F9F9F8', display: 'flex', flexDirection: 'column' }}>
-        <div style={{ background: HEADER, height: 56, padding: '0 28px', display: 'flex', alignItems: 'center' }}>
-          <span style={{ color: ACCENT, fontFamily: "'Archivo', sans-serif", fontWeight: 800, fontSize: 18, letterSpacing: 2 }}>
-            COSTDECK
-          </span>
-        </div>
-        <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: "'Figtree', sans-serif", color: '#aaa', fontSize: 14 }}>
-          Loading…
-        </div>
-      </div>
-    );
+    return <AppLoadingScreen />;
   }
 
   // Bid submission screen — public, no auth required
@@ -265,6 +254,44 @@ if (typeof document !== 'undefined' && !document.getElementById('cd-shimmer')) {
     '@keyframes cd-spin{to{transform:rotate(360deg)}}',
   ].join('');
   document.head.appendChild(s);
+}
+
+// ── App loading screen — shown while auth session resolves ──────────────────
+// Uses CSS shimmer bars instead of text so there's no visible "Loading..." label.
+// The useAuth hook enforces a 5-second timeout, so this screen can never hang.
+function AppLoadingScreen() {
+  return (
+    <div style={{ minHeight: '100vh', background: '#F9F9F8', display: 'flex', flexDirection: 'column' }}>
+      {/* Header bar */}
+      <div style={{ background: HEADER, height: 56, padding: '0 28px', display: 'flex', alignItems: 'center', flexShrink: 0 }}>
+        <span style={{ color: ACCENT, fontFamily: "'Archivo', sans-serif", fontWeight: 800, fontSize: 18, letterSpacing: 2 }}>
+          COSTDECK
+        </span>
+      </div>
+      {/* Skeleton content — visually resembles the projects dashboard */}
+      <div style={{ flex: 1, maxWidth: 880, width: '100%', margin: '44px auto 0', padding: '0 24px' }}>
+        <div style={{ height: 32, width: 200, borderRadius: 6, marginBottom: 24,
+          background: 'linear-gradient(90deg,#ebebea 25%,#e1e1de 50%,#ebebea 75%)',
+          backgroundSize: '400% 100%', animation: 'cd-shimmer 1.5s ease-in-out infinite' }} />
+        {[1, 2, 3].map(n => (
+          <div key={n} style={{
+            background: '#fff', border: '1px solid #E5E5E2', borderRadius: 10,
+            padding: '18px 22px', marginBottom: 10,
+            display: 'flex', alignItems: 'center', gap: 16,
+          }}>
+            <div style={{ flex: 1 }}>
+              <div style={{ height: 14, width: `${[55, 40, 65][n-1]}%`, borderRadius: 5, marginBottom: 10,
+                background: 'linear-gradient(90deg,#ebebea 25%,#e1e1de 50%,#ebebea 75%)',
+                backgroundSize: '400% 100%', animation: 'cd-shimmer 1.5s ease-in-out infinite' }} />
+              <div style={{ height: 11, width: `${[30, 22, 38][n-1]}%`, borderRadius: 4,
+                background: 'linear-gradient(90deg,#ebebea 25%,#e1e1de 50%,#ebebea 75%)',
+                backgroundSize: '400% 100%', animation: 'cd-shimmer 1.5s ease-in-out infinite' }} />
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
 }
 
 function SkeletonBar({ width = '100%', height = 12, mb = 0, radius = 4 }) {
