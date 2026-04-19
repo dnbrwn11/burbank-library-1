@@ -5,6 +5,8 @@ import { COLORS, FONTS } from '../data/constants';
 import { fmt, fK, psf } from '../utils/format';
 import { supabase } from '../supabase/supabaseClient';
 import AllowancesPanel from './AllowancesPanel';
+import ProjectSummaryCard from './ProjectSummaryCard';
+import QuickStatsRow from './QuickStatsRow';
 
 const INDIRECT_CATEGORIES = new Set([
   'General Conditions', 'Overhead & Fee', 'Contingency',
@@ -13,7 +15,7 @@ const INDIRECT_CATEGORIES = new Set([
 
 // ── Dashboard ─────────────────────────────────────────────────────────────────
 
-export function Dashboard({ totals, catGroups, activeItems, bsf, globals, teamMembers = [], project, active, user, canEdit }) {
+export function Dashboard({ totals, catGroups, activeItems, bsf, globals, teamMembers = [], project, active, user, canEdit, updateGlobal, onProjectUpdate, onManageTeam }) {
   const { mob, tab } = useWindowSize();
   const [costView, setCostView] = useState('total'); // 'total' | 'direct'
   const [alternates, setAlternates] = useState([]);
@@ -135,7 +137,26 @@ export function Dashboard({ totals, catGroups, activeItems, bsf, globals, teamMe
   }, [activeItems, teamMembers]);
 
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: gc, gap: mob ? 10 : 14, fontFamily: FONTS.body }}>
+    <div style={{ fontFamily: FONTS.body }}>
+
+      {/* Project Summary Card */}
+      {project && (
+        <ProjectSummaryCard
+          project={project}
+          active={active}
+          globals={globals}
+          updateGlobal={updateGlobal}
+          teamMembers={teamMembers}
+          canEdit={canEdit}
+          onUpdate={onProjectUpdate}
+          onManageTeam={onManageTeam}
+        />
+      )}
+
+      {/* Quick stats row */}
+      <QuickStatsRow activeItems={activeItems} />
+
+    <div style={{ display: 'grid', gridTemplateColumns: gc, gap: mob ? 10 : 14 }}>
 
       {/* Toggle */}
       <div style={{ gridColumn: '1/-1', display: 'flex', alignItems: 'center', justifyContent: 'flex-end' }}>
@@ -394,6 +415,7 @@ export function Dashboard({ totals, catGroups, activeItems, bsf, globals, teamMe
         </div>
       )}
 
+    </div>
     </div>
   );
 }

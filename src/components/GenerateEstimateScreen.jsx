@@ -190,7 +190,7 @@ export default function GenerateEstimateScreen({ project, user, onSave, onGoHome
   );
 
   // ── Save generated items to the baseline scenario ──────────────────────────
-  const saveGeneratedItems = async (items, globals) => {
+  const saveGeneratedItems = async (items, globals, ai_assumptions) => {
     const { data: scenarios } = await getScenarios(project.id);
     const baseline = scenarios?.find(s => s.is_baseline) || scenarios?.[0];
     if (!baseline) throw new Error('No baseline scenario found');
@@ -201,9 +201,16 @@ export default function GenerateEstimateScreen({ project, user, onSave, onGoHome
       sort_order: idx,
     }));
     if (stamped.length) await createLineItems(baseline.id, stamped);
+    const scenarioUpdates = {};
     if (globals && typeof globals === 'object') {
       const mergedGlobals = { ...(baseline.globals || {}), ...globals };
-      await updateScenario(baseline.id, { globals: mergedGlobals });
+      scenarioUpdates.globals = mergedGlobals;
+    }
+    if (Array.isArray(ai_assumptions) && ai_assumptions.length) {
+      scenarioUpdates.ai_assumptions = ai_assumptions;
+    }
+    if (Object.keys(scenarioUpdates).length) {
+      await updateScenario(baseline.id, scenarioUpdates);
     }
   };
 
@@ -232,8 +239,8 @@ export default function GenerateEstimateScreen({ project, user, onSave, onGoHome
     };
 
     try {
-      const { items, globals } = await generate(fullDescription, projectCtx);
-      await saveGeneratedItems(items, globals);
+      const { items, globals, ai_assumptions } = await generate(fullDescription, projectCtx);
+      await saveGeneratedItems(items, globals, ai_assumptions);
       onSave?.();
     } catch (err) {
       if (err.name === 'AbortError') return;
@@ -265,8 +272,8 @@ export default function GenerateEstimateScreen({ project, user, onSave, onGoHome
     };
 
     try {
-      const { items, globals } = await generate(fullDescription, projectCtx);
-      await saveGeneratedItems(items, globals);
+      const { items, globals, ai_assumptions } = await generate(fullDescription, projectCtx);
+      await saveGeneratedItems(items, globals, ai_assumptions);
       onSave?.();
     } catch (err) {
       if (err.name === 'AbortError') return;

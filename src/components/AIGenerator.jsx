@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { getScenarios, createLineItems, updateGlobals as saveGlobals } from '../supabase/db';
+import { getScenarios, createLineItems, updateGlobals as saveGlobals, updateScenario } from '../supabase/db';
 import { useGenerateEstimate } from '../../lib/useGenerateEstimate';
 import GenerationProgress from './GenerationProgress';
 import { useWindowSize } from '../hooks/useWindowSize';
@@ -260,6 +260,10 @@ export default function AIGenerator({ project, user, onSave, onSkip, onGoHome, o
 
       const { error: glErr } = await withTimeout(saveGlobals(baseline.id, generatedData.globals), 10_000);
       if (glErr) throw new Error(glErr.message);
+
+      if (Array.isArray(generatedData.ai_assumptions) && generatedData.ai_assumptions.length) {
+        await withTimeout(updateScenario(baseline.id, { ai_assumptions: generatedData.ai_assumptions }), 5_000);
+      }
 
       onSave();
     } catch (err) {

@@ -233,6 +233,7 @@ export default function App() {
       project={activeProject}
       onBack={() => setActiveProject(null)}
       onSignOut={handleSignOut}
+      onProjectUpdate={(updates) => setActiveProject(p => ({ ...p, ...updates }))}
     />
   );
 }
@@ -568,7 +569,7 @@ function InviteAcceptScreen({ inviteData, user, inviteStatus, inviteError, onSig
 
 // ─── Cost model app ──────────────────────────────────────────────────────────
 
-function CostModelApp({ user, project, onBack, onSignOut }) {
+function CostModelApp({ user, project, onBack, onSignOut, onProjectUpdate }) {
   const { mob } = useWindowSize();
   const {
     scenarios, active, activeId, setActiveId,
@@ -948,7 +949,7 @@ function CostModelApp({ user, project, onBack, onSignOut }) {
 
       {/* Content */}
       <div style={{ padding: mob ? 12 : 18 }}>
-        {view === 'dashboard' && <Dashboard {...viewProps} project={project} active={active} />}
+        {view === 'dashboard' && <Dashboard {...viewProps} project={project} active={active} onProjectUpdate={onProjectUpdate} onManageTeam={() => setShowTeamPanel(true)} />}
         {view === 'estimate' && <CostModel {...viewProps} registerUndo={(fn) => { undoFnRef.current = fn; }} />}
         {view === 'compare' && <Compare {...viewProps} addScenario={addScenario} />}
         {view === 'assumptions' && <Assumptions {...viewProps} scenarioName={active.name} />}

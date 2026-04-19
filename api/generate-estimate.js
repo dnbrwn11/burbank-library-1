@@ -273,6 +273,33 @@ export default async function handler(req, res) {
     }
   }
 
-  send({ type: 'done', totalItems: globalSortOrder, globals: inferGlobals(project) });
+  // ── Generate AI assumptions (quick Haiku call after all batches) ─────────
+  let ai_assumptions = [];
+  try {
+    const assumptionsPrompt = `You are a senior construction estimator. List 6-8 key assumptions made when generating this estimate.
+
+Project: ${project?.name || 'Unnamed'}, ${project?.city || ''}, ${project?.state || ''}
+Building type: ${project?.building_type || 'Not specified'}
+Scope: ${project?.scope || 'New Construction'}
+Gross SF: ${project?.gross_sf ? Number(project.gross_sf).toLocaleString() + ' SF' : 'Not specified'}
+Labor type: ${project?.labor_type || 'Not specified'}
+
+Return ONLY a JSON array of concise assumption strings (max 12 words each). No markdown, no backticks:
+["assumption 1", "assumption 2", ...]`;
+
+    const assumptionsMsg = await client.messages.create({
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 300,
+      messages: [{ role: 'user', content: assumptionsPrompt }],
+    });
+    const raw = assumptionsMsg.content.filter(b => b.type === 'text').map(b => b.text).join('').trim();
+    const cleaned = raw.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
+    const parsed = JSON.parse(cleaned);
+    if (Array.isArray(parsed)) ai_assumptions = parsed.filter(s => typeof s === 'string');
+  } catch (err) {
+    console.error('[generate-estimate] assumptions error:', err.message);
+  }
+
+  send({ type: 'done', totalItems: globalSortOrder, globals: inferGlobals(project), ai_assumptions });
   res.end();
 }
