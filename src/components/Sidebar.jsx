@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import {
   LayoutDashboard, Table, Layers, ShieldCheck, Search, Users,
   TrendingDown, ListChecks, UserPlus, ClipboardCheck, FileText,
-  Settings, HelpCircle, ChevronsLeft, ChevronsRight, ChevronDown,
+  Settings, CircleHelp as HelpCircle, ChevronsLeft, ChevronsRight, ChevronDown,
   LogOut, CreditCard, User as UserIcon, X,
 } from 'lucide-react';
 
