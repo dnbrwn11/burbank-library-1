@@ -25,6 +25,8 @@ import TeamPanel, { Avatar, initials } from './components/TeamPanel';
 import BiddingPanel from './components/BiddingPanel';
 import BidSubmitScreen from './components/BidSubmitScreen';
 import { TradesPanel } from './components/TradesPanel';
+import ScopeNotes from './components/ScopeNotes';
+import AlternatesPanel from './components/AlternatesPanel';
 import { supabase } from './supabase/supabaseClient';
 import { getProjectMembers, getProjectMemberRole } from './supabase/db';
 import { analytics, initCrisp, identifyUser, identifyCrispUser, resetAnalyticsUser } from './analytics';
@@ -709,6 +711,8 @@ function CostModelApp({ user, project, onBack, onSignOut }) {
     ['assumptions', 'ASSUMPTIONS'],
     ['audit', 'AUDIT'],
     ['trades', 'TRADES'],
+    ['scope', 'SCOPE'],
+    ['alternates', 'ALTERNATES'],
     ['bidding', 'BIDDING'],
   ];
 
@@ -944,7 +948,7 @@ function CostModelApp({ user, project, onBack, onSignOut }) {
 
       {/* Content */}
       <div style={{ padding: mob ? 12 : 18 }}>
-        {view === 'dashboard' && <Dashboard {...viewProps} />}
+        {view === 'dashboard' && <Dashboard {...viewProps} project={project} active={active} />}
         {view === 'estimate' && <CostModel {...viewProps} registerUndo={(fn) => { undoFnRef.current = fn; }} />}
         {view === 'compare' && <Compare {...viewProps} addScenario={addScenario} />}
         {view === 'assumptions' && <Assumptions {...viewProps} scenarioName={active.name} />}
@@ -955,6 +959,8 @@ function CostModelApp({ user, project, onBack, onSignOut }) {
           </>
         )}
         {view === 'trades' && <TradesPanel items={items} globals={globals} bsf={bsf} updateItem={updateItem} project={project} canEdit={canEdit} active={active} />}
+        {view === 'scope' && <ScopeNotes project={project} active={active} canEdit={canEdit} />}
+        {view === 'alternates' && <AlternatesPanel project={project} active={active} items={activeItems} canEdit={canEdit} />}
         {view === 'bidding' && <BiddingPanel {...viewProps} project={project} user={user} mob={mob} />}
       </div>
 

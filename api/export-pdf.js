@@ -528,6 +528,127 @@ function buildAssumptions(doc, items, project, globals) {
   }
 }
 
+function buildScopeNotes(doc, estimateNotes) {
+  let y = sectionTitle(doc, CT, 'Exclusions, Qualifications & Clarifications');
+  y += 4;
+
+  const sections = [
+    { type: 'exclusion',     label: 'Exclusions' },
+    { type: 'qualification', label: 'Qualifications' },
+    { type: 'clarification', label: 'Clarifications' },
+  ];
+
+  for (const sec of sections) {
+    const items = estimateNotes
+      .filter(n => n.type === sec.type)
+      .sort((a, b) => a.sort_order - b.sort_order);
+    if (!items.length) continue;
+
+    if (y + 30 > CB) { y = addPage(doc); y += 4; }
+    doc.fillColor(GRAPHITE).font('Helvetica-Bold').fontSize(9).text(sec.label.toUpperCase(), ML, y);
+    y += 12;
+    doc.rect(ML, y, CW, 1).fill('#E0E0DA');
+    y += 8;
+
+    items.forEach((note, idx) => {
+      const text = note.text || '';
+      const lineH = 11;
+      const estimatedLines = Math.max(1, Math.ceil(text.length / 90));
+      const rowH = estimatedLines * lineH + 8;
+      if (y + rowH > CB) { y = addPage(doc); }
+
+      doc.fillColor(TEXT).font('Helvetica-Bold').fontSize(8)
+         .text(`${idx + 1}.`, ML, y, { width: 16, lineBreak: false });
+      doc.fillColor(TEXT).font('Helvetica').fontSize(8)
+         .text(text, ML + 18, y, { width: CW - 18, lineBreak: true });
+      y += rowH;
+    });
+    y += 8;
+  }
+}
+
+function buildAlternates(doc, alternates, alternateItems) {
+  let y = sectionTitle(doc, CT, 'Alternates');
+  y += 4;
+
+  if (!alternates.length) {
+    doc.fillColor(MUTED).font('Helvetica').fontSize(9).text('No alternates defined.', ML, y);
+    return;
+  }
+
+  // Summary table
+  const cols = [
+    { key: 'num',    label: '#',           width: 28,  align: 'center' },
+    { key: 'title',  label: 'Title',        width: 220, align: 'left' },
+    { key: 'type',   label: 'Type',         width: 90,  align: 'left' },
+    { key: 'status', label: 'Status',       width: 80,  align: 'left' },
+    { key: 'net',    label: 'Net Adj.',     width: 80,  align: 'right' },
+    { key: 'total',  label: 'W/ Alternate', width: 34,  align: 'right' },
+  ];
+
+  const itemsByAlt = {};
+  alternateItems.forEach(ai => {
+    if (!itemsByAlt[ai.alternate_id]) itemsByAlt[ai.alternate_id] = [];
+    itemsByAlt[ai.alternate_id].push(ai);
+  });
+
+  const rows = alternates.map(a => {
+    const items = itemsByAlt[a.id] || [];
+    const net = items.reduce((s, i) => {
+      const t = (Number(i.quantity) || 0) * (Number(i.unit_cost_adjustment) || 0);
+      return s + (i.adjustment_type === 'deduct' ? -t : t);
+    }, 0);
+    return {
+      num:    a.number,
+      title:  short(a.title, 38),
+      type:   a.type === 'deduct' ? 'Deduct' : 'Add',
+      status: a.status === 'priced' ? 'Priced' : a.status === 'accepted' ? 'Accepted' : 'Rejected',
+      net:    (net >= 0 ? '+' : '') + $c(net),
+      total:  '',
+      _net:   net,
+    };
+  });
+
+  y = drawTable(doc, ML, y, cols.slice(0, 5), rows);
+  y += 16;
+
+  // Detail per alternate
+  for (const a of alternates) {
+    const items = itemsByAlt[a.id] || [];
+    if (!items.length) continue;
+
+    if (y + 40 > CB) { y = addPage(doc); }
+
+    doc.fillColor(GRAPHITE).font('Helvetica-Bold').fontSize(8.5)
+       .text(`Alt #${a.number} — ${short(a.title, 55)}`, ML, y);
+    if (a.description) {
+      y += 12;
+      doc.fillColor(MUTED).font('Helvetica').fontSize(8)
+         .text(a.description, ML + 8, y, { width: CW - 8, lineBreak: true });
+      y += Math.ceil(a.description.length / 85) * 10 + 2;
+    } else {
+      y += 12;
+    }
+
+    const detailCols = [
+      { key: 'desc',   label: 'Description',   width: 260, align: 'left' },
+      { key: 'qty',    label: 'Qty',            width: 60,  align: 'right' },
+      { key: 'unit',   label: 'Unit Cost Adj.', width: 90,  align: 'right' },
+      { key: 'adjt',   label: 'Type',           width: 60,  align: 'center' },
+      { key: 'total',  label: 'Total',          width: 62,  align: 'right' },
+    ];
+    const detailRows = items.map(i => ({
+      desc:  short(i.description || '', 44),
+      qty:   (Number(i.quantity) || 0).toLocaleString(),
+      unit:  $c(Number(i.unit_cost_adjustment) || 0),
+      adjt:  i.adjustment_type === 'deduct' ? 'Deduct' : i.adjustment_type === 'replace' ? 'Replace' : 'Add',
+      total: (Number(i.total_adjustment) || 0) >= 0 ? `+${$c(Math.abs(i.total_adjustment))}` : $c(i.total_adjustment),
+    }));
+    y = drawTable(doc, ML, y, detailCols, detailRows, { rowH: 15, hdrH: 17, fs: 7 });
+    y += 12;
+  }
+}
+
 function buildAllowanceSummary(doc, allowanceItems, drawsMap) {
   let y = sectionTitle(doc, CT, 'Allowance Tracking Summary');
   y += 4;
@@ -645,6 +766,41 @@ export default async function handler(req, res) {
       }
     }
 
+    // Scope notes (estimate_notes table may not exist — handle gracefully)
+    let estimateNotes = [];
+    try {
+      const { data: notesRows } = await supabase
+        .from('estimate_notes')
+        .select('*')
+        .eq('project_id', projectId)
+        .eq('scenario_id', scenarioId)
+        .order('type')
+        .order('sort_order', { ascending: true });
+      if (notesRows) estimateNotes = notesRows;
+    } catch (_) {}
+
+    // Alternates (table may not exist — handle gracefully)
+    let alternates = [], alternateItems = [];
+    try {
+      const { data: altRows } = await supabase
+        .from('alternates')
+        .select('*')
+        .eq('project_id', projectId)
+        .eq('scenario_id', scenarioId)
+        .order('number', { ascending: true });
+      if (altRows) {
+        alternates = altRows;
+        if (altRows.length) {
+          const altIds = altRows.map(a => a.id);
+          const { data: aiRows } = await supabase
+            .from('alternate_items')
+            .select('*')
+            .in('alternate_id', altIds);
+          if (aiRows) alternateItems = aiRows;
+        }
+      }
+    } catch (_) {}
+
     console.log('[export-pdf] Building PDF:', items.length, 'items');
 
     const totals = computeTotals(activeItems, globals);
@@ -698,6 +854,18 @@ export default async function handler(req, res) {
     if (allowanceItems.length) {
       addPage(doc);
       buildAllowanceSummary(doc, allowanceItems, drawsMap);
+    }
+
+    // Scope notes — only when notes exist
+    if (estimateNotes.length) {
+      addPage(doc);
+      buildScopeNotes(doc, estimateNotes);
+    }
+
+    // Alternates — only when alternates exist
+    if (alternates.length) {
+      addPage(doc);
+      buildAlternates(doc, alternates, alternateItems);
     }
 
     doc.end();

@@ -1,8 +1,9 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useWindowSize } from '../hooks/useWindowSize';
 import * as CE from '../engine/CostEngine';
 import { COLORS, FONTS } from '../data/constants';
 import { fmt, fK, psf } from '../utils/format';
+import { supabase } from '../supabase/supabaseClient';
 
 const INDIRECT_CATEGORIES = new Set([
   'General Conditions', 'Overhead & Fee', 'Contingency',
@@ -11,9 +12,11 @@ const INDIRECT_CATEGORIES = new Set([
 
 // ── Dashboard ─────────────────────────────────────────────────────────────────
 
-export function Dashboard({ totals, catGroups, activeItems, bsf, globals, teamMembers = [] }) {
+export function Dashboard({ totals, catGroups, activeItems, bsf, globals, teamMembers = [], project, active }) {
   const { mob, tab } = useWindowSize();
   const [costView, setCostView] = useState('total'); // 'total' | 'direct'
+  const [alternates, setAlternates] = useState([]);
+  const [checkedAlts, setCheckedAlts] = useState({});
 
   const isDirect = costView === 'direct';
 
@@ -73,6 +76,39 @@ export function Dashboard({ totals, catGroups, activeItems, bsf, globals, teamMe
     }
     return w;
   }, [activeItems, totals, globals, bsf]);
+
+  // ── Alternates ───────────────────────────────────────────────────────────────
+  useEffect(() => {
+    if (!project?.id || !active?.id) return;
+    supabase
+      .from('alternates')
+      .select('*, alternate_items(*)')
+      .eq('project_id', project.id)
+      .eq('scenario_id', active.id)
+      .order('number', { ascending: true })
+      .then(({ data }) => {
+        if (data) {
+          setAlternates(data);
+          // Default: all accepted alternates checked
+          const defaults = {};
+          data.forEach(a => { if (a.status === 'accepted') defaults[a.id] = true; });
+          setCheckedAlts(defaults);
+        }
+      })
+      .catch(() => {}); // table may not exist yet
+  }, [project?.id, active?.id]);
+
+  const altNetTotal = useMemo(() => {
+    return alternates
+      .filter(a => checkedAlts[a.id])
+      .reduce((sum, a) => {
+        const net = (a.alternate_items || []).reduce((s, item) => {
+          const t = (item.quantity || 0) * (item.unit_cost_adjustment || 0);
+          return s + (item.adjustment_type === 'deduct' ? -t : t);
+        }, 0);
+        return sum + net;
+      }, 0);
+  }, [alternates, checkedAlts]);
 
   // ── Assignment progress ──────────────────────────────────────────────────────
   const assignmentProgress = useMemo(() => {
@@ -273,6 +309,73 @@ export function Dashboard({ totals, catGroups, activeItems, bsf, globals, teamMe
           </div>
         ))}
       </div>
+
+      {/* Alternates summary */}
+      {alternates.length > 0 && (
+        <div style={{ gridColumn: '1/-1', background: COLORS.sf, border: `1px solid ${COLORS.bd}`, borderRadius: 10, padding: mob ? 12 : 16 }}>
+          <div style={{ fontSize: 11, fontFamily: FONTS.heading, fontWeight: 600, color: COLORS.dg, textTransform: 'uppercase', letterSpacing: 2, marginBottom: 12 }}>
+            Alternates Summary
+          </div>
+
+          {/* Base bid row */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '7px 0', borderBottom: `1px solid ${COLORS.bl}` }}>
+            <div style={{ width: 20, flexShrink: 0 }} />
+            <span style={{ flex: 1, fontSize: 13, fontFamily: FONTS.heading, fontWeight: 600, color: COLORS.dg }}>Base Bid</span>
+            <span style={{ fontSize: 13, fontFamily: FONTS.heading, fontWeight: 600, color: COLORS.dg, fontVariantNumeric: 'tabular-nums' }}>
+              {fmt(totals.full.m.tot)}
+            </span>
+          </div>
+
+          {/* Each alternate */}
+          {alternates.map(a => {
+            const net = (a.alternate_items || []).reduce((s, item) => {
+              const t = (item.quantity || 0) * (item.unit_cost_adjustment || 0);
+              return s + (item.adjustment_type === 'deduct' ? -t : t);
+            }, 0);
+            const checked = !!checkedAlts[a.id];
+            const typeColor = a.type === 'deduct' ? '#991b1b' : '#166534';
+            return (
+              <div key={a.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '7px 0', borderBottom: `1px solid ${COLORS.bl}` }}>
+                <input
+                  type="checkbox"
+                  checked={checked}
+                  onChange={() => setCheckedAlts(prev => ({ ...prev, [a.id]: !prev[a.id] }))}
+                  style={{ width: 15, height: 15, accentColor: '#B89030', cursor: 'pointer', flexShrink: 0 }}
+                />
+                <span style={{ flex: 1, fontSize: 12, fontFamily: FONTS.body, color: COLORS.dg }}>
+                  Alt #{a.number} — {a.title}
+                  <span style={{ marginLeft: 8, fontSize: 10, padding: '1px 6px', borderRadius: 3, background: a.type === 'deduct' ? '#fef2f2' : '#f0fdf4', color: typeColor, fontWeight: 600 }}>
+                    {a.type === 'deduct' ? 'Deduct' : 'Add'}
+                  </span>
+                </span>
+                <span style={{
+                  fontSize: 12, fontFamily: FONTS.heading, fontWeight: 600,
+                  color: checked ? (net >= 0 ? '#166534' : '#991b1b') : '#bbb',
+                  fontVariantNumeric: 'tabular-nums',
+                }}>
+                  {net >= 0 ? '+' : ''}{fmt(net)}
+                </span>
+              </div>
+            );
+          })}
+
+          {/* Adjusted total */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 0 2px', borderTop: `2px solid ${COLORS.bd}`, marginTop: 2 }}>
+            <div style={{ width: 20, flexShrink: 0 }} />
+            <span style={{ flex: 1, fontSize: 14, fontFamily: FONTS.heading, fontWeight: 800, color: COLORS.gn, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+              Adjusted Total
+            </span>
+            <span style={{ fontSize: 14, fontFamily: FONTS.heading, fontWeight: 800, color: COLORS.gn, fontVariantNumeric: 'tabular-nums' }}>
+              {fmt(totals.full.m.tot + altNetTotal)}
+            </span>
+          </div>
+          {Object.values(checkedAlts).some(Boolean) && (
+            <div style={{ textAlign: 'right', fontSize: 11, color: COLORS.mg, fontFamily: FONTS.body, marginTop: 2 }}>
+              {altNetTotal >= 0 ? '+' : ''}{fmt(altNetTotal)} from selected alternates
+            </div>
+          )}
+        </div>
+      )}
 
     </div>
   );

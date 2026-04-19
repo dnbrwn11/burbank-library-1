@@ -89,6 +89,7 @@ const SORT_OPTIONS = [
   { value: 'updated', label: 'Last Updated' },
   { value: 'name', label: 'Name' },
   { value: 'budget', label: 'Budget' },
+  { value: 'created', label: 'Date Created' },
 ];
 
 const FILTER_OPTIONS = [
@@ -239,31 +240,36 @@ export default function ProjectDashboard({ user, org, orgRole, onSignOut, onSele
     return `$${n.toLocaleString()}`;
   };
 
+  const applySort = (list) => {
+    if (sortBy === 'name')    return [...list].sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+    if (sortBy === 'budget')  return [...list].sort((a, b) => (b.target_budget || 0) - (a.target_budget || 0));
+    if (sortBy === 'created') return [...list].sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
+    return [...list].sort((a, b) => new Date(b.updated_at || 0) - new Date(a.updated_at || 0));
+  };
+
+  const applySearch = (list) => {
+    if (!search.trim()) return list;
+    const q = search.trim().toLowerCase();
+    return list.filter(p =>
+      (p.name || '').toLowerCase().includes(q) ||
+      (p.city || '').toLowerCase().includes(q) ||
+      (p.building_type || '').toLowerCase().includes(q)
+    );
+  };
+
   const filteredProjects = useMemo(() => {
-    let list = [...projects];
-
+    // When viewing a specific non-archived status filter, show only that status
     if (filterStatus !== 'all') {
-      list = list.filter(p => (p.status || 'active') === filterStatus);
+      return applySort(applySearch(projects.filter(p => (p.status || 'active') === filterStatus)));
     }
+    // "All" view: exclude archived (they appear in the separate section below)
+    return applySort(applySearch(projects.filter(p => (p.status || 'active') !== 'archived')));
+  }, [projects, filterStatus, sortBy, search]);
 
-    if (search.trim()) {
-      const q = search.trim().toLowerCase();
-      list = list.filter(p =>
-        (p.name || '').toLowerCase().includes(q) ||
-        (p.city || '').toLowerCase().includes(q) ||
-        (p.building_type || '').toLowerCase().includes(q)
-      );
-    }
-
-    if (sortBy === 'name') {
-      list.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
-    } else if (sortBy === 'budget') {
-      list.sort((a, b) => (b.target_budget || 0) - (a.target_budget || 0));
-    } else {
-      list.sort((a, b) => new Date(b.updated_at || 0) - new Date(a.updated_at || 0));
-    }
-
-    return list;
+  // Archived projects always shown in separate section (only when filter is 'all')
+  const archivedProjects = useMemo(() => {
+    if (filterStatus !== 'all') return [];
+    return applySort(applySearch(projects.filter(p => (p.status || 'active') === 'archived')));
   }, [projects, filterStatus, sortBy, search]);
 
   const hasProjects = projects.length > 0;
@@ -547,16 +553,40 @@ export default function ProjectDashboard({ user, org, orgRole, onSignOut, onSele
               </select>
             </div>
 
-            {filteredProjects.length === 0 ? (
+            {filteredProjects.length === 0 && archivedProjects.length === 0 ? (
               <div style={{ textAlign: 'center', padding: '40px 24px', fontFamily: "'Figtree', sans-serif", color: '#aaa', fontSize: 14 }}>
                 No projects match your filter.
               </div>
             ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                {filteredProjects.map(p => (
-                  <ProjectCard
-                    key={p.id}
-                    project={p}
+              <>
+                {filteredProjects.length === 0 && filterStatus === 'all' ? (
+                  <div style={{ textAlign: 'center', padding: '24px', fontFamily: "'Figtree', sans-serif", color: '#aaa', fontSize: 14, background: '#fff', border: '1px solid #e6e6e2', borderRadius: 10 }}>
+                    No active projects match your search.
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                    {filteredProjects.map(p => (
+                      <ProjectCard
+                        key={p.id}
+                        project={p}
+                        onSelect={onSelectProject}
+                        fmtBudget={fmtBudget}
+                        userId={user.id}
+                        onDuplicated={loadProjects}
+                        onStatusChange={handleStatusChange}
+                        onDelete={handleDelete}
+                        editingProject={editingProject}
+                        setEditingProject={setEditingProject}
+                        onRename={handleRename}
+                      />
+                    ))}
+                  </div>
+                )}
+
+                {/* Archived projects section */}
+                {archivedProjects.length > 0 && (
+                  <ArchivedSection
+                    archivedProjects={archivedProjects}
                     onSelect={onSelectProject}
                     fmtBudget={fmtBudget}
                     userId={user.id}
@@ -567,12 +597,44 @@ export default function ProjectDashboard({ user, org, orgRole, onSignOut, onSele
                     setEditingProject={setEditingProject}
                     onRename={handleRename}
                   />
-                ))}
-              </div>
+                )}
+              </>
             )}
           </>
         )}
       </main>
+    </div>
+  );
+}
+
+function ArchivedSection({ archivedProjects, ...cardProps }) {
+  const [expanded, setExpanded] = useState(false);
+  return (
+    <div style={{ marginTop: 24 }}>
+      <button
+        onClick={() => setExpanded(v => !v)}
+        style={{
+          display: 'flex', alignItems: 'center', gap: 8,
+          background: 'none', border: 'none', cursor: 'pointer',
+          padding: '6px 0', marginBottom: expanded ? 10 : 0,
+        }}
+      >
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#999" strokeWidth="2.5"
+          style={{ transform: expanded ? 'rotate(0)' : 'rotate(-90deg)', transition: 'transform 0.15s' }}
+        >
+          <polyline points="6 9 12 15 18 9" />
+        </svg>
+        <span style={{ fontFamily: "'Archivo', sans-serif", fontWeight: 700, fontSize: 12, color: '#aaa', textTransform: 'uppercase', letterSpacing: 1 }}>
+          Archived Projects ({archivedProjects.length})
+        </span>
+      </button>
+      {expanded && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, opacity: 0.75 }}>
+          {archivedProjects.map(p => (
+            <ProjectCard key={p.id} project={p} {...cardProps} />
+          ))}
+        </div>
+      )}
     </div>
   );
 }
