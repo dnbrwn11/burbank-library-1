@@ -28,6 +28,7 @@ import BidSubmitScreen from './components/BidSubmitScreen';
 import { TradesPanel } from './components/TradesPanel';
 import ScopeNotes from './components/ScopeNotes';
 import AlternatesPanel from './components/AlternatesPanel';
+import VELog from './components/VELog';
 import { supabase } from './supabase/supabaseClient';
 import { getProjectMembers, getProjectMemberRole } from './supabase/db';
 import { analytics, initCrisp, identifyUser, identifyCrispUser, resetAnalyticsUser } from './analytics';
@@ -714,6 +715,7 @@ function CostModelApp({ user, project, onBack, onSignOut, onProjectUpdate }) {
     ['trades', 'TRADES'],
     ['scope', 'SCOPE'],
     ['alternates', 'ALTERNATES'],
+    ['ve', 'VE LOG'],
     ['bidding', 'BIDDING'],
   ];
 
@@ -962,6 +964,7 @@ function CostModelApp({ user, project, onBack, onSignOut, onProjectUpdate }) {
         {view === 'trades' && <TradesPanel items={items} globals={globals} bsf={bsf} updateItem={updateItem} project={project} canEdit={canEdit} active={active} />}
         {view === 'scope' && <ScopeNotes project={project} active={active} canEdit={canEdit} />}
         {view === 'alternates' && <AlternatesPanel project={project} active={active} items={activeItems} canEdit={canEdit} />}
+        {view === 've' && <VELog project={project} active={active} items={activeItems} canEdit={canEdit} user={user} scenarios={scenarios} addScenario={addScenario} />}
         {view === 'bidding' && <BiddingPanel {...viewProps} project={project} user={user} mob={mob} />}
       </div>
 

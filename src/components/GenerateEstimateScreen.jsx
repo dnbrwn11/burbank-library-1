@@ -155,8 +155,8 @@ function ProgressOverlay({ progress, onCancel }) {
         <div style={{ fontFamily: "'Archivo', sans-serif", fontWeight: 800, fontSize: 16, color: '#111', marginBottom: 6 }}>
           Generating Estimate
         </div>
-        <div style={{ fontFamily: "'Figtree', sans-serif", fontSize: 13, color: '#888', marginBottom: 18 }}>
-          Batch {Math.min(progress.batch, progress.totalBatches)} of {progress.totalBatches} — {progress.batchName || 'Preparing…'}
+        <div style={{ fontFamily: "'Figtree', sans-serif", fontSize: 13, color: '#888', marginBottom: 18, minHeight: 20 }}>
+          {progress.batchName || (pct === 0 ? 'Planning…' : 'Generating sections in parallel…')}
         </div>
         <div style={{ background: '#f0f0ee', borderRadius: 10, height: 10, overflow: 'hidden', marginBottom: 14 }}>
           <div style={{ background: ACCENT, height: '100%', width: `${pct}%`, transition: 'width 0.3s' }} />
@@ -181,7 +181,8 @@ export default function GenerateEstimateScreen({ project, user, onSave, onGoHome
   const [description, setDescription]   = useState('');
   const [descGrossSf, setDescGrossSf]   = useState('');
   const [error, setError] = useState(null);
-  const { generate, cancel, progress, isGenerating } = useGenerateEstimate();
+  const [partialSuccess, setPartialSuccess] = useState(null); // { itemCount, failedChunks, description, projectCtx }
+  const { generate, retryChunk, cancel, progress, isGenerating, failedChunks } = useGenerateEstimate();
 
   const scopeType = project.scope_type || 'new_construction';
   const autoMatchTemplate = useMemo(
@@ -190,6 +191,7 @@ export default function GenerateEstimateScreen({ project, user, onSave, onGoHome
   );
 
   // ── Save generated items to the baseline scenario ──────────────────────────
+  // Called after each generate/retry; items are pre-sorted by sort_order.
   const saveGeneratedItems = async (items, globals, ai_assumptions) => {
     const { data: scenarios } = await getScenarios(project.id);
     const baseline = scenarios?.find(s => s.is_baseline) || scenarios?.[0];
@@ -238,14 +240,22 @@ export default function GenerateEstimateScreen({ project, user, onSave, onGoHome
       target_budget: project.target_budget,
     };
 
-    try {
-      const { items, globals, ai_assumptions } = await generate(fullDescription, projectCtx);
-      await saveGeneratedItems(items, globals, ai_assumptions);
-      onSave?.();
-    } catch (err) {
-      if (err.name === 'AbortError') return;
-      setError(err.message || 'Generation failed');
-    }
+    const doGenerate = async (desc, ctx) => {
+      try {
+        const { items, globals, ai_assumptions, failedChunks: failed } = await generate(desc, ctx);
+        await saveGeneratedItems(items, globals, ai_assumptions);
+        if (failed?.length) {
+          setPartialSuccess({ itemCount: items.length, failedChunks: failed, description: desc, projectCtx: ctx });
+        } else {
+          onSave?.();
+        }
+      } catch (err) {
+        if (err.name === 'AbortError') return;
+        setError(err.message || 'Generation failed');
+      }
+    };
+
+    doGenerate(fullDescription, projectCtx);
   };
 
   // ── Path 2: plain-English description ──────────────────────────────────────
@@ -272,9 +282,13 @@ export default function GenerateEstimateScreen({ project, user, onSave, onGoHome
     };
 
     try {
-      const { items, globals, ai_assumptions } = await generate(fullDescription, projectCtx);
+      const { items, globals, ai_assumptions, failedChunks: failed } = await generate(fullDescription, projectCtx);
       await saveGeneratedItems(items, globals, ai_assumptions);
-      onSave?.();
+      if (failed?.length) {
+        setPartialSuccess({ itemCount: items.length, failedChunks: failed, description: fullDescription, projectCtx });
+      } else {
+        onSave?.();
+      }
     } catch (err) {
       if (err.name === 'AbortError') return;
       setError(err.message || 'Generation failed');
@@ -472,6 +486,52 @@ export default function GenerateEstimateScreen({ project, user, onSave, onGoHome
       )}
       {isGenerating && (
         <ProgressOverlay progress={progress} onCancel={cancel} />
+      )}
+
+      {/* Partial success — some chunks failed */}
+      {partialSuccess && !isGenerating && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 1100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+          <div style={{ background: '#fff', borderRadius: 14, padding: '28px 28px 24px', maxWidth: 480, width: '100%', boxShadow: '0 12px 60px rgba(0,0,0,.25)' }}>
+            <div style={{ fontFamily: "'Archivo', sans-serif", fontWeight: 800, fontSize: 17, color: '#111', marginBottom: 6 }}>
+              Generation Partially Complete
+            </div>
+            <div style={{ fontFamily: "'Figtree', sans-serif", fontSize: 13, color: '#555', marginBottom: 16, lineHeight: 1.5 }}>
+              Generated {partialSuccess.itemCount} items. {partialSuccess.failedChunks.length} section{partialSuccess.failedChunks.length !== 1 ? 's' : ''} failed and can be retried without re-running the whole estimate.
+            </div>
+            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+              <button
+                onClick={async () => {
+                  for (const chunkIdx of partialSuccess.failedChunks) {
+                    try {
+                      const newItems = await retryChunk(chunkIdx, partialSuccess.description, partialSuccess.projectCtx);
+                      // Save the retried items to the existing baseline scenario
+                      if (newItems?.length) {
+                        const { getScenarios: gs, createLineItems: cli } = await import('../supabase/db');
+                        const { data: scenarios } = await gs(project.id);
+                        const baseline = scenarios?.find(s => s.is_baseline) || scenarios?.[0];
+                        if (baseline) await cli(baseline.id, newItems.map((it, i) => ({ ...it, in_summary: true, is_archived: false })));
+                      }
+                    } catch (e) { console.error('[retry] chunk', chunkIdx, e); }
+                  }
+                  if (failedChunks.length === 0) {
+                    setPartialSuccess(null);
+                    onSave?.();
+                  }
+                }}
+                disabled={isGenerating}
+                style={{ background: ACCENT, color: '#fff', border: 'none', borderRadius: 8, padding: '10px 20px', fontFamily: "'Archivo', sans-serif", fontWeight: 700, fontSize: 13, cursor: isGenerating ? 'not-allowed' : 'pointer' }}
+              >
+                {isGenerating ? 'Retrying…' : `↺ Retry Failed Section${partialSuccess.failedChunks.length !== 1 ? 's' : ''}`}
+              </button>
+              <button
+                onClick={() => { setPartialSuccess(null); onSave?.(); }}
+                style={{ background: 'none', border: '1px solid #ddd', borderRadius: 8, padding: '10px 18px', fontFamily: "'Figtree', sans-serif", fontSize: 13, color: '#555', cursor: 'pointer' }}
+              >
+                Continue with partial results
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

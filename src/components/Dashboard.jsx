@@ -7,6 +7,7 @@ import { supabase } from '../supabase/supabaseClient';
 import AllowancesPanel from './AllowancesPanel';
 import ProjectSummaryCard from './ProjectSummaryCard';
 import QuickStatsRow from './QuickStatsRow';
+import BudgetTracker from './BudgetTracker';
 
 const INDIRECT_CATEGORIES = new Set([
   'General Conditions', 'Overhead & Fee', 'Contingency',
@@ -413,6 +414,16 @@ export function Dashboard({ totals, catGroups, activeItems, bsf, globals, teamMe
             </div>
           )}
         </div>
+      )}
+
+      {/* Budget Tracker */}
+      {project && (
+        <BudgetTracker
+          project={project}
+          totals={totals}
+          canEdit={canEdit}
+          user={user}
+        />
       )}
 
     </div>
